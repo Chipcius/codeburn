@@ -286,8 +286,8 @@ function RangeMeta({ rangeA, rangeB }: { rangeA: DateRange; rangeB: DateRange })
     <p className="pcmp-meta" role="status">
       A spans {daysA} {daysA === 1 ? 'day' : 'days'} · B spans {daysB} {daysB === 1 ? 'day' : 'days'}
       {delta !== 0 && <> · duration differs by {delta > 0 ? '+' : ''}{delta} {Math.abs(delta) === 1 ? 'day' : 'days'}</>}
-      {overlap > 0 && <> · the ranges overlap on {overlap} {overlap === 1 ? 'day' : 'days'} — overlapping days count in BOTH sides</>}
-      · all differences are B − A
+      {overlap > 0 && <> · the ranges overlap on {overlap} {overlap === 1 ? 'day' : 'days'}, which count in both sides</>}
+      {' '}· all differences are B − A
     </p>
   )
 }
@@ -320,8 +320,8 @@ function TotalsCard({ report }: { report: PeriodDiffReport }) {
       <div className="cmp-head"><h3>Totals</h3><span className="cmp-head-note">B − A · API-equivalent cost is not a subscription bill</span></div>
       {(carriedA > 0 || carriedB > 0) && (
         <p className="pcmp-caption">
-          Session detail only. A further {formatUsd(carriedA)} (A) and {formatUsd(carriedB)} (B) of daily history
-          has no session detail behind it and is NOT in these totals — see Coverage &amp; basis.
+          Session detail only. A further {formatUsd(carriedA)} (A) and {formatUsd(carriedB)} (B) comes from daily
+          history with no sessions behind it, so it is not in these totals. See Coverage and basis.
         </p>
       )}
       <div className="pcmp-table" role="table" aria-label="Totals difference">
@@ -397,7 +397,7 @@ function NormalizedCard({ report }: { report: PeriodDiffReport }) {
   )
   return (
     <div className="panel cmp-card">
-      <div className="cmp-head"><h3>Normalized</h3><span className="cmp-head-note">— means the denominator is zero or unknown, not zero</span></div>
+      <div className="cmp-head"><h3>Normalized</h3><span className="cmp-head-note">A dash means the denominator is zero or unknown.</span></div>
       <div className="pcmp-table" role="table" aria-label="Normalized difference">
         <div className="pcmp-tr pcmp-th" role="row">
           <span role="columnheader">View</span><span role="columnheader">A</span><span role="columnheader">B</span><span role="columnheader">Diff</span><span role="columnheader">%</span>
@@ -459,10 +459,10 @@ function LensCard({
         </div>
       </div>
       {view === 'perDay' && (
-        <p className="pcmp-caption">Each side's cost divided by its own calendar days (A: {report.rangeA.days}, B: {report.rangeB.days}) — differences and percentages compare these daily averages.</p>
+        <p className="pcmp-caption">Each side's cost divided by its own calendar days (A: {report.rangeA.days}, B: {report.rangeB.days}). Differences and percentages compare these daily averages.</p>
       )}
       {view === 'per100Calls' && (
-        <p className="pcmp-caption">Each side's cost per 100 of its OWN API calls — efficiency, not scale. A side with zero calls has no cost per call: shown as —.</p>
+        <p className="pcmp-caption">Each side's cost per 100 of its own API calls. This is efficiency, not scale. A side with no calls has no cost per call, so it shows a dash.</p>
       )}
       <div className="pcmp-table" role="table" aria-label={`${lens} contributions`}>
         <div className="pcmp-tr pcmp-th" role="row">
@@ -498,7 +498,7 @@ function LensCard({
         })}
       </div>
       {report.rangeA.days !== report.rangeB.days && (
-        <p className="pcmp-caption">Different range lengths — per-day rows compare daily averages, not totals.</p>
+        <p className="pcmp-caption">The ranges are different lengths, so per-day rows compare daily averages, not totals.</p>
       )}
       {drill && (
         <DrillPanel
@@ -512,7 +512,7 @@ function LensCard({
           onClose={() => onDrill(null)}
         />
       )}
-      <p className="pcmp-caption">Click a row to inspect the sessions behind it. The project and model lenses describe the SAME global difference from two perspectives — never add them together.</p>
+      <p className="pcmp-caption">Click a row to see its sessions. Projects and models split the same difference two ways. Do not add them together.</p>
     </div>
   )
 }
@@ -582,9 +582,14 @@ function DrillPanel({
           </div>
         ))}
       </div>
-      <p className="pcmp-caption">A session active on both sides of the boundary appears once with its in-range cost on each side — attribution follows each call's own timestamp.</p>
+      <p className="pcmp-caption">A session that runs across both ranges appears once, with its cost in each range. Every call counts in the range its own timestamp falls in.</p>
     </div>
   )
+}
+
+function dayList(days: Array<{ date: string; aggregateOnly: number }>): string {
+  if (days.length === 0) return ''
+  return ` (${days.map(d => `${d.date}: ${formatUsd(d.aggregateOnly)}`).join(', ')})`
 }
 
 function CoverageCard({ report }: { report: PeriodDiffReport }) {
@@ -595,23 +600,22 @@ function CoverageCard({ report }: { report: PeriodDiffReport }) {
     <div className="panel cmp-card">
       <div className="cmp-head"><h3>Coverage &amp; basis</h3></div>
       <ul className="pcmp-coverage">
-        <li>Pricing coverage — A: {report.coverage.pricingCoverageA === null ? 'unknown' : `${Math.round(report.coverage.pricingCoverageA * 100)}%`}, B: {report.coverage.pricingCoverageB === null ? 'unknown' : `${Math.round(report.coverage.pricingCoverageB * 100)}%`}.</li>
+        <li>Share of calls with a known price. A: {report.coverage.pricingCoverageA === null ? 'unknown' : `${Math.round(report.coverage.pricingCoverageA * 100)}%`}, B: {report.coverage.pricingCoverageB === null ? 'unknown' : `${Math.round(report.coverage.pricingCoverageB * 100)}%`}.</li>
         {unpriced.length > 0 && (
           <li>
-            Missing pricing (unknown, not zero):{' '}
+            These models have no price, so their cost is unknown, not zero:{' '}
             {unpriced.map(m => `${m.model} (${m.side}, ${m.calls.toLocaleString('en-US')} calls)`).join('; ')}.
           </li>
         )}
         {carried && carried.days.A.length === 0 && carried.days.B.length === 0 && (
-          <li>{carried.basis} No aggregate-only days in either range.</li>
+          <li>{carried.basis} Every day in both ranges has sessions behind it.</li>
         )}
         {carried && (carried.days.A.length > 0 || carried.days.B.length > 0) && (
           <li>
-            Aggregate history without session detail — A: {formatUsd(carried.aggregateOnly.A)} ({carried.days.A.map(d => `${d.date}: ${formatUsd(d.aggregateOnly)}`).join(', ')}),{' '}
-            B: {formatUsd(carried.aggregateOnly.B)} ({carried.days.B.map(d => `${d.date}: ${formatUsd(d.aggregateOnly)}`).join(', ')}). This cost survives only as daily history; it is reported separately and is NOT in the totals or the lenses.
+            Daily history with no sessions behind it. A: {formatUsd(carried.aggregateOnly.A)}{dayList(carried.days.A)}, B: {formatUsd(carried.aggregateOnly.B)}{dayList(carried.days.B)}. This cost is reported here only, never in the totals above.
           </li>
         )}
-        <li>All differences are deterministic calculations (B − A) over the full population of each range — no sampled top-N, no generated explanation.</li>
+        <li>Every difference is B − A over all usage in each range. Nothing is sampled, guessed or written by a model.</li>
       </ul>
     </div>
   )
