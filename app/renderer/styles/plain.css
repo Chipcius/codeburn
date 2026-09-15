@@ -1265,6 +1265,7 @@ html.page-hidden *::after {
 .session-drawer .stats { grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); }
 .session-drawer .stats .phead b { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .session-drawer .stats .stat .d { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-drawer .stats .stat .v { font-size: var(--fs-kpi); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Drill affordances inside expanded report rows. */
 .spend-proj-drill, .pr-drill { margin-bottom: 8px; }
