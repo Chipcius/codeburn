@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PeriodDiffReport, PeriodSessionDiff } from '../lib/types'
 import { __resetPolledMemo } from '../hooks/usePolled'
-import { PeriodCompare, defaultSevenRanges } from './PeriodCompare'
+import { PeriodCompare, defaultSevenRanges, leadSentence } from './PeriodCompare'
 
 const mocks = vi.hoisted(() => ({
   getPeriodCompare: vi.fn<(a: { from: string; to: string }, b: { from: string; to: string }, provider: string) => Promise<PeriodDiffReport>>(),
@@ -37,6 +37,9 @@ const report: PeriodDiffReport = {
     { key: '/work/eff', costA: 10, costB: 20, diff: 10, pct: 100, status: 'up', callsA: 10, callsB: 1000 },
     { key: '/work/new', costA: 0, costB: 5, diff: 5, pct: null, status: 'new', callsA: 0, callsB: 50 },
     { key: '/work/gone', costA: 30, costB: 0, diff: -30, pct: -100, status: 'gone', callsA: 3, callsB: 0 },
+    { key: '/work/a', costA: 8, costB: 16, diff: 8, pct: 100, status: 'up', callsA: 8, callsB: 16 },
+    { key: '/work/b', costA: 7, costB: 14, diff: 7, pct: 100, status: 'up', callsA: 7, callsB: 14 },
+    { key: '/work/small', costA: 1, costB: 2, diff: 1, pct: 100, status: 'up', callsA: 1, callsB: 2 },
   ],
   models: [
     { key: 'claude-sonnet-4-5', costA: 40, costB: 160, diff: 120, pct: 300, status: 'up', callsA: 10, callsB: 16 },
@@ -45,6 +48,10 @@ const report: PeriodDiffReport = {
     perDay: { a: 100 / 7, b: 160 / 7, diff: 60 / 7, pct: 60 },
     per100Calls: { a: 1000, b: 1000, diff: 0, pct: 0 },
     denominators: { perDay: 'calendar days in the range (A: 7, B: 7)', per100Calls: 'API calls × 100 (A: 10, B: 16)' },
+  },
+  daily: {
+    A: [10, 20, 15, 12, 18, 11, 14].map((cost, i) => ({ date: `2026-03-0${i + 2}`, cost })),
+    B: [30, 20, 25, 22, 28, 21, 14].map((cost, i) => ({ date: `2026-03-${String(i + 9).padStart(2, '0')}`, cost })),
   },
   coverage: {
     unpricedModelsA: [{ model: 'mystery-model', calls: 4 }],
@@ -91,7 +98,7 @@ describe('PeriodCompare', () => {
       projects: [{ key: '/work/eff', costA: 100, costB: 160, diff: 60, pct: 60, status: 'up', callsA: 10, callsB: 10 }] }
     mocks.getPeriodCompare.mockResolvedValue(unequal)
     render(<PeriodCompare provider="all" />)
-    await screen.findByText('Contributions by project')
+    await screen.findByText('What changed, biggest movers')
     await userEvent.setup().click(screen.getByRole('tab', { name: 'Per day' }))
     const row = screen.getByRole('button', { name: /\/work\/eff:.*Down/ })
     expect(row).toHaveTextContent('$100.00')
@@ -120,7 +127,7 @@ describe('PeriodCompare', () => {
 
   it('renders both ranges, the totals difference, and the coverage notes', async () => {
     render(<PeriodCompare provider="all" />)
-    expect(await screen.findByText('Totals')).toBeInTheDocument()
+    expect(await screen.findByText('What changed, biggest movers')).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('A spans 7 days')
     expect(screen.getByLabelText('Totals difference')).toHaveTextContent('API-equivalent cost')
     // The global diff (B − A) is on screen, not just the two columns.
@@ -133,18 +140,20 @@ describe('PeriodCompare', () => {
     expect(screen.getByText(/These models have no price/)).toBeInTheDocument()
   })
 
-  it('labels a zero-A contribution New without a percentage, and Gone for a disappeared one', async () => {
+  it('labels a zero-A contribution new this period, and not used this period for a disappeared one', async () => {
     const user = userEvent.setup()
     render(<PeriodCompare provider="all" />)
-    await screen.findByText('Contributions by project')
-    expect(screen.getByText('New')).toBeInTheDocument()
-    expect(screen.getByText('Gone')).toBeInTheDocument()
+    await screen.findByText('What changed, biggest movers')
+    expect(screen.getByText('new this period')).toBeInTheDocument()
+    expect(screen.getByText('not used this period')).toBeInTheDocument()
     const newKey = screen.getByRole('button', { name: /\/work\/new/ })
-    expect(newKey).toHaveTextContent('New')
+    expect(newKey).toHaveTextContent('new this period')
     expect(newKey).not.toHaveTextContent('%')
-    // Gone carries its −100%.
-    expect(screen.getByRole('button', { name: /\/work\/gone/ })).toHaveTextContent('Gone')
-    expect(screen.getByRole('button', { name: /\/work\/gone/ })).toHaveTextContent('−100%')
+    // A status word replaces the percentage; the signed change still shows it.
+    const goneKey = screen.getByRole('button', { name: /\/work\/gone/ })
+    expect(goneKey).toHaveTextContent('not used this period')
+    expect(goneKey).toHaveTextContent('−$30.00')
+    expect(goneKey).not.toHaveTextContent('%')
 
     // Clicking a contribution opens the session drill-down for it.
     await user.click(screen.getByRole('button', { name: /\/work\/eff/ }))
@@ -168,7 +177,7 @@ describe('PeriodCompare', () => {
   it('per-100-calls view recomputes honestly: cheaper per call is Down, zero calls is —', async () => {
     const user = userEvent.setup()
     render(<PeriodCompare provider="all" />)
-    await screen.findByText('Contributions by project')
+    await screen.findByText('What changed, biggest movers')
     // Raw: /work/eff is Up (+100%).
     expect(screen.getByRole('button', { name: /\/work\/eff/ })).toHaveTextContent('+100%')
     await user.click(screen.getByRole('tab', { name: 'Per 100 calls' }))
@@ -178,15 +187,15 @@ describe('PeriodCompare', () => {
     // Zero calls in A: no cost per call exists — em dash, and still New.
     const fresh = screen.getByRole('button', { name: /\/work\/new/ })
     expect(fresh).toHaveTextContent('—')
-    expect(fresh).toHaveTextContent('New')
+    expect(fresh).toHaveTextContent('new this period')
   })
 
   it('switches to the model lens and drills by model', async () => {
     const user = userEvent.setup()
     render(<PeriodCompare provider="all" />)
-    await screen.findByText('Contributions by project')
-    await user.click(screen.getByRole('tab', { name: 'Models' }))
-    expect(await screen.findByText('Contributions by model')).toBeInTheDocument()
+    await screen.findByText('What changed, biggest movers')
+    await user.click(screen.getByRole('tab', { name: 'By model' }))
+    expect(await screen.findByRole('columnheader', { name: 'Model' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /claude-sonnet-4-5/ }))
     await waitFor(() => expect(mocks.getPeriodCompareSessions).toHaveBeenCalledWith(RANGE_A, RANGE_B, 'all', 'model', 'claude-sonnet-4-5'))
   })
@@ -194,7 +203,7 @@ describe('PeriodCompare', () => {
   it('persists the A/B selection so returning to the section keeps it', async () => {
     const user = userEvent.setup()
     const { unmount } = render(<PeriodCompare provider="all" />)
-    await screen.findByText('Totals')
+    await screen.findByText('What changed, biggest movers')
     await user.click(screen.getByRole('button', { name: 'Swap A and B' }))
     // The swap re-fetches with the ranges exchanged.
     await waitFor(() => expect(mocks.getPeriodCompare).toHaveBeenCalledWith(RANGE_B, RANGE_A, 'all'))
@@ -203,9 +212,82 @@ describe('PeriodCompare', () => {
     // Returning to the section (fresh component, no refetch needed) restores
     // the swapped selection from storage: A shows B's old dates.
     render(<PeriodCompare provider="all" />)
-    await screen.findByText('Totals')
+    await screen.findByText('What changed, biggest movers')
     expect(screen.getByLabelText('A · reference: 2026-03-09 to 2026-03-15')).toBeInTheDocument()
     expect(screen.getByLabelText('B · analyzed: 2026-03-02 to 2026-03-08')).toBeInTheDocument()
+  })
+
+  it('leads with a sentence that names the divergence when sessions move far more than cost per call', async () => {
+    const divergent: PeriodDiffReport = {
+      ...report,
+      totals: {
+        ...report.totals,
+        A: { ...report.totals.A, cost: 2630 },
+        B: { ...report.totals.B, cost: 936 },
+        pct: { ...report.totals.pct, cost: -64.4, sessions: -86.8 },
+      },
+      normalized: { ...report.normalized, per100Calls: { a: 20.73, b: 14.52, diff: -6.21, pct: -30 } },
+    }
+    expect(leadSentence(divergent)).toBe(
+      'The week of Mar 9, 2026 cost 64% less than the week before: $936.00 versus $2,630.00.'
+      + ' Far fewer sessions, but each call was bigger, so cost per call fell only 30%.',
+    )
+    mocks.getPeriodCompare.mockResolvedValue(divergent)
+    render(<PeriodCompare provider="all" />)
+    expect(await screen.findByText(/Far fewer sessions, but each call was bigger/)).toBeInTheDocument()
+  })
+
+  it('leads with both directions when sessions and cost per call move together', () => {
+    const together: PeriodDiffReport = {
+      ...report,
+      totals: { ...report.totals, pct: { ...report.totals.pct, cost: -25, sessions: -10 } },
+      normalized: { ...report.normalized, per100Calls: { a: 1000, b: 800, diff: -200, pct: -20 } },
+    }
+    expect(leadSentence(together)).toBe(
+      'The week of Mar 9, 2026 cost 25% less than the week before: $160.00 versus $100.00. Fewer sessions and cheaper calls.',
+    )
+  })
+
+  it('names the range instead of the week when the ranges are not seven days', () => {
+    const notWeeks: PeriodDiffReport = {
+      ...report,
+      rangeA: { ...report.rangeA, days: 10 },
+      rangeB: { ...report.rangeB, days: 10 },
+      totals: { ...report.totals, pct: { ...report.totals.pct, cost: 60, sessions: 10 } },
+      normalized: { ...report.normalized, per100Calls: { a: 1000, b: 1200, diff: 200, pct: 20 } },
+    }
+    expect(leadSentence(notWeeks)).toBe(
+      'The Mar 9, 2026 to Mar 15, 2026 range cost 60% more than the range before: $160.00 versus $100.00.'
+      + ' More sessions and more expensive calls.',
+    )
+  })
+
+  it('shows the five biggest movers and expands to the full list on request', async () => {
+    const user = userEvent.setup()
+    render(<PeriodCompare provider="all" />)
+    await screen.findByText('What changed, biggest movers')
+    // Six contributions, five shown: the smallest mover is held back.
+    expect(screen.queryByRole('button', { name: /\/work\/small/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /\/work\/gone/ })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Show all 6' }))
+    expect(screen.getByRole('button', { name: /\/work\/small/ })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Show top five' }))
+    expect(screen.queryByRole('button', { name: /\/work\/small/ })).not.toBeInTheDocument()
+  })
+
+  it('folds the full metric tables and the basis notes away by default', async () => {
+    const user = userEvent.setup()
+    render(<PeriodCompare provider="all" />)
+    await screen.findByText('What changed, biggest movers')
+    const allMetrics = screen.getByText('All metrics').closest('details')!
+    expect(allMetrics).not.toHaveAttribute('open')
+    expect(within(allMetrics).getByLabelText('Totals difference')).toHaveTextContent('API-equivalent cost')
+    await user.click(screen.getByText('All metrics'))
+    expect(allMetrics).toHaveAttribute('open')
+
+    const basis = screen.getByText(/What is counted/).closest('details')!
+    expect(basis).not.toHaveAttribute('open')
+    expect(within(basis).getByText(/These models have no price/)).toBeInTheDocument()
   })
 
   it('computes the default preset as the last seven complete days vs the seven before', () => {
