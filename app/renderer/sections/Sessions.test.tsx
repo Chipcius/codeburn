@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { EMPTY_FILTERS } from '../lib/investigation'
-import type { SessionRow } from '../lib/types'
+import type { SessionDrillRow, SessionRow } from '../lib/types'
 import { INITIAL_VISIBLE, sessionRowKey, Sessions } from './Sessions'
 
 const { getSessions, getSessionsContributions } = vi.hoisted(() => ({
@@ -227,7 +227,7 @@ describe('Sessions', () => {
     expect(within(drawer).getByText(/claude · projects\/codeburn/)).toBeInTheDocument()
     expect(within(drawer).getByText(/Jul 11, 2026 → Jul 11, 2026 · 1h 35m/)).toBeInTheDocument()
     expect(container.querySelectorAll('.session-row')).toHaveLength(6)
-    expect(container.querySelector('.drawer-lead')).toHaveTextContent('This session cost $8.41, about 2.8x your usual. Typical shape.')
+    expect(container.querySelector('.drawer-lead')).toHaveTextContent('This session cost $8.41, about 2.8x your usual.')
     for (const label of ['Cost', 'Turns', 'Duration']) {
       expect(within(drawer).getByText(label)).toBeInTheDocument()
     }
@@ -273,10 +273,67 @@ describe('Sessions', () => {
     const { container } = render(<Sessions period="30days" provider="all" openSessionId={sessionRowKey(small[0]!)} />)
     const drawer = await screen.findByRole('dialog', { name: /session details/i })
 
-    expect(container.querySelector('.drawer-lead')).toHaveTextContent('This session cost $8.41. Typical shape.')
+    expect(container.querySelector('.drawer-lead')).toHaveTextContent('This session cost $8.41.')
     expect(within(drawer).getByText('full session')).toBeInTheDocument()
     expect(within(drawer).queryByText(/your median/)).not.toBeInTheDocument()
     expect(within(drawer).getByText('Saved vs baseline: none this session.')).toBeInTheDocument()
+  })
+
+  it('drops a multiple past 100x, floors a tiny one, shows Calls without a duration, and folds nothing for a lone main', async () => {
+    const usual = [0, 1, 2, 3, 4].map(index => session({
+      sessionId: `usual-${index}`, project: 'usual-project', provider: 'claude', cost: 1,
+    }))
+    const subject: SessionDrillRow = {
+      ...session({ sessionId: 'outlier-session', project: 'outlier-project', provider: 'claude', cost: 500, calls: 1, turns: 1, durationMs: 0 }),
+      contributions: { segments: [
+        { day: '2026-09-10', category: 'coding', branch: 'main', models: { 'Opus 4.8': 500 }, prs: [], cost: 500, calls: 1, savingsUSD: 0, inputTokens: 1_000, outputTokens: 100 },
+      ] },
+    }
+    getSessions.mockResolvedValue([subject, ...usual])
+    const { container, rerender } = render(<Sessions period="30days" provider="all" openSessionId={sessionRowKey(subject)} />)
+    const drawer = await screen.findByRole('dialog', { name: /session details/i })
+
+    // 500x the median is no more informative than the dollar figure itself.
+    expect(container.querySelector('.drawer-lead')).toHaveTextContent('This session cost $500.00.')
+    expect(within(drawer).queryByText(/your median/)).not.toBeInTheDocument()
+    expect(within(drawer).getByText('full session')).toBeInTheDocument()
+    expect(within(drawer).getByText('Calls')).toBeInTheDocument()
+    expect(within(drawer).queryByText('Duration')).not.toBeInTheDocument()
+    expect(within(drawer).getByText('1 call')).toBeInTheDocument()
+    expect(container.querySelector('.session-drawer details')).not.toHaveTextContent('Branches and pull requests')
+
+    const tiny = { ...subject, cost: 0.02 }
+    getSessions.mockResolvedValue([tiny, ...usual])
+    rerender(<Sessions period="30days" provider="all" refreshToken={1} openSessionId={sessionRowKey(tiny)} />)
+    await waitFor(() => expect(container.querySelector('.drawer-lead')).toHaveTextContent('about <0.1x your usual'))
+  })
+
+  it('puts the selected figure in the Cost tile and the lead, with the full session as its caption', async () => {
+    const drillRows: SessionDrillRow[] = [
+      {
+        ...session({ sessionId: 'mixed-1', project: 'mixed-project', provider: 'claude', cost: 1.0, calls: 10, turns: 8 }),
+        contributions: { segments: [
+          { day: '2026-09-10', category: 'coding', branch: null, models: { 'Sonnet 4.5': 0.2 }, prs: [], cost: 0.2, calls: 2, savingsUSD: 0, inputTokens: 140_000, outputTokens: 20_000 },
+          { day: '2026-09-10', category: 'debugging', branch: null, models: { 'Sonnet 4.5': 0.8 }, prs: [], cost: 0.8, calls: 8, savingsUSD: 0, inputTokens: 560_000, outputTokens: 80_000 },
+        ] },
+      },
+    ]
+    getSessionsContributions.mockResolvedValue(drillRows)
+    const { container } = render(
+      <Sessions
+        period="30days"
+        provider="all"
+        filters={{ ...EMPTY_FILTERS, categories: ['coding'] }}
+        openSessionId={sessionRowKey(drillRows[0]!)}
+      />,
+    )
+    const drawer = await screen.findByRole('dialog', { name: /session details/i })
+
+    expect(container.querySelector('.drawer-lead')).toHaveTextContent('Your selection of this session cost $0.20.')
+    const cost = container.querySelector('.drawer-tiles .stat')!
+    expect(cost.querySelector('.v')).toHaveTextContent('$0.20')
+    expect(cost.querySelector('.d')).toHaveTextContent('of $1.00 full session')
+    expect(within(drawer).queryByText(/^Selected/)).not.toBeInTheDocument()
   })
 
   it('closes (invalidates) the drawer when the open session leaves the population', async () => {
