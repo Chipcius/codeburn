@@ -32,9 +32,11 @@ tiles: total cost, cost per 100 calls and sessions, each with its absolute and
 relative change.
 
 **Cost per day, both ranges side by side** — paired bars per day index, A in
-grey and B in the accent colour. Day 1 is the first day of each range, so the
-two series line up by index, not by date. The per-day cost comes from the same
-sliced session trees as the totals (`daily.A` / `daily.B` in the JSON).
+the bar color and B in the accent color. Each pair is one day of A beside the
+same-numbered day of B, so the two series line up by index, not by date; the
+axis dates are A's, and hovering a bar names that side's own date and cost. The
+per-day cost comes from the same sliced session trees as the totals (`daily.A`
+/ `daily.B` in the JSON).
 
 **What changed, biggest movers** — the five largest movers, by project or by
 model, with a link to expand to the full list. Everything below lives in the
