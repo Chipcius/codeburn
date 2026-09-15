@@ -211,15 +211,6 @@ export function Sessions({
   const report = investigating ? contributionReport : plainReport
   const rows = (report.data ?? []) as SessionDrillRow[]
 
-  // "Your usual" for the drawer's lead sentence. Under five loaded sessions a
-  // median is noise, so the drawer drops the comparison instead.
-  const medianCost = useMemo(() => {
-    if (rows.length < 5) return undefined
-    const sorted = rows.map(row => row.cost).sort((left, right) => left - right)
-    const mid = sorted.length >> 1
-    return sorted.length % 2 === 1 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2
-  }, [rows])
-
   // Selection math over the full population, memoized on the normalized
   // selection key + the report identity.
   const selection = useMemo(() => applyInvestigation(rows, filters), [rows, filterKey])
@@ -237,6 +228,16 @@ export function Sessions({
       row.models.join(' '),
     ].some(value => value.toLowerCase().includes(q)))
   }, [selection, q])
+
+  // "Your usual" for the drawer's lead sentence: the median over the rows the
+  // list is actually showing. Under five rows a median is noise, so the drawer
+  // drops the comparison instead.
+  const medianCost = useMemo(() => {
+    if (searched.length < 5) return undefined
+    const sorted = searched.map(({ row }) => row.cost).sort((left, right) => left - right)
+    const mid = sorted.length >> 1
+    return sorted.length % 2 === 1 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2
+  }, [searched])
 
   const summary = useMemo(() => {
     if (investigating) {

@@ -22,8 +22,9 @@ import type { SessionDrillRow } from '../lib/types'
 export function SessionDrawer({ row, filters, medianCost, onClose }: {
   row: SessionDrillRow
   filters: InvestigationFilters
-  /** Median cost of the sessions currently loaded in the list. Absent when the
-   *  population is too small for the comparison to mean anything. */
+  /** Median cost of the sessions the list is currently showing (the searched
+   *  and filtered set). Absent when the population is too small for the
+   *  comparison to mean anything. */
   medianCost?: number
   onClose: () => void
 }) {
@@ -61,7 +62,8 @@ export function SessionDrawer({ row, filters, medianCost, onClose }: {
   const cacheTotal = row.inputTokens + row.cacheReadTokens
   const cacheHit = cacheTotal > 0 ? Math.round(row.cacheReadTokens / cacheTotal * 100) : 0
   const median = medianCost !== undefined && medianCost > 0 ? medianCost : null
-  const ratio = median === null ? null : row.cost / median
+  // Past 100x the multiple says nothing the dollar figure has not already said.
+  const ratio = median === null || row.cost / median > 100 ? null : row.cost / median
   const foldLabel = branchPrLabel(breakdown)
 
   return (
@@ -153,7 +155,8 @@ export function SessionDrawer({ row, filters, medianCost, onClose }: {
 }
 
 function formatRatio(ratio: number): string {
-  return String(ratio >= 10 ? Math.round(ratio) : Math.round(ratio * 10) / 10)
+  if (ratio < 0.1) return '<0.1'
+  return (ratio >= 10 ? Math.round(ratio) : Math.round(ratio * 10) / 10).toLocaleString('en-US')
 }
 
 function branchPrLabel(breakdown: { branches: BreakdownRow[]; prs: BreakdownRow[] }): string | null {
