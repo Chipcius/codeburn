@@ -228,13 +228,102 @@ describe('PeriodCompare', () => {
       },
       normalized: { ...report.normalized, per100Calls: { a: 20.73, b: 14.52, diff: -6.21, pct: -30 } },
     }
+    // The clause never asserts a direction it does not measure: cost per call
+    // fell, so the calls got cheaper, whichever way sessions went.
     expect(leadSentence(divergent)).toBe(
       'The week of Mar 9, 2026 cost 64% less than the week before: $936.00 versus $2,630.00.'
-      + ' Far fewer sessions, but each call was bigger, so cost per call fell only 30%.',
+      + ' Far fewer sessions, and cheaper calls: cost per call fell only 30%.',
     )
+    const opposite: PeriodDiffReport = {
+      ...divergent,
+      totals: { ...divergent.totals, pct: { ...divergent.totals.pct, cost: 219, sessions: 636 } },
+      normalized: { ...divergent.normalized, per100Calls: { a: 14.52, b: 19.76, diff: 5.24, pct: 36.11 } },
+    }
+    expect(leadSentence(opposite)).toContain('Far more sessions, and more expensive calls: cost per call rose only 36%.')
     mocks.getPeriodCompare.mockResolvedValue(divergent)
     render(<PeriodCompare provider="all" />)
-    expect(await screen.findByText(/Far fewer sessions, but each call was bigger/)).toBeInTheDocument()
+    expect(await screen.findByText(/Far fewer sessions, and cheaper calls/)).toBeInTheDocument()
+  })
+
+  it('reads a near-flat range as flat rather than "0% less"', () => {
+    const flat: PeriodDiffReport = { ...report, totals: { ...report.totals, pct: { ...report.totals.pct, cost: -0.3 } } }
+    expect(leadSentence(flat)).toContain('cost the same as the week before')
+  })
+
+  it('rounds the tile percentages the way the sentence above them does', async () => {
+    const tiles: PeriodDiffReport = {
+      ...report,
+      totals: {
+        ...report.totals,
+        diff: { ...report.totals.diff, cost: -1694.84, sessions: -1560 },
+        pct: { ...report.totals.pct, cost: -64.4306, sessions: -86.811 },
+      },
+      normalized: { ...report.normalized, per100Calls: { a: 20.73, b: 14.52, diff: -6.21, pct: -29.9706 } },
+    }
+    mocks.getPeriodCompare.mockResolvedValue(tiles)
+    render(<PeriodCompare provider="all" />)
+    await screen.findByText('What changed, biggest movers')
+    const tile = (label: string) => within(document.querySelector('.pcmp-tiles')!).getByText(label).closest('.pcmp-tile')!
+    expect(tile('Total cost')).toHaveTextContent('−64%')
+    expect(tile('Cost per 100 calls')).toHaveTextContent('−30%')
+    // The cost tiles carry the cost color; more sessions is not a bill going up.
+    expect(tile('Total cost').querySelector('.pcmp-tile-change')!.className).toContain('pcmp-down')
+    expect(tile('Sessions').querySelector('.pcmp-tile-change')!.className.trim()).toBe('pcmp-tile-change')
+  })
+
+  it('labels the day axis with real dates on a stride instead of one label per day', async () => {
+    const long = Array.from({ length: 100 }, (_, i) => {
+      const day = new Date(2026, 2, 2)
+      day.setDate(day.getDate() + i)
+      return { date: `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`, cost: 10 + i }
+    })
+    mocks.getPeriodCompare.mockResolvedValue({ ...report, daily: { A: long, B: long.slice(0, 98) } })
+    render(<PeriodCompare provider="all" />)
+    await screen.findByText('Cost per day, both ranges side by side')
+    const axis = document.querySelector('.ov-xax')!
+    expect(axis.children.length).toBeLessThanOrEqual(7)
+    expect(axis.textContent).toContain('Mar 2')
+    expect(axis.textContent).not.toMatch(/\b100\b/)
+  })
+
+  it('names the unit and the shortened range in the movers headers', async () => {
+    const user = userEvent.setup()
+    render(<PeriodCompare provider="all" />)
+    await screen.findByText('What changed, biggest movers')
+    const movers = within(screen.getByLabelText('projects contributions'))
+    expect(movers.getByRole('columnheader', { name: 'Mar 2–8' })).toBeInTheDocument()
+    expect(movers.getByRole('columnheader', { name: '%' })).toBeInTheDocument()
+    // Project keys lose the home-directory prefix but keep the full path in the title.
+    const row = screen.getByRole('button', { name: /\/work\/eff/ })
+    expect(row.querySelector('.pcmp-key')).toHaveTextContent('work/eff')
+    expect(row.querySelector('.pcmp-key')).toHaveAttribute('title', '/work/eff')
+    await user.click(screen.getByRole('tab', { name: 'Per 100 calls' }))
+    expect(movers.getByRole('columnheader', { name: 'Mar 2–8 · per 100 calls' })).toBeInTheDocument()
+  })
+
+  it('writes a negative day delta and an unpriced single call the way the rest of the page does', async () => {
+    // This runner's jsdom has no localStorage, so the selection the meta line
+    // describes has to be stubbed in rather than seeded through storage.
+    const shortB = { from: '2026-03-09', to: '2026-03-13' }
+    const store = new Map<string, string>([['codeburn.periodCompare.v1', JSON.stringify({
+      preset: 'custom', rangeA: RANGE_A, rangeB: shortB, lens: 'projects', view: 'raw',
+    })]])
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => { store.set(key, value) },
+      removeItem: (key: string) => { store.delete(key) },
+      clear: () => store.clear(),
+    })
+    mocks.getPeriodCompare.mockResolvedValue({
+      ...report,
+      rangeB: { ...shortB, days: 5 },
+      coverage: { ...report.coverage, unpricedModelsA: [{ model: 'mystery-model', calls: 1 }] },
+    })
+    render(<PeriodCompare provider="all" />)
+    await screen.findByText('What changed, biggest movers')
+    expect(screen.getByRole('status')).toHaveTextContent('duration differs by −2 days')
+    expect(screen.getByText(/These models have no price/)).toHaveTextContent('mystery-model (A, 1 call)')
+    vi.unstubAllGlobals()
   })
 
   it('leads with both directions when sessions and cost per call move together', () => {
@@ -273,6 +362,10 @@ describe('PeriodCompare', () => {
     expect(screen.getByRole('button', { name: /\/work\/small/ })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Show top five' }))
     expect(screen.queryByRole('button', { name: /\/work\/small/ })).not.toBeInTheDocument()
+    // Changing the view reranks the list, so the expansion resets with it.
+    await user.click(screen.getByRole('button', { name: 'Show all 6' }))
+    await user.click(screen.getByRole('tab', { name: 'Per day' }))
+    expect(screen.getByRole('button', { name: 'Show all 6' })).toBeInTheDocument()
   })
 
   it('folds the full metric tables and the basis notes away by default', async () => {
