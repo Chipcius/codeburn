@@ -1321,7 +1321,7 @@ button.pcmp-row-on { background: rgba(128, 128, 128, 0.18); }
 .pcmp-chart { padding: 8px 14px 0; }
 .pcmp-days { justify-content: space-between; }
 .pcmp-day { flex: 1; min-width: 0; display: flex; justify-content: center; align-items: flex-end; gap: 1px; height: 100%; border: 0; padding: 0; background: none; }
-.pcmp-bar { flex: 0 1 50%; min-width: 0; max-width: 14px; border-radius: 3px 3px 0 0; min-height: 3px; transition: filter .14s ease; }
+.pcmp-bar { flex: 0 1 calc(50% - 0.5px); min-width: 0; max-width: 14px; border-radius: 3px 3px 0 0; min-height: 3px; transition: filter .14s ease; }
 .pcmp-bar-a { background: var(--bar); }
 .pcmp-bar-b { background: var(--accent); }
 .pcmp-day:hover .pcmp-bar { filter: brightness(1.25); }
