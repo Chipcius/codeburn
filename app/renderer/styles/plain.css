@@ -1313,13 +1313,17 @@ button.pcmp-row-on { background: rgba(128, 128, 128, 0.18); }
 
 .pcmp-legend { display: flex; gap: 14px; }
 .pcmp-legend i { display: inline-block; width: 9px; height: 9px; margin-right: 5px; border-radius: 2px; vertical-align: -1px; }
-.pcmp-swatch-a { background: var(--mut2); }
+.pcmp-swatch-a { background: var(--bar); }
 .pcmp-swatch-b { background: var(--accent); }
-.pcmp-days { display: flex; align-items: flex-end; gap: 5px; height: 104px; padding: 14px 14px 0; }
-.pcmp-day { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: stretch; gap: 4px; height: 100%; }
-.pcmp-day-bars { flex: 1; display: flex; align-items: flex-end; gap: 2px; border-bottom: 1px solid var(--line); }
-.pcmp-day-bars > span { flex: 1; border-radius: 2px 2px 0 0; }
-.pcmp-day-n { text-align: center; font-size: 10px; color: var(--mut2); font-variant-numeric: tabular-nums; }
+.pcmp-chart { padding: 8px 14px 0; }
+.pcmp-day { flex: 1; min-width: 0; display: flex; align-items: flex-end; gap: 1px; height: 100%; }
+.pcmp-bar { flex: 1; min-width: 0; border: 0; padding: 0; border-radius: 3px 3px 0 0; min-height: 3px; transition: filter .14s ease; }
+.pcmp-bar-a { background: var(--bar); }
+.pcmp-bar-b { background: var(--accent); }
+.pcmp-bar:hover { filter: brightness(1.25); }
+.pcmp-bar:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
+.pcmp-tile-change.pcmp-up { color: var(--warn, #e08a4e); }
+.pcmp-tile-change.pcmp-down { color: var(--ok, #5aab6e); }
 
 .pcmp-fold { padding: 0; }
 .pcmp-fold > summary { display: flex; align-items: center; gap: 8px; padding: 10px 14px; list-style: none; cursor: pointer; font-size: 11.5px; color: var(--mut); }

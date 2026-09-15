@@ -6,7 +6,8 @@ import { SegTabs } from '../components/SegTabs'
 import { SwitchingBanner } from '../components/SwitchingBanner'
 import { RangeCalendar } from '../components/RangeCalendar'
 import { usePolled } from '../hooks/usePolled'
-import { formatCompact, formatUsd } from '../lib/format'
+import { ChartTip } from '../components/ChartTip'
+import { formatCompact, formatUsd, shortenProjectPath } from '../lib/format'
 import { codeburn } from '../lib/ipc'
 import { reportMemoKey } from '../lib/reportMemoKey'
 import { trackEvent } from '../lib/track'
@@ -67,6 +68,20 @@ function formatDayShort(key: string): string {
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+function formatDayTerse(key: string): string {
+  const [y, m, d] = key.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+/// A column header has no room for two full dates. Drop the year, and the
+/// second month too when both ends share it: "Sep 1–7", "Mar 1–Jun 8".
+function terseRangeLabel(range: PeriodRangeInfo): string {
+  const [, fromMonth] = range.from.split('-')
+  const [, toMonth, toDay] = range.to.split('-')
+  const to = fromMonth === toMonth ? String(Number(toDay)) : formatDayTerse(range.to)
+  return `${formatDayTerse(range.from)}–${to}`
+}
+
 function signedUsd(value: number): string {
   const body = formatUsd(Math.abs(value))
   if (value > 0) return `+${body}`
@@ -76,7 +91,7 @@ function signedUsd(value: number): string {
 
 function signedPct(value: number | null): string {
   if (value === null) return '—'
-  const body = `${Math.abs(value) >= 100 ? Math.round(Math.abs(value)) : Math.abs(value).toFixed(1)}%`
+  const body = `${Math.abs(value) >= 100 ? Math.round(Math.abs(value)).toLocaleString('en-US') : Math.abs(value).toFixed(1)}%`
   return value > 0 ? `+${body}` : value < 0 ? `−${body}` : '0%'
 }
 
@@ -86,7 +101,18 @@ function signedCount(value: number): string {
 }
 
 function wholePct(value: number): string {
-  return `${Math.round(Math.abs(value))}%`
+  return `${Math.round(Math.abs(value)).toLocaleString('en-US')}%`
+}
+
+/// Tiles sit in the same card as the lead sentence and are read in the same
+/// glance, so they round the way the prose does; the tables keep one decimal.
+function signedWholePct(value: number | null): string {
+  if (value === null) return '—'
+  return `${value > 0 ? '+' : value < 0 ? '−' : ''}${wholePct(value)}`
+}
+
+function plural(count: number, one: string, many: string): string {
+  return `${count.toLocaleString('en-US')} ${count === 1 ? one : many}`
 }
 
 function rangeLabel(range: PeriodRangeInfo): string {
@@ -102,11 +128,10 @@ function secondClause(sessionsPct: number | null, per100Pct: number | null): str
   const callsDown = per100Pct < 0
   const together = sessionsDown === callsDown && Math.abs(per100Pct) >= Math.abs(sessionsPct)
   if (Math.abs(sessionsPct) > 30 && per100Pct !== 0 && !together) {
-    const lead = sessionsDown ? 'Far fewer sessions, but each call was bigger' : 'Far more sessions, but each call was smaller'
-    const moved = sessionsDown === callsDown
-      ? `so cost per call ${callsDown ? 'fell' : 'rose'} only ${wholePct(per100Pct)}`
-      : `so cost per call ${callsDown ? 'fell' : 'rose'} ${wholePct(per100Pct)} instead`
-    return `${lead}, ${moved}.`
+    const sessions = sessionsDown ? 'Far fewer sessions' : 'Far more sessions'
+    const calls = callsDown ? 'cheaper' : 'more expensive'
+    const softener = sessionsDown === callsDown ? 'only ' : ''
+    return `${sessions}, and ${calls} calls: cost per call ${callsDown ? 'fell' : 'rose'} ${softener}${wholePct(per100Pct)}.`
   }
   const calls = per100Pct === 0 ? 'the same cost per call' : callsDown ? 'cheaper calls' : 'more expensive calls'
   return `${sessionsDown ? 'Fewer' : 'More'} sessions and ${calls}.`
@@ -122,7 +147,7 @@ export function leadSentence(report: PeriodDiffReport): string {
   const pct = report.totals.pct.cost
   const head = pct === null
     ? `${subject} cost ${costB}, against ${costA} in ${before}.`
-    : pct === 0
+    : Math.abs(pct) < 0.5
       ? `${subject} cost the same as ${before}: ${costB} versus ${costA}.`
       : `${subject} cost ${wholePct(pct)} ${pct < 0 ? 'less' : 'more'} than ${before}: ${costB} versus ${costA}.`
   const tail = secondClause(report.totals.pct.sessions, report.normalized.per100Calls.pct)
@@ -339,7 +364,7 @@ function RangeMeta({ rangeA, rangeB }: { rangeA: DateRange; rangeB: DateRange })
   return (
     <p className="pcmp-meta" role="status">
       A spans {daysA} {daysA === 1 ? 'day' : 'days'} · B spans {daysB} {daysB === 1 ? 'day' : 'days'}
-      {delta !== 0 && <> · duration differs by {delta > 0 ? '+' : ''}{delta} {Math.abs(delta) === 1 ? 'day' : 'days'}</>}
+      {delta !== 0 && <> · duration differs by {delta > 0 ? '+' : '−'}{Math.abs(delta)} {Math.abs(delta) === 1 ? 'day' : 'days'}</>}
       {overlap > 0 && <> · the ranges overlap on {overlap} {overlap === 1 ? 'day' : 'days'}, which count in both sides</>}
       {' '}· all differences are B − A
     </p>
@@ -348,10 +373,12 @@ function RangeMeta({ rangeA, rangeB }: { rangeA: DateRange; rangeB: DateRange })
 
 function SummaryCard({ report }: { report: PeriodDiffReport }) {
   const per100 = report.normalized.per100Calls
+  // Only the two money tiles carry the cost semantics: more sessions is not a
+  // bill going up, so the Sessions tile stays neutral.
   const tiles = [
-    { label: 'Total cost', value: formatUsd(report.totals.B.cost), change: signedUsd(report.totals.diff.cost), sign: report.totals.diff.cost, pct: report.totals.pct.cost },
-    { label: 'Cost per 100 calls', value: per100.b === null ? '—' : formatUsd(per100.b), change: per100.diff === null ? '—' : signedUsd(per100.diff), sign: per100.diff ?? 0, pct: per100.pct },
-    { label: 'Sessions', value: report.totals.B.sessions.toLocaleString('en-US'), change: signedCount(report.totals.diff.sessions), sign: report.totals.diff.sessions, pct: report.totals.pct.sessions },
+    { label: 'Total cost', value: formatUsd(report.totals.B.cost), change: signedUsd(report.totals.diff.cost), tone: diffClass(report.totals.diff.cost, 'cost'), pct: report.totals.pct.cost },
+    { label: 'Cost per 100 calls', value: per100.b === null ? '—' : formatUsd(per100.b), change: per100.diff === null ? '—' : signedUsd(per100.diff), tone: diffClass(per100.diff ?? 0, 'cost'), pct: per100.pct },
+    { label: 'Sessions', value: report.totals.B.sessions.toLocaleString('en-US'), change: signedCount(report.totals.diff.sessions), tone: '', pct: report.totals.pct.sessions },
   ]
   return (
     <div className="panel cmp-card pcmp-summary">
@@ -361,7 +388,7 @@ function SummaryCard({ report }: { report: PeriodDiffReport }) {
           <div className="pcmp-tile" key={tile.label}>
             <span className="pcmp-tile-label">{tile.label}</span>
             <span className="pcmp-tile-value">{tile.value}</span>
-            <span className={`pcmp-tile-change ${diffClass(tile.sign, 'cost')}`}>{tile.change}, {signedPct(tile.pct)}</span>
+            <span className={`pcmp-tile-change ${tile.tone}`}>{tile.change}, {signedWholePct(tile.pct)}</span>
           </div>
         ))}
       </div>
@@ -370,16 +397,36 @@ function SummaryCard({ report }: { report: PeriodDiffReport }) {
 }
 
 function DayBarsCard({ report }: { report: PeriodDiffReport }) {
+  const [tip, setTip] = useState<{ side: 'A' | 'B'; date: string; cost: number; x: number; y: number } | null>(null)
   const daysA = report.daily?.A ?? []
   const daysB = report.daily?.B ?? []
   const span = Math.max(daysA.length, daysB.length)
   if (span === 0) return null
   const max = Math.max(0, ...daysA.map(day => day.cost), ...daysB.map(day => day.cost))
-  // A day with real spend keeps a visible sliver rather than vanishing at 0%.
-  const height = (cost: number | undefined): string => (max > 0 && cost ? `${Math.max(2, (cost / max) * 100)}%` : '0%')
+  const height = (cost: number): string => `${max > 0 ? Math.max(2, (cost / max) * 100) : 2}%`
   const labelA = rangeLabel(report.rangeA)
   const labelB = rangeLabel(report.rangeB)
-  const amount = (cost: number | undefined): string => (cost === undefined ? 'no day' : formatUsd(cost))
+  // Same stride as the Overview chart, floored so a short range still gets a
+  // label per day: at most ~7 dates, never one per day past ~25.
+  const stride = span <= 45 ? Math.min(7, Math.max(1, Math.ceil(span / 7))) : Math.ceil((span - 1) / 5)
+  const ticks = Array.from({ length: span }, (_, index) => index).filter(index => index % stride === 0)
+  if (span > 45 && ticks.at(-1) !== span - 1) ticks.push(span - 1)
+  const bar = (side: 'A' | 'B', index: number) => {
+    const day = (side === 'A' ? daysA : daysB)[index]
+    if (!day) return null
+    const label = side === 'A' ? labelA : labelB
+    return (
+      <button
+        type="button"
+        className={`pcmp-bar pcmp-bar-${side.toLowerCase()}`}
+        style={{ height: height(day.cost) }}
+        aria-label={`${label}, ${formatDayShort(day.date)}: ${formatUsd(day.cost)}`}
+        onMouseEnter={event => setTip({ side, date: day.date, cost: day.cost, x: event.clientX, y: event.clientY })}
+        onMouseMove={event => setTip({ side, date: day.date, cost: day.cost, x: event.clientX, y: event.clientY })}
+        onMouseLeave={() => setTip(null)}
+      />
+    )
+  }
   return (
     <div className="panel cmp-card">
       <div className="cmp-head">
@@ -389,23 +436,27 @@ function DayBarsCard({ report }: { report: PeriodDiffReport }) {
           <span><i className="pcmp-swatch-b" />{labelB}</span>
         </span>
       </div>
-      <div className="pcmp-days" aria-label="Cost per day in both ranges">
-        {Array.from({ length: span }, (_, index) => (
-          <div className="pcmp-day" key={index}>
-            <span
-              className="pcmp-day-bars"
-              role="img"
-              aria-label={`Day ${index + 1}: ${labelA} ${amount(daysA[index]?.cost)}, ${labelB} ${amount(daysB[index]?.cost)}`}
-              title={`Day ${index + 1} · ${labelA} ${amount(daysA[index]?.cost)} · ${labelB} ${amount(daysB[index]?.cost)}`}
-            >
-              <span className="pcmp-swatch-a" style={{ height: height(daysA[index]?.cost) }} />
-              <span className="pcmp-swatch-b" style={{ height: height(daysB[index]?.cost) }} />
-            </span>
-            <span className="pcmp-day-n">{index + 1}</span>
-          </div>
-        ))}
+      <div className="pcmp-chart">
+        <div className="chart pcmp-days" style={{ gap: `${span > 45 ? 3 : span > 20 ? 6 : 10}px` }} aria-label="Cost per day in both ranges">
+          {Array.from({ length: span }, (_, index) => (
+            <div className="pcmp-day" key={index}>{bar('A', index)}{bar('B', index)}</div>
+          ))}
+        </div>
+        <div className="ov-xax">
+          {ticks.map(index => {
+            const day = daysA[index] ?? daysB[index]
+            return day && <span key={index} style={{ left: `${span > 1 ? (index / (span - 1)) * 100 : 0}%` }}>{formatDayTerse(day.date)}</span>
+          })}
+        </div>
       </div>
-      <p className="pcmp-caption">Day 1 is the first day of each range, so the two are lined up by day index, not by date.</p>
+      <p className="pcmp-caption">Each pair is one day of A beside the same-numbered day of B. The axis dates are A&apos;s.</p>
+      {tip && (
+        <ChartTip x={tip.x} y={tip.y}>
+          <div className="chart-tip-d">{formatDayShort(tip.date)}</div>
+          <div className="chart-tip-v">{formatUsd(tip.cost)}</div>
+          <div className="chart-tip-s">{tip.side === 'A' ? labelA : labelB}</div>
+        </ChartTip>
+      )}
     </div>
   )
 }
@@ -558,6 +609,7 @@ function MoversCard({
     .sort((x, y) => Math.abs(y.norm.diff ?? 0) - Math.abs(x.norm.diff ?? 0))
   const shown = showAll ? ranked : ranked.slice(0, 5)
   const dimension = lens === 'projects' ? 'project' : 'model'
+  const unit = view === 'perDay' ? ' · per day' : view === 'per100Calls' ? ' · per 100 calls' : ''
   return (
     <div className="panel cmp-card">
       <div className="cmp-head">
@@ -576,7 +628,7 @@ function MoversCard({
           <SegTabs
             options={[{ value: 'raw', label: 'Raw' }, { value: 'perDay', label: 'Per day' }, { value: 'per100Calls', label: 'Per 100 calls' }]}
             value={view}
-            onChange={value => onView(value as View)}
+            onChange={value => { onView(value as View); setShowAll(false) }}
           />
         </div>
         {ranked.length > 5 && (
@@ -586,18 +638,18 @@ function MoversCard({
         )}
       </div>
       {view === 'perDay' && (
-        <p className="pcmp-caption">Each side's cost divided by its own calendar days (A: {report.rangeA.days}, B: {report.rangeB.days}). Differences and percentages compare these daily averages.</p>
+        <p className="pcmp-caption">Each side's cost divided by its own calendar days (A: {report.rangeA.days}, B: {report.rangeB.days}). Differences and percentages compare these daily averages. A row with no value on either side sorts last, so it can fall below the top five here.</p>
       )}
       {view === 'per100Calls' && (
-        <p className="pcmp-caption">Each side's cost per 100 of its own API calls. This is efficiency, not scale. A side with no calls has no cost per call, so it shows a dash.</p>
+        <p className="pcmp-caption">Each side's cost per 100 of its own API calls. This is efficiency, not scale. A side with no calls has no cost per call, so it shows a dash and sorts last: a row that vanished can fall below the top five here.</p>
       )}
       <div className="pcmp-table pcmp-movers" role="table" aria-label={`${lens} contributions`}>
         <div className="pcmp-tr pcmp-th" role="row">
           <span role="columnheader">{lens === 'projects' ? 'Project' : 'Model'}</span>
-          <span role="columnheader">{rangeLabel(report.rangeA)}</span>
-          <span role="columnheader">{rangeLabel(report.rangeB)}</span>
+          <span role="columnheader">{terseRangeLabel(report.rangeA)}{unit}</span>
+          <span role="columnheader">{terseRangeLabel(report.rangeB)}{unit}</span>
           <span role="columnheader">Change</span>
-          <span role="columnheader" />
+          <span role="columnheader">%</span>
         </div>
         {ranked.length === 0 && (
           <div className="pcmp-tr" role="row"><span role="cell"><EmptyNote>No usage in either range.</EmptyNote></span></div>
@@ -613,7 +665,7 @@ function MoversCard({
               aria-expanded={selected}
               aria-label={`${row.key}: A ${norm.a === null ? 'none' : formatUsd(norm.a)}, B ${norm.b === null ? 'none' : formatUsd(norm.b)}, ${STATUS_LABEL[norm.status]}`}
             >
-              <span role="cell" className="pcmp-label pcmp-key" title={row.key}>{row.key}</span>
+              <span role="cell" className="pcmp-label pcmp-key" title={row.key}>{lens === 'projects' ? shortenProjectPath(row.key) : row.key}</span>
               <span role="cell">{norm.a === null ? '—' : formatUsd(norm.a)}</span>
               <span role="cell">{norm.b === null ? '—' : formatUsd(norm.b)}</span>
               <span role="cell" className={diffClass(norm.diff ?? 0, 'cost')}>{norm.diff === null ? '—' : signedUsd(norm.diff)}</span>
@@ -718,7 +770,7 @@ function DrillPanel({
 
 function dayList(days: Array<{ date: string; aggregateOnly: number }>): string {
   if (days.length === 0) return ''
-  return ` (${days.map(d => `${d.date}: ${formatUsd(d.aggregateOnly)}`).join(', ')})`
+  return ` (${days.map(d => `${formatDayShort(d.date)}: ${formatUsd(d.aggregateOnly)}`).join(', ')})`
 }
 
 function CoverageCard({ report }: { report: PeriodDiffReport }) {
@@ -733,7 +785,7 @@ function CoverageCard({ report }: { report: PeriodDiffReport }) {
         {unpriced.length > 0 && (
           <li>
             These models have no price, so their cost is unknown, not zero:{' '}
-            {unpriced.map(m => `${m.model} (${m.side}, ${m.calls.toLocaleString('en-US')} calls)`).join('; ')}.
+            {unpriced.map(m => `${m.model} (${m.side}, ${plural(m.calls, 'call', 'calls')})`).join('; ')}.
           </li>
         )}
         {carried && carried.days.A.length === 0 && carried.days.B.length === 0 && (
