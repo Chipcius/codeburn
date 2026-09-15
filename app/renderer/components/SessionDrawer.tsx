@@ -90,8 +90,7 @@ export function SessionDrawer({ row, filters, medianCost, onClose }: {
 
         <p className="drawer-lead">
           This session cost <b>{formatUsd(row.cost)}</b>
-          {ratio === null ? '. ' : <>, about <b>{formatRatio(ratio)}x</b> your usual. </>}
-          {shapeClause(row, median)}.
+          {ratio === null ? '.' : <>, about <b>{formatRatio(ratio)}x</b> your usual.</>}
         </p>
         {contribution !== null && contribution.cost < row.cost - 1e-9 && (
           <p className="drawer-note">Selected {formatUsd(contribution.cost)} of {formatUsd(row.cost)}</p>
@@ -151,14 +150,6 @@ export function SessionDrawer({ row, filters, medianCost, onClose }: {
       </aside>
     </>
   )
-}
-
-/** One clause naming the session's shape. Retry data never reaches the drawer
- *  (SessionDrillRow carries none), so the retry-heavy case is not offered. */
-function shapeClause(row: SessionDrillRow, median: number | null): string {
-  if (row.cacheWriteTokens > row.outputTokens) return 'Long and cache-heavy'
-  if (median !== null && row.cost < median / 4) return 'Short and cheap'
-  return 'Typical shape'
 }
 
 function formatRatio(ratio: number): string {
