@@ -109,7 +109,7 @@ export function SessionDrawer({ row, filters, medianCost, onClose }: {
                 ? 'full session'
                 : <span className={ratio >= 1 ? 'up' : 'down'}>{formatRatio(ratio)}x your median</span>}
           />
-          <Stat label="Turns" value={row.turns.toLocaleString()} delta={`${row.calls.toLocaleString()} calls`} />
+          <Stat label="Turns" value={row.turns.toLocaleString()} delta={`${row.calls.toLocaleString()} ${row.calls === 1 ? 'call' : 'calls'}`} />
           {row.durationMs > 0
             ? <Stat label="Duration" value={formatDuration(row.durationMs)} delta="wall clock" />
             : <Stat label="Calls" value={row.calls.toLocaleString()} delta="API calls" />}
@@ -119,8 +119,8 @@ export function SessionDrawer({ row, filters, medianCost, onClose }: {
           <p className="drawer-note">Subagent run of session <span className="mono">{row.parentSessionId.slice(0, 18)}</span>.</p>
         )}
 
-        <DrawerBreakdown label="Where it went" rows={breakdown.models} />
-        <DrawerBreakdown label="Kind of work" rows={breakdown.categories} />
+        <DrawerBreakdown label="Models" rows={breakdown.models} />
+        <DrawerBreakdown label="Task categories" rows={breakdown.categories} />
 
         <details className="drawer-fold">
           <summary>
@@ -164,10 +164,14 @@ function formatRatio(ratio: number): string {
   return (ratio >= 10 ? Math.round(ratio) : Math.round(ratio * 10) / 10).toLocaleString('en-US')
 }
 
-function branchPrLabel(breakdown: { branches: BreakdownRow[]; prs: BreakdownRow[] }): string | null {
+function branchPrLabel({ branches, prs }: { branches: BreakdownRow[]; prs: BreakdownRow[] }): string | null {
   const parts: string[] = []
-  if (breakdown.branches.length > 0) parts.push(breakdown.branches.slice(0, 2).map(entry => entry.label).join(', '))
-  if (breakdown.prs.length > 0) parts.push(`${breakdown.prs.length} PR${breakdown.prs.length === 1 ? '' : 's'}`)
+  // A lone `main` with no PRs is every session's default: nothing to unfold.
+  if (branches.length > 0 && !(branches.length === 1 && branches[0]!.label === 'main' && prs.length === 0)) {
+    const named = branches.slice(0, 2).map(entry => entry.label).join(', ')
+    parts.push(branches.length > 2 ? `${named} +${branches.length - 2} more` : named)
+  }
+  if (prs.length > 0) parts.push(`${prs.length} PR${prs.length === 1 ? '' : 's'}`)
   return parts.length > 0 ? parts.join(', ') : null
 }
 
