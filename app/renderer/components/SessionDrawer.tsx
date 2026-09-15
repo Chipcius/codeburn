@@ -8,20 +8,23 @@ import { contributeRow } from '../lib/investigation'
 import type { SessionDrillRow } from '../lib/types'
 
 /**
- * The drill-through side drawer: a session's metadata, the cost/token figures
- * that matter in the CURRENT selection next to its full totals, and every link
- * the report carries (PR URLs). All content derives from the already-loaded
- * contributions report — no transcript text ever crosses the IPC boundary and
- * the heavy breakdowns below only render while the drawer is open (lazy by
- * mount, not by fetch), so the list behind it stays responsive.
+ * The drill-through side drawer: a plain-language read of one session, then the
+ * cost/token figures and every link the report carries (PR URLs). All content
+ * derives from the already-loaded contributions report: no transcript text
+ * ever crosses the IPC boundary and the heavy breakdowns below only render
+ * while the drawer is open (lazy by mount, not by fetch), so the list behind it
+ * stays responsive.
  *
  * A11y contract: role="dialog", Escape closes, focus moves into the panel on
  * open and the PARENT returns focus to the control that opened it (the opener
  * element is still alive behind the drawer). Tab is trapped inside.
  */
-export function SessionDrawer({ row, filters, onClose }: {
+export function SessionDrawer({ row, filters, medianCost, onClose }: {
   row: SessionDrillRow
   filters: InvestigationFilters
+  /** Median cost of the sessions currently loaded in the list. Absent when the
+   *  population is too small for the comparison to mean anything. */
+  medianCost?: number
   onClose: () => void
 }) {
   const panelRef = useRef<HTMLDivElement>(null)
@@ -57,6 +60,9 @@ export function SessionDrawer({ row, filters, onClose }: {
   const breakdown = useMemo(() => buildBreakdowns(row), [row])
   const cacheTotal = row.inputTokens + row.cacheReadTokens
   const cacheHit = cacheTotal > 0 ? Math.round(row.cacheReadTokens / cacheTotal * 100) : 0
+  const median = medianCost !== undefined && medianCost > 0 ? medianCost : null
+  const ratio = median === null ? null : row.cost / median
+  const foldLabel = branchPrLabel(breakdown)
 
   return (
     <>
@@ -82,35 +88,88 @@ export function SessionDrawer({ row, filters, onClose }: {
           <button type="button" className="drawer-close" aria-label="Close session details" onClick={onClose}>×</button>
         </div>
 
-        <div className="stats">
-          <Stat label="Cost" value={formatUsd(row.cost)} delta="full session" />
-          {contribution !== null && (
-            <Stat label="Selected" value={formatUsd(contribution.cost)} delta={contribution.cost < row.cost - 1e-9 ? 'part of this session' : 'whole session'} />
-          )}
-          <Stat label="Calls" value={row.calls.toLocaleString()} delta="API calls" />
-          <Stat label="Turns" value={row.turns.toLocaleString()} delta="assistant turns" />
-          <Stat label="Saved" value={formatUsd(row.savingsUSD)} delta="vs baseline" />
-          <Stat label="Input" value={formatCompact(row.inputTokens)} delta="tokens sent" />
-          <Stat label="Output" value={formatCompact(row.outputTokens)} delta="tokens generated" />
-          <Stat label="Cache read" value={formatCompact(row.cacheReadTokens)} delta={`${cacheHit}% hit`} />
-          <Stat label="Cache write" value={formatCompact(row.cacheWriteTokens)} delta="tokens cached" />
+        <p className="drawer-lead">
+          This session cost <b>{formatUsd(row.cost)}</b>
+          {ratio === null ? '. ' : <>, about <b>{formatRatio(ratio)}x</b> your usual. </>}
+          {shapeClause(row, median)}.
+        </p>
+        {contribution !== null && contribution.cost < row.cost - 1e-9 && (
+          <p className="drawer-note">Selected {formatUsd(contribution.cost)} of {formatUsd(row.cost)}</p>
+        )}
+
+        <div className="stats drawer-tiles">
+          <Stat
+            label="Cost"
+            value={formatUsd(row.cost)}
+            delta={ratio === null
+              ? 'full session'
+              : <span className={ratio >= 1 ? 'up' : 'down'}>{formatRatio(ratio)}x your median</span>}
+          />
+          <Stat label="Turns" value={row.turns.toLocaleString()} delta={`${row.calls.toLocaleString()} calls`} />
+          <Stat label="Duration" value={formatDuration(row.durationMs)} delta="wall clock" />
         </div>
 
         {row.isSidechain && row.parentSessionId && (
           <p className="drawer-note">Subagent run of session <span className="mono">{row.parentSessionId.slice(0, 18)}</span>.</p>
         )}
 
-        <DrawerBreakdown label="Models" rows={breakdown.models} />
-        <DrawerBreakdown label="Task categories" rows={breakdown.categories} />
-        <DrawerBreakdown label="Branches" rows={breakdown.branches} caption="Git branch carried across turns (Claude sessions only)." />
-        {breakdown.days.length > 1 && <DrawerBreakdown label="Days" rows={breakdown.days} />}
-        <DrawerBreakdown label="Pull requests" rows={breakdown.prs} caption="A turn split across several PRs contributes its share to each — rows are not an exclusive partition." link />
-        {breakdown.unattributedPrCost > 0 && (
-          <p className="drawer-note">Not tied to a specific PR: {formatUsd(breakdown.unattributedPrCost)}</p>
+        <DrawerBreakdown label="Where it went" rows={breakdown.models} />
+        <DrawerBreakdown label="Kind of work" rows={breakdown.categories} />
+
+        <details className="drawer-fold">
+          <summary>
+            Tokens: {formatCompact(row.inputTokens)} in, {formatCompact(row.outputTokens)} out,{' '}
+            {formatCompact(row.cacheWriteTokens)} written to cache, {cacheHit}% cache hits
+          </summary>
+          <div className="drawer-fold-body">
+            <div className="stats">
+              <Stat label="Input" value={formatCompact(row.inputTokens)} delta="tokens sent" />
+              <Stat label="Output" value={formatCompact(row.outputTokens)} delta="tokens generated" />
+              <Stat label="Cache read" value={formatCompact(row.cacheReadTokens)} delta={`${cacheHit}% hit`} />
+              <Stat label="Cache write" value={formatCompact(row.cacheWriteTokens)} delta="tokens cached" />
+            </div>
+          </div>
+        </details>
+
+        {foldLabel !== null && (
+          <details className="drawer-fold">
+            <summary>Branches and pull requests: {foldLabel}</summary>
+            <div className="drawer-fold-body">
+              <DrawerBreakdown label="Branches" rows={breakdown.branches} caption="Git branch carried across turns (Claude sessions only)." />
+              {breakdown.days.length > 1 && <DrawerBreakdown label="Days" rows={breakdown.days} />}
+              <DrawerBreakdown label="Pull requests" rows={breakdown.prs} caption="A turn split across several PRs contributes its share to each — rows are not an exclusive partition." link />
+              {breakdown.unattributedPrCost > 0 && (
+                <p className="drawer-note">Not tied to a specific PR: {formatUsd(breakdown.unattributedPrCost)}</p>
+              )}
+            </div>
+          </details>
         )}
+
+        <p className="drawer-note">
+          {row.savingsUSD > 0 ? `Saved vs baseline: ${formatUsd(row.savingsUSD)}.` : 'Saved vs baseline: none this session.'}
+        </p>
       </aside>
     </>
   )
+}
+
+/** One clause naming the session's shape. Retry data never reaches the drawer
+ *  (SessionDrillRow carries none), so the retry-heavy case is not offered. */
+function shapeClause(row: SessionDrillRow, median: number | null): string {
+  if (row.cacheWriteTokens > row.outputTokens) return 'Long and cache-heavy'
+  if (median !== null && row.cost < median / 4) return 'Short and cheap'
+  return 'Typical shape'
+}
+
+function formatRatio(ratio: number): string {
+  return String(ratio >= 10 ? Math.round(ratio) : Math.round(ratio * 10) / 10)
+}
+
+function branchPrLabel(breakdown: { branches: BreakdownRow[]; prs: BreakdownRow[] }): string | null {
+  const parts: string[] = []
+  if (breakdown.branches.length > 0) parts.push(breakdown.branches.slice(0, 2).map(entry => entry.label).join(', '))
+  if (breakdown.prs.length > 0) parts.push(`${breakdown.prs.length} PR${breakdown.prs.length === 1 ? '' : 's'}`)
+  return parts.length > 0 ? parts.join(', ') : null
 }
 
 type BreakdownRow = { key: string; label: string; cost: number; approx?: boolean; url?: string }

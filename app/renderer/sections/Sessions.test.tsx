@@ -227,9 +227,14 @@ describe('Sessions', () => {
     expect(within(drawer).getByText(/claude · projects\/codeburn/)).toBeInTheDocument()
     expect(within(drawer).getByText(/Jul 11, 2026 → Jul 11, 2026 · 1h 35m/)).toBeInTheDocument()
     expect(container.querySelectorAll('.session-row')).toHaveLength(6)
-    for (const label of ['Cost', 'Calls', 'Turns', 'Saved', 'Input', 'Output', 'Cache read', 'Cache write']) {
+    expect(container.querySelector('.drawer-lead')).toHaveTextContent('This session cost $8.41, about 2.8x your usual. Typical shape.')
+    for (const label of ['Cost', 'Turns', 'Duration']) {
       expect(within(drawer).getByText(label)).toBeInTheDocument()
     }
+    expect(within(drawer).getByText('2.8x your median')).toBeInTheDocument()
+    expect(within(drawer).getByText('44 calls')).toBeInTheDocument()
+    expect(within(drawer).queryByText('Selected')).not.toBeInTheDocument()
+    expect(within(drawer).getByText('Saved vs baseline: $1.25.')).toBeInTheDocument()
     expect(within(drawer).getByText('44% hit')).toBeInTheDocument()
 
     // Escape closes the drawer (the drawer's own key handler), focus returns
@@ -239,6 +244,39 @@ describe('Sessions', () => {
     expect(row).toHaveAttribute('aria-expanded', 'false')
     expect(row).toHaveFocus()
     expect(container.querySelectorAll('.session-row')).toHaveLength(6)
+  })
+
+  it('folds the token tiles behind a summary line and opens them on click', async () => {
+    const user = userEvent.setup()
+    getSessions.mockResolvedValue(rows)
+    const { container } = render(<Sessions period="30days" provider="all" openSessionId={sessionRowKey(rows[0]!)} />)
+    await screen.findByRole('dialog', { name: /session details/i })
+
+    // Plain rows carry no contributions, so branches and PRs have nothing to
+    // fold: the token fold is the only one.
+    const folds = container.querySelectorAll('.session-drawer details')
+    expect(folds).toHaveLength(1)
+    const fold = folds[0]!
+    expect(fold).toHaveTextContent('Tokens: 1.4M in, 64K out, 12K written to cache, 44% cache hits')
+    expect(fold).not.toHaveAttribute('open')
+
+    await user.click(container.querySelector('.session-drawer summary')!)
+    expect(fold).toHaveAttribute('open')
+    for (const label of ['Input', 'Output', 'Cache read', 'Cache write']) {
+      expect(within(fold as HTMLElement).getByText(label)).toBeInTheDocument()
+    }
+  })
+
+  it('drops the median comparison under five loaded sessions and dims an empty saving', async () => {
+    const small = [{ ...rows[0]!, savingsUSD: 0 }, rows[1]!, rows[2]!]
+    getSessions.mockResolvedValue(small)
+    const { container } = render(<Sessions period="30days" provider="all" openSessionId={sessionRowKey(small[0]!)} />)
+    const drawer = await screen.findByRole('dialog', { name: /session details/i })
+
+    expect(container.querySelector('.drawer-lead')).toHaveTextContent('This session cost $8.41. Typical shape.')
+    expect(within(drawer).getByText('full session')).toBeInTheDocument()
+    expect(within(drawer).queryByText(/your median/)).not.toBeInTheDocument()
+    expect(within(drawer).getByText('Saved vs baseline: none this session.')).toBeInTheDocument()
   })
 
   it('closes (invalidates) the drawer when the open session leaves the population', async () => {

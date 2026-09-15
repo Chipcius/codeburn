@@ -1266,6 +1266,19 @@ html.page-hidden *::after {
 .session-drawer .stats .phead b { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .session-drawer .stats .stat .d { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .session-drawer .stats .stat .v { font-size: var(--fs-kpi); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-drawer .drawer-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.drawer-lead { margin: 0; font-size: 14.5px; line-height: 1.45; color: var(--ink); }
+.drawer-lead b { font-weight: var(--fw-strong); }
+.session-drawer .stat .d .up { color: var(--bad); }
+.session-drawer .stat .d .down { color: var(--ok); }
+.drawer-fold { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.drawer-fold > summary { padding: 9px 11px; color: var(--mut); font-size: 12px; list-style: none; cursor: pointer; }
+.drawer-fold > summary::-webkit-details-marker { display: none; }
+.drawer-fold > summary::before { content: '\203A'; display: inline-block; width: 10px; color: var(--mut2); }
+.drawer-fold[open] > summary::before { transform: rotate(90deg); }
+.drawer-fold > summary:hover { color: var(--ink); }
+.drawer-fold-body { display: flex; flex-direction: column; gap: 12px; padding: 2px 11px 11px; }
+.drawer-fold-body .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 /* Drill affordances inside expanded report rows. */
 .spend-proj-drill, .pr-drill { margin-bottom: 8px; }
