@@ -116,6 +116,7 @@ function plural(count: number, one: string, many: string): string {
 }
 
 function rangeLabel(range: PeriodRangeInfo): string {
+  if (range.from === range.to) return formatDayShort(range.from)
   return range.days === 7 ? `Week of ${formatDayShort(range.from)}` : `${formatDayShort(range.from)} to ${formatDayShort(range.to)}`
 }
 
