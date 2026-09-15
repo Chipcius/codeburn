@@ -898,7 +898,7 @@ const EXTRA_NAMESPACES = [
   // `mimo` is `xiaomi` (BUILTIN_ALIASES maps the bare MiMo ids to `xiaomi/`),
   // and `kimi/` is a client-side prefix (Codex records `kimi/k3[1m]`).
   // `zcode/` is CLIProxyAPI's provider spelling for the Z.ai coding plans; the
-  // bare `glm-*` leaf already prices via the stripped `z-ai/` catalog rows.
+  // bare `glm-*` leaf already prices via its own catalog row, which carries an explicit zero cache-write cost.
   'zhipu', 'mimo', 'kimi', 'zcode',
 ]
 
