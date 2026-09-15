@@ -34,7 +34,8 @@ relative change.
 **Cost per day, both ranges side by side** — paired bars per day index, A in
 the bar color and B in the accent color. Each pair is one day of A beside the
 same-numbered day of B, so the two series line up by index, not by date; the
-axis dates are A's, and hovering a bar names that side's own date and cost. The
+axis reads "Day 1" to "Day N", and hovering a day shows both sides' dates and
+costs. The
 per-day cost comes from the same sliced session trees as the totals (`daily.A`
 / `daily.B` in the JSON).
 

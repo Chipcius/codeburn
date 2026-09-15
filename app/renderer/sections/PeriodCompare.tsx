@@ -76,9 +76,9 @@ function formatDayTerse(key: string): string {
 /// A column header has no room for two full dates. Drop the year, and the
 /// second month too when both ends share it: "Sep 1–7", "Mar 1–Jun 8".
 function terseRangeLabel(range: PeriodRangeInfo): string {
-  const [, fromMonth] = range.from.split('-')
-  const [, toMonth, toDay] = range.to.split('-')
-  const to = fromMonth === toMonth ? String(Number(toDay)) : formatDayTerse(range.to)
+  if (range.from === range.to) return formatDayTerse(range.from)
+  const sameMonth = range.from.slice(0, 7) === range.to.slice(0, 7)
+  const to = sameMonth ? String(Number(range.to.slice(8))) : formatDayTerse(range.to)
   return `${formatDayTerse(range.from)}–${to}`
 }
 
@@ -399,7 +399,7 @@ function SummaryCard({ report }: { report: PeriodDiffReport }) {
 }
 
 function DayBarsCard({ report }: { report: PeriodDiffReport }) {
-  const [tip, setTip] = useState<{ side: 'A' | 'B'; date: string; cost: number; x: number; y: number } | null>(null)
+  const [tip, setTip] = useState<{ index: number; x: number; y: number } | null>(null)
   const daysA = report.daily?.A ?? []
   const daysB = report.daily?.B ?? []
   const span = Math.max(daysA.length, daysB.length)
@@ -416,19 +416,17 @@ function DayBarsCard({ report }: { report: PeriodDiffReport }) {
   const bar = (side: 'A' | 'B', index: number) => {
     const day = (side === 'A' ? daysA : daysB)[index]
     if (!day) return null
-    const label = side === 'A' ? labelA : labelB
-    return (
-      <button
-        type="button"
-        className={`pcmp-bar pcmp-bar-${side.toLowerCase()}`}
-        style={{ height: height(day.cost) }}
-        aria-label={`${label}, ${formatDayShort(day.date)}: ${formatUsd(day.cost)}`}
-        onMouseEnter={event => setTip({ side, date: day.date, cost: day.cost, x: event.clientX, y: event.clientY })}
-        onMouseMove={event => setTip({ side, date: day.date, cost: day.cost, x: event.clientX, y: event.clientY })}
-        onMouseLeave={() => setTip(null)}
-      />
-    )
+    return <span key={side} className={`pcmp-bar pcmp-bar-${side.toLowerCase()}`} style={{ height: height(day.cost) }} />
   }
+  const slotLabel = (index: number): string => (
+    ([[labelA, daysA], [labelB, daysB]] as const)
+      .map(([label, days]) => {
+        const day = days[index]
+        return day ? `${label}, ${formatDayShort(day.date)}: ${formatUsd(day.cost)}` : null
+      })
+      .filter(Boolean)
+      .join('; ')
+  )
   return (
     <div className="panel cmp-card">
       <div className="cmp-head">
@@ -441,22 +439,41 @@ function DayBarsCard({ report }: { report: PeriodDiffReport }) {
       <div className="pcmp-chart">
         <div className="chart pcmp-days" style={{ gap: `${span > 45 ? 3 : span > 20 ? 6 : 10}px` }} aria-label="Cost per day in both ranges">
           {Array.from({ length: span }, (_, index) => (
-            <div className="pcmp-day" key={index}>{bar('A', index)}{bar('B', index)}</div>
+            <button
+              type="button"
+              className="pcmp-day"
+              key={index}
+              aria-label={slotLabel(index)}
+              onMouseEnter={event => setTip({ index, x: event.clientX, y: event.clientY })}
+              onMouseMove={event => setTip({ index, x: event.clientX, y: event.clientY })}
+              onMouseLeave={() => setTip(null)}
+            >{bar('A', index)}{bar('B', index)}</button>
           ))}
         </div>
         <div className="ov-xax">
           {ticks.map(index => {
-            const day = daysA[index] ?? daysB[index]
-            return day && <span key={index} style={{ left: `${span > 1 ? (index / (span - 1)) * 100 : 0}%` }}>{formatDayTerse(day.date)}</span>
+            // A centred label on the appended edge tick runs past the card;
+            // at that density anchoring it is invisible.
+            const atEdge = span > 45 && index === span - 1
+            return atEdge
+              ? <span key={index} className="pcmp-xax-end" style={{ right: 0 }}>Day {index + 1}</span>
+              : <span key={index} style={{ left: `${((index + 0.5) / span) * 100}%` }}>Day {index + 1}</span>
           })}
         </div>
       </div>
-      <p className="pcmp-caption">Each pair is one day of A beside the same-numbered day of B. The axis dates are A&apos;s.</p>
+      <p className="pcmp-caption">Each pair is one day of A beside the same-numbered day of B.</p>
       {tip && (
         <ChartTip x={tip.x} y={tip.y}>
-          <div className="chart-tip-d">{formatDayShort(tip.date)}</div>
-          <div className="chart-tip-v">{formatUsd(tip.cost)}</div>
-          <div className="chart-tip-s">{tip.side === 'A' ? labelA : labelB}</div>
+          {(['A', 'B'] as const).map(side => {
+            const day = (side === 'A' ? daysA : daysB)[tip.index]
+            return day && (
+              <div className="pcmp-tip-row" key={side}>
+                <i className={`pcmp-swatch-${side.toLowerCase()}`} />
+                <span className="pcmp-tip-date">{formatDayTerse(day.date)}</span>
+                <span className="pcmp-tip-cost">{formatUsd(day.cost)}</span>
+              </div>
+            )
+          })}
         </ChartTip>
       )}
     </div>

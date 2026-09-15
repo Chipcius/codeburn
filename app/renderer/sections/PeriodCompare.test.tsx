@@ -271,7 +271,7 @@ describe('PeriodCompare', () => {
     expect(tile('Sessions').querySelector('.pcmp-tile-change')!.className.trim()).toBe('pcmp-tile-change')
   })
 
-  it('labels the day axis with real dates on a stride instead of one label per day', async () => {
+  it('labels the day axis on a stride instead of one label per day', async () => {
     const long = Array.from({ length: 100 }, (_, i) => {
       const day = new Date(2026, 2, 2)
       day.setDate(day.getDate() + i)
@@ -282,8 +282,20 @@ describe('PeriodCompare', () => {
     await screen.findByText('Cost per day, both ranges side by side')
     const axis = document.querySelector('.ov-xax')!
     expect(axis.children.length).toBeLessThanOrEqual(7)
-    expect(axis.textContent).toContain('Mar 2')
-    expect(axis.textContent).not.toMatch(/\b100\b/)
+    expect(axis.textContent).toBe('Day 1Day 21Day 41Day 61Day 81Day 100')
+  })
+
+  it('keeps the year and a single day straight in the shortened range headers', async () => {
+    mocks.getPeriodCompare.mockResolvedValue({
+      ...report,
+      rangeA: { from: '2025-09-01', to: '2026-09-30', days: 395 },
+      rangeB: { from: '2026-09-10', to: '2026-09-10', days: 1 },
+    })
+    render(<PeriodCompare provider="all" />)
+    await screen.findByText('What changed, biggest movers')
+    const movers = within(screen.getByLabelText('projects contributions'))
+    expect(movers.getByRole('columnheader', { name: 'Sep 1–Sep 30' })).toBeInTheDocument()
+    expect(movers.getByRole('columnheader', { name: 'Sep 10' })).toBeInTheDocument()
   })
 
   it('names the unit and the shortened range in the movers headers', async () => {
@@ -329,11 +341,16 @@ describe('PeriodCompare', () => {
   it('leads with both directions when sessions and cost per call move together', () => {
     const together: PeriodDiffReport = {
       ...report,
-      totals: { ...report.totals, pct: { ...report.totals.pct, cost: -25, sessions: -10 } },
+      totals: {
+        ...report.totals,
+        A: { ...report.totals.A, cost: 160 },
+        B: { ...report.totals.B, cost: 120 },
+        pct: { ...report.totals.pct, cost: -25, sessions: -10 },
+      },
       normalized: { ...report.normalized, per100Calls: { a: 1000, b: 800, diff: -200, pct: -20 } },
     }
     expect(leadSentence(together)).toBe(
-      'The week of Mar 9, 2026 cost 25% less than the week before: $160.00 versus $100.00. Fewer sessions and cheaper calls.',
+      'The week of Mar 9, 2026 cost 25% less than the week before: $120.00 versus $160.00. Fewer sessions and cheaper calls.',
     )
   })
 

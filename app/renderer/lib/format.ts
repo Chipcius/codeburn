@@ -82,8 +82,8 @@ export function formatDayLong(iso: string): string {
 /** "2h 14m" / "47m" / "38s" from a duration in ms. */
 export function formatDuration(ms: number): string {
   if (!Number.isFinite(ms) || ms <= 0) return '—'
-  const totalMin = Math.round(ms / 60_000)
-  if (totalMin < 1) return `${Math.round(ms / 1000)}s`
+  const totalMin = Math.floor(ms / 60_000)
+  if (totalMin < 1) return `${Math.floor(ms / 1000)}s`
   if (totalMin < 60) return `${totalMin}m`
   return `${Math.floor(totalMin / 60)}h ${totalMin % 60}m`
 }
