@@ -96,7 +96,7 @@ export function SessionDrawer({ row, filters, medianCost, onClose }: {
         <p className="drawer-lead">
           {selectedCost === null ? 'This session cost ' : 'Your selection of this session cost '}
           <b>{formatUsd(leadCost)}</b>
-          {ratio === null ? '.' : <>, about <b>{formatRatio(ratio)}x</b> your usual.</>}
+          {ratio === null ? '.' : ratio < 0.1 ? ', a fraction of your usual.' : <>, about <b>{formatRatio(ratio)}x</b> your usual.</>}
         </p>
 
         <div className="stats drawer-tiles">
@@ -104,7 +104,7 @@ export function SessionDrawer({ row, filters, medianCost, onClose }: {
             label="Cost"
             value={formatUsd(leadCost)}
             delta={selectedCost !== null
-              ? `of ${formatUsd(row.cost)} full session`
+              ? `of ${formatUsd(row.cost)}, full session`
               : ratio === null
                 ? 'full session'
                 : <span className={ratio >= 1 ? 'up' : 'down'}>{formatRatio(ratio)}x your median</span>}
@@ -169,7 +169,7 @@ function branchPrLabel({ branches, prs }: { branches: BreakdownRow[]; prs: Break
   // A lone `main` with no PRs is every session's default: nothing to unfold.
   if (branches.length > 0 && !(branches.length === 1 && branches[0]!.label === 'main' && prs.length === 0)) {
     const named = branches.slice(0, 2).map(entry => entry.label).join(', ')
-    parts.push(branches.length > 2 ? `${named} +${branches.length - 2} more` : named)
+    parts.push(branches.length > 2 ? `${named}, +${branches.length - 2} more` : named)
   }
   if (prs.length > 0) parts.push(`${prs.length} PR${prs.length === 1 ? '' : 's'}`)
   return parts.length > 0 ? parts.join(', ') : null

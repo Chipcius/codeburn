@@ -305,7 +305,7 @@ describe('Sessions', () => {
     const tiny = { ...subject, cost: 0.02 }
     getSessions.mockResolvedValue([tiny, ...usual])
     rerender(<Sessions period="30days" provider="all" refreshToken={1} openSessionId={sessionRowKey(tiny)} />)
-    await waitFor(() => expect(container.querySelector('.drawer-lead')).toHaveTextContent('about <0.1x your usual'))
+    await waitFor(() => expect(container.querySelector('.drawer-lead')).toHaveTextContent('a fraction of your usual'))
   })
 
   it('puts the selected figure in the Cost tile and the lead, with the full session as its caption', async () => {
@@ -332,7 +332,7 @@ describe('Sessions', () => {
     expect(container.querySelector('.drawer-lead')).toHaveTextContent('Your selection of this session cost $0.20.')
     const cost = container.querySelector('.drawer-tiles .stat')!
     expect(cost.querySelector('.v')).toHaveTextContent('$0.20')
-    expect(cost.querySelector('.d')).toHaveTextContent('of $1.00 full session')
+    expect(cost.querySelector('.d')).toHaveTextContent('of $1.00, full session')
     expect(within(drawer).queryByText(/^Selected/)).not.toBeInTheDocument()
   })
 
