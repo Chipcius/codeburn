@@ -104,10 +104,12 @@ export function SessionDrawer({ row, filters, medianCost, onClose }: {
             label="Cost"
             value={formatUsd(leadCost)}
             delta={selectedCost !== null
-              ? `of ${formatUsd(row.cost)}, full session`
+              ? `of ${formatUsd(row.cost)} total`
               : ratio === null
                 ? 'full session'
-                : <span className={ratio >= 1 ? 'up' : 'down'}>{formatRatio(ratio)}x your median</span>}
+                : ratio < 0.1
+                  ? <span className="down">well below median</span>
+                  : <span className={ratio >= 1 ? 'up' : 'down'}>{formatRatio(ratio)}x your median</span>}
           />
           <Stat label="Turns" value={row.turns.toLocaleString()} delta={`${row.calls.toLocaleString()} ${row.calls === 1 ? 'call' : 'calls'}`} />
           {row.durationMs > 0
@@ -160,7 +162,6 @@ export function SessionDrawer({ row, filters, medianCost, onClose }: {
 }
 
 function formatRatio(ratio: number): string {
-  if (ratio < 0.1) return '<0.1'
   return (ratio >= 10 ? Math.round(ratio) : Math.round(ratio * 10) / 10).toLocaleString('en-US')
 }
 

@@ -308,7 +308,7 @@ describe('Sessions', () => {
     await waitFor(() => expect(container.querySelector('.drawer-lead')).toHaveTextContent('a fraction of your usual'))
   })
 
-  it('puts the selected figure in the Cost tile and the lead, with the full session as its caption', async () => {
+  it('puts the selected figure in the Cost tile and the lead, with the session total as its caption', async () => {
     const drillRows: SessionDrillRow[] = [
       {
         ...session({ sessionId: 'mixed-1', project: 'mixed-project', provider: 'claude', cost: 1.0, calls: 10, turns: 8 }),
@@ -332,7 +332,7 @@ describe('Sessions', () => {
     expect(container.querySelector('.drawer-lead')).toHaveTextContent('Your selection of this session cost $0.20.')
     const cost = container.querySelector('.drawer-tiles .stat')!
     expect(cost.querySelector('.v')).toHaveTextContent('$0.20')
-    expect(cost.querySelector('.d')).toHaveTextContent('of $1.00, full session')
+    expect(cost.querySelector('.d')).toHaveTextContent('of $1.00 total')
     expect(within(drawer).queryByText(/^Selected/)).not.toBeInTheDocument()
   })
 
