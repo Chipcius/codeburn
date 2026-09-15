@@ -600,7 +600,7 @@ export type DeviceScanResult = { found: ScannedDevice[] }
 // ————— src/act/report.ts buildActReportJson —————
 
 export type ActReportJson = {
-  totals: {
+  totals?: {
     realizedCostUSD: number
     measuredActions: number
   }
