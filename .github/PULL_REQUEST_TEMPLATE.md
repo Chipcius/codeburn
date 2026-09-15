@@ -7,7 +7,8 @@
 - [ ] I have tested this locally against real data (not just unit tests)
 - [ ] `npm test` passes
 - [ ] `npm run build` succeeds
-- [ ] UI change: before and after screenshots attached below (required)
+- [ ] Not a UI change
+- [ ] UI change: before and after screenshots attached below
 
 ### For new providers only:
 
