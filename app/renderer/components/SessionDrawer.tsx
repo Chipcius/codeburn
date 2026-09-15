@@ -85,7 +85,7 @@ export function SessionDrawer({ row, filters, onClose }: {
         <div className="stats">
           <Stat label="Cost" value={formatUsd(row.cost)} delta="full session" />
           {contribution !== null && (
-            <Stat label="In selection" value={formatUsd(contribution.cost)} delta={contribution.cost < row.cost - 1e-9 ? 'part of this session' : 'whole session'} />
+            <Stat label="Selected" value={formatUsd(contribution.cost)} delta={contribution.cost < row.cost - 1e-9 ? 'part of this session' : 'whole session'} />
           )}
           <Stat label="Calls" value={row.calls.toLocaleString()} delta="API calls" />
           <Stat label="Turns" value={row.turns.toLocaleString()} delta="assistant turns" />

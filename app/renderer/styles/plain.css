@@ -1260,6 +1260,11 @@ html.page-hidden *::after {
 .drawer-breakdown-cost { font-variant-numeric: tabular-nums; }
 .drawer-link { color: var(--accent); text-decoration: none; }
 .drawer-link:hover { text-decoration: underline; }
+/* The drawer is much narrower than the 4-column .stats grid was sized for,
+   which wrapped titles and pushed the last tile off the drawer's edge. */
+.session-drawer .stats { grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); }
+.session-drawer .stats .phead b { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-drawer .stats .stat .d { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Drill affordances inside expanded report rows. */
 .spend-proj-drill, .pr-drill { margin-bottom: 8px; }
