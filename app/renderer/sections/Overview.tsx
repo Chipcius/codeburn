@@ -845,8 +845,8 @@ export function OverviewContent({
   const weeklyPct = weekPrior > 0 ? Math.round(Math.abs((weekNow - weekPrior) / weekPrior * 100)) : null
   const weeklyDirection = weekNow >= weekPrior ? 'higher' : 'lower'
   const topModel = data.current.topModels[0]
-  const saved = actReport.data?.totals.realizedCostUSD ?? 0
-  const applied = saved > 0 ? (actReport.data?.totals.measuredActions ?? 0) : 0
+  const saved = actReport.data?.totals?.realizedCostUSD ?? 0
+  const applied = saved > 0 ? (actReport.data?.totals?.measuredActions ?? 0) : 0
   const localSaved = data.current.localModelSavings.totalUSD
   // A custom range has no meaningful "vs last week" or month-to-date baseline.
   const signals = deriveSignals(data, now, rangeActive)
