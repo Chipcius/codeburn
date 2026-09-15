@@ -111,7 +111,6 @@ function PluginsList() {
       {error && <div className={styles.error}>{error}</div>}
       {plugins.length === 0 ? (
         <div className={`card ${styles.empty}`}>
-          <div className={styles.emptyEyebrow}>Plugins</div>
           <h2 className={styles.emptyTitle}>Coming soon</h2>
           <p className={styles.emptyBody}>
             Plugins will let CodeBurn do more than count. The first one ships with CodeBurn Teams: it sends your session outcomes, retries and kind of work to your team dashboard, and nothing else.

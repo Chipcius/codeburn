@@ -27,15 +27,6 @@
   text-align: center;
 }
 
-.emptyEyebrow {
-  margin: 0 0 10px;
-  color: var(--mut2);
-  font-size: 10.5px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .05em;
-}
-
 .emptyTitle {
   margin: 0 0 14px;
   color: var(--ink);
