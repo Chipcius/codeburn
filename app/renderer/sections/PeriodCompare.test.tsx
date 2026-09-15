@@ -128,8 +128,9 @@ describe('PeriodCompare', () => {
     expect(totals).toHaveTextContent('+$60.00')
     expect(totals).toHaveTextContent('+60.0%')
     // Aggregate-only carried history is reported separately, never folded in.
-    expect(screen.getByText(/Aggregate history without session detail/)).toBeInTheDocument()
-    expect(screen.getByText(/Missing pricing \(unknown, not zero\)/)).toBeInTheDocument()
+    // A side with no aggregate-only days lists no days, never empty parentheses.
+    expect(screen.getByText(/Daily history with no sessions behind it/)).not.toHaveTextContent('()')
+    expect(screen.getByText(/These models have no price/)).toBeInTheDocument()
   })
 
   it('labels a zero-A contribution New without a percentage, and Gone for a disappeared one', async () => {

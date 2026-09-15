@@ -878,9 +878,9 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-body); }
 .cmp-body { display: flex; width: 100%; flex-direction: column; gap: 14px; }
 .cmp-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
 .cmp-card { min-width: 0; overflow: hidden; box-shadow: var(--card-shadow); }
-.cmp-head { display: flex; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line2); background: var(--phead); }
+.cmp-head { display: flex; align-items: center; flex-wrap: wrap; column-gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line2); background: var(--phead); }
 .cmp-head h3 { margin: 0; font-size: var(--fs-subhead); font-weight: var(--fw-subhead); color: var(--ink); letter-spacing: -.005em; }
-.cmp-head-note { margin-left: auto; color: var(--mut2); font-size: 10px; }
+.cmp-head-note { margin-left: auto; min-width: 0; color: var(--mut2); font-size: 10px; }
 .cmp-metrics { padding: 4px 14px 7px; }
 .cmp-metric-head, .cmp-metric { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(74px, .56fr) minmax(74px, .56fr); align-items: center; column-gap: 12px; }
 .cmp-metric-head { min-height: 31px; border-bottom: 1px solid var(--line2); color: var(--mut2); font-size: 9.5px; font-weight: 600; }
@@ -1183,6 +1183,9 @@ html.page-hidden *::after {
 
 /* ————— Drill-through: history navigation, selection chips, session drawer ————— */
 
+/* The top bar wraps rather than pushing its right-hand filters off screen. */
+.bar { flex-wrap: wrap; row-gap: 8px; }
+
 /* Back/Forward in the top bar. */
 .bar-nav { display: flex; gap: 2px; margin-right: 8px; }
 .bar-nav-btn {
@@ -1265,7 +1268,7 @@ html.page-hidden *::after {
 .spend-proj-drill, .pr-drill { margin-bottom: 8px; }
 /* ---- Compare periods (sections/PeriodCompare.tsx) ---- */
 .pcmp { display: flex; flex-direction: column; gap: 12px; }
-.pcmp-controls { display: flex; flex-direction: column; gap: 10px; }
+.pcmp-controls { display: flex; flex-direction: column; gap: 10px; overflow: visible; }
 .pcmp-controls-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .pcmp-swap { align-self: center; }
 .pcmp-ranges { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -1273,9 +1276,16 @@ html.page-hidden *::after {
 .pcmp-range-label { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--mut2); }
 .pcmp-range-trigger { min-height: 29px; padding: 6px 10px; font-size: 11.5px; border-radius: 7px; border: 1px solid var(--line, rgba(128,128,128,0.25)); background: transparent; color: inherit; cursor: pointer; }
 .pcmp-range-trigger:hover { border-color: var(--acc, currentColor); }
+.pcmp-range .calendar-popover { right: auto; left: 0; }
 .pcmp-meta { margin: 0; font-size: 11px; color: var(--mut); }
-.pcmp-table { display: flex; flex-direction: column; font-size: 12px; }
+.pcmp-table { display: flex; flex-direction: column; overflow-x: auto; font-size: 12px; }
 .pcmp-tr { display: grid; grid-template-columns: minmax(140px, 2fr) repeat(4, minmax(64px, 1fr)); gap: 8px; align-items: center; padding: 5px 6px; border-radius: 6px; text-align: left; }
+.cmp-card > .pcmp-controls-row, .cmp-card > .pcmp-ranges, .cmp-card > .pcmp-meta,
+.cmp-card > .pcmp-caption, .cmp-card > .pcmp-drill { padding: 0 14px; }
+.cmp-card > .pcmp-controls-row { padding-top: 10px; }
+.cmp-card > .pcmp-table { padding: 4px 8px 7px; }
+.cmp-card > .pcmp-caption:last-child { padding-bottom: 10px; }
+.cmp-card > .pcmp-coverage { padding: 12px 14px 12px 30px; }
 .pcmp-th { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--mut2); }
 .pcmp-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 button.pcmp-row { width: 100%; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; }
