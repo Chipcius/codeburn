@@ -255,7 +255,9 @@ export function PeriodCompare({
             value={preset}
             onChange={pickPreset}
           />
-          <button type="button" className="pcmp-swap" onClick={swap} aria-label="Swap A and B">⇄ Swap</button>
+          <button type="button" className="pcmp-swap" onClick={swap} aria-label="Swap A and B">
+            <span className="pcmp-swap-icon" aria-hidden="true">⇄</span> Swap
+          </button>
         </div>
         <div className="pcmp-ranges">
           <RangeField label="A · reference" value={rangeA} onChange={setRangeA} />
