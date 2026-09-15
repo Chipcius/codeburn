@@ -229,6 +229,16 @@ export function Sessions({
     ].some(value => value.toLowerCase().includes(q)))
   }, [selection, q])
 
+  // "Your usual" for the drawer's lead sentence: the median over the rows the
+  // list is actually showing. Under five rows a median is noise, so the drawer
+  // drops the comparison instead.
+  const medianCost = useMemo(() => {
+    if (searched.length < 5) return undefined
+    const sorted = searched.map(({ row }) => row.cost).sort((left, right) => left - right)
+    const mid = sorted.length >> 1
+    return sorted.length % 2 === 1 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2
+  }, [searched])
+
   const summary = useMemo(() => {
     if (investigating) {
       return {
@@ -475,6 +485,7 @@ export function Sessions({
         <SessionDrawer
           row={openRow}
           filters={filters}
+          medianCost={medianCost}
           onClose={closeDrawer}
         />
       )}

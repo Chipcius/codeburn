@@ -53,6 +53,7 @@ describe('date and duration formatters', () => {
     expect(formatDuration(29_000)).toBe('29s')
     expect(formatDuration(47 * 60_000)).toBe('47m')
     expect(formatDuration(134 * 60_000)).toBe('2h 14m')
+    expect(formatDuration(286 * 3_600_000 + 39 * 60_000)).toBe('12 days')
     expect(formatDuration(0)).toBe('—')
   })
 })
