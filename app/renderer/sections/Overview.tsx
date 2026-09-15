@@ -795,7 +795,6 @@ export function OverviewContent({
               <div className="ov-hero-top"><span className="ov-label">{headlineSnapshot.label}</span><span className="ov-streak">exact {capturedLabel}</span></div>
               <div className="ov-hero-num" data-countup={headlineSnapshot.cost}>{headlineCost}</div>
               <div className="ov-hero-sub">{headlineSnapshot.calls.toLocaleString('en-US')} calls · sessions updating</div>
-              <p className="ov-widget-caption">Current totals, charts, sessions, and efficiency are refreshing in the background.</p>
             </div>
           </div>
           <SectionSkeleton label="Updating detailed drill-downs…" rows={3} chart />
