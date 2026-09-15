@@ -137,7 +137,7 @@ export function SessionDrawer({ row, filters, medianCost, onClose }: {
             <div className="drawer-fold-body">
               <DrawerBreakdown label="Branches" rows={breakdown.branches} caption="Git branch carried across turns (Claude sessions only)." />
               {breakdown.days.length > 1 && <DrawerBreakdown label="Days" rows={breakdown.days} />}
-              <DrawerBreakdown label="Pull requests" rows={breakdown.prs} caption="A turn split across several PRs contributes its share to each — rows are not an exclusive partition." link />
+              <DrawerBreakdown label="Pull requests" rows={breakdown.prs} caption="A turn that touched several PRs counts toward each of them, so the rows can add up to more than the total." link />
               {breakdown.unattributedPrCost > 0 && (
                 <p className="drawer-note">Not tied to a specific PR: {formatUsd(breakdown.unattributedPrCost)}</p>
               )}
