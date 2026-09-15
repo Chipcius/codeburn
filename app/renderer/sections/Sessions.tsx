@@ -9,7 +9,6 @@ import { SectionSkeleton } from '../components/Skeleton'
 import { SegTabs } from '../components/SegTabs'
 import { SessionDrawer } from '../components/SessionDrawer'
 import { StaleBanner } from '../components/StaleBanner'
-import { SwitchingBanner } from '../components/SwitchingBanner'
 import { usePolled } from '../hooks/usePolled'
 import { formatCompact, formatDayShort, formatUsd, shortenProjectPath } from '../lib/format'
 import { codeburn } from '../lib/ipc'
@@ -337,7 +336,6 @@ export function Sessions({
   if (!report.data.length) {
     return (
       <>
-        {report.switching && <SwitchingBanner />}
         <Panel title="Sessions">
           <ProviderFilterRow provider={provider} detectedProviders={detectedProviders} onProviderChange={onProviderChange} />
           {investigating && <FilterChips filters={filters} onChange={next => onFiltersChange?.(next)} />}
@@ -357,7 +355,6 @@ export function Sessions({
 
   return (
     <div className="sessions-list-view">
-      {report.switching && <SwitchingBanner />}
       {report.error && <StaleBanner error={report.error} />}
       <ProviderFilterRow provider={provider} detectedProviders={detectedProviders} onProviderChange={onProviderChange} />
       {investigating && <FilterChips filters={filters} onChange={next => onFiltersChange?.(next)} />}

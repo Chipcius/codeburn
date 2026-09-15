@@ -3,7 +3,6 @@ import { CliErrorPanel } from '../components/CliErrorPanel'
 import { EmptyNote } from '../components/EmptyState'
 import { SectionSkeleton } from '../components/Skeleton'
 import { SegTabs } from '../components/SegTabs'
-import { SwitchingBanner } from '../components/SwitchingBanner'
 import { RangeCalendar } from '../components/RangeCalendar'
 import { usePolled } from '../hooks/usePolled'
 import { formatCompact, formatUsd } from '../lib/format'
@@ -173,7 +172,6 @@ export function PeriodCompare({
 
   return (
     <div className="pcmp" aria-label="Compare periods">
-      {report.switching && <SwitchingBanner />}
       <div className="panel cmp-card pcmp-controls">
         <div className="pcmp-controls-row">
           <SegTabs
