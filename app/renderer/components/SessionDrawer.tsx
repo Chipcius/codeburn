@@ -62,8 +62,10 @@ export function SessionDrawer({ row, filters, medianCost, onClose }: {
   const cacheTotal = row.inputTokens + row.cacheReadTokens
   const cacheHit = cacheTotal > 0 ? Math.round(row.cacheReadTokens / cacheTotal * 100) : 0
   const median = medianCost !== undefined && medianCost > 0 ? medianCost : null
+  const selectedCost = contribution !== null && contribution.cost < row.cost - 1e-9 ? contribution.cost : null
+  const leadCost = selectedCost ?? row.cost
   // Past 100x the multiple says nothing the dollar figure has not already said.
-  const ratio = median === null || row.cost / median > 100 ? null : row.cost / median
+  const ratio = median === null || leadCost / median > 100 ? null : leadCost / median
   const foldLabel = branchPrLabel(breakdown)
 
   return (
@@ -91,20 +93,20 @@ export function SessionDrawer({ row, filters, medianCost, onClose }: {
         </div>
 
         <p className="drawer-lead">
-          This session cost <b>{formatUsd(row.cost)}</b>
+          {selectedCost === null ? 'This session cost ' : 'Your selection of this session cost '}
+          <b>{formatUsd(leadCost)}</b>
           {ratio === null ? '.' : <>, about <b>{formatRatio(ratio)}x</b> your usual.</>}
         </p>
-        {contribution !== null && contribution.cost < row.cost - 1e-9 && (
-          <p className="drawer-note">Selected {formatUsd(contribution.cost)} of {formatUsd(row.cost)}</p>
-        )}
 
         <div className="stats drawer-tiles">
           <Stat
             label="Cost"
-            value={formatUsd(row.cost)}
-            delta={ratio === null
-              ? 'full session'
-              : <span className={ratio >= 1 ? 'up' : 'down'}>{formatRatio(ratio)}x your median</span>}
+            value={formatUsd(leadCost)}
+            delta={selectedCost !== null
+              ? `of ${formatUsd(row.cost)} full session`
+              : ratio === null
+                ? 'full session'
+                : <span className={ratio >= 1 ? 'up' : 'down'}>{formatRatio(ratio)}x your median</span>}
           />
           <Stat label="Turns" value={row.turns.toLocaleString()} delta={`${row.calls.toLocaleString()} calls`} />
           <Stat label="Duration" value={formatDuration(row.durationMs)} delta="wall clock" />
