@@ -86,7 +86,8 @@ export function SessionDrawer({ row, filters, medianCost, onClose }: {
               {row.provider} · {shortenProjectPath(row.project)} · <span className="mono">{row.sessionId.slice(0, 18)}</span>
             </div>
             <div className="drawer-sub">
-              {formatDayLong(row.startedAt)} → {formatDayLong(row.endedAt)} · {formatDuration(row.durationMs)}
+              {formatDayLong(row.startedAt)} → {formatDayLong(row.endedAt)}
+              {row.durationMs > 0 && <> · {formatDuration(row.durationMs)}</>}
             </div>
           </div>
           <button type="button" className="drawer-close" aria-label="Close session details" onClick={onClose}>×</button>
@@ -109,7 +110,9 @@ export function SessionDrawer({ row, filters, medianCost, onClose }: {
                 : <span className={ratio >= 1 ? 'up' : 'down'}>{formatRatio(ratio)}x your median</span>}
           />
           <Stat label="Turns" value={row.turns.toLocaleString()} delta={`${row.calls.toLocaleString()} calls`} />
-          <Stat label="Duration" value={formatDuration(row.durationMs)} delta="wall clock" />
+          {row.durationMs > 0
+            ? <Stat label="Duration" value={formatDuration(row.durationMs)} delta="wall clock" />
+            : <Stat label="Calls" value={row.calls.toLocaleString()} delta="API calls" />}
         </div>
 
         {row.isSidechain && row.parentSessionId && (
