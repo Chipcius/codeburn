@@ -246,7 +246,7 @@ export function __resetPolledMemo(): void {
   memoStore.clear()
   memoSizeChars = 0
   memoEpoch++
-  inFlight = 0
+  addInFlight(-inFlight)
 }
 
 /** Empty the instant-switch memo. Called when a Settings action mutates config
@@ -388,7 +388,14 @@ export function usePolled<T>(
     setError(null)
     setErrorKey(null)
     addInFlight(1)
-    fetcher()
+    let pending: Promise<T>
+    try {
+      pending = fetcher()
+    } catch (err) {
+      addInFlight(-1)
+      throw err
+    }
+    pending
       .then(result => {
         if (epochRef.current !== epoch || memoEpoch !== loadMemoEpoch) return
         setData(result)

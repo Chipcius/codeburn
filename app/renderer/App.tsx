@@ -991,7 +991,7 @@ function RefreshMark({ refreshing, label }: { refreshing: boolean; label: string
         <path d="M10.1 6a4.1 4.1 0 1 1-1.25-2.95" />
         <path d="M10.6 1.3v2.9H7.7" />
       </svg>
-      <span className="sr-only" role="status" aria-live="polite">{refreshing ? 'Refreshing' : label}</span>
+      <span className="sr-only" role="status" aria-live="polite">{refreshing ? 'Refreshing' : ''}</span>
       <span>{label}</span>
     </>
   )

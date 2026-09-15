@@ -240,7 +240,7 @@ describe('App shortcuts', () => {
 
     expect(await screen.findByLabelText('Cached usage summary')).toBeInTheDocument()
     expect(screen.getAllByText('$12.34').length).toBeGreaterThan(0)
-    expect(screen.getByText('12 calls')).toBeInTheDocument()
+    expect(screen.getByText('12 calls · sessions updating')).toBeInTheDocument()
     expect(screen.getByText('Updating detailed drill-downs…')).toBeInTheDocument()
     expect(mocks.getActReport).not.toHaveBeenCalled()
   })
