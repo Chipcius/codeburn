@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { spawn, type ChildProcess } from 'child_process'
 import { mkdir, readFile, writeFile } from 'fs/promises'
 import { join } from 'path'
-import { classifyRootReuse, createOutputMemoEntry } from '../src/serve.js'
+import { classifyRootReuse, createOutputMemoEntry, fileDaySpan } from '../src/serve.js'
 
 it('timestamps a completed output memo before parsing begins', () => {
   const parseStartedAt = 100
@@ -25,6 +25,49 @@ it('classifies watcher gaps as unknown without confusing them with dirty roots',
   expect(classifyRootReuse(100, { startedAt: 50, lastEventAt: 100, healthy: false })).toBe('dirty')
   expect(classifyRootReuse(100, { startedAt: 50, lastEventAt: 100, healthy: true })).toBe('dirty')
   expect(classifyRootReuse(100, { startedAt: 50, lastEventAt: 99, healthy: true })).toBe('clean')
+})
+
+describe('day-scoped invalidation', () => {
+  const day = (d: string): number => new Date(`${d}T12:00:00`).getTime()
+  const startOfDay = (ms: number): number => {
+    const x = new Date(ms)
+    return new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
+  }
+  const spanOf = (from: string, to: string) => fileDaySpan({ birthtimeMs: day(from), mtimeMs: day(to) }, startOfDay)
+  const august = { startMs: day('2026-08-20'), endMs: day('2026-08-20') + 3600_000 }
+  const dirty = { startedAt: 50, lastEventAt: 100, healthy: true }
+
+  it('covers every day between the creation of a file and its last write, plus a day of slack', () => {
+    const span = spanOf('2026-09-15', '2026-09-16')
+    expect(span.startMs).toBe(startOfDay(day('2026-09-14')))
+    expect(span.endMs).toBe(startOfDay(day('2026-09-17')) - 1)
+  })
+
+  it('keeps a finalized past range clean when only files from today changed', () => {
+    const state = { ...dirty, changedSince: () => ['/roots/today.jsonl'] }
+    expect(classifyRootReuse(100, state, august, () => spanOf('2026-09-16', '2026-09-16'))).toBe('clean')
+  })
+
+  it('dirties a range a changed file could have written into', () => {
+    const state = { ...dirty, changedSince: () => ['/roots/old.jsonl'] }
+    // Born before the queried day and still being appended: its own days reach
+    // into the range, so the range is not reusable.
+    expect(classifyRootReuse(100, state, august, () => spanOf('2026-08-19', '2026-09-16'))).toBe('dirty')
+  })
+
+  it('refuses to scope an event it cannot place', () => {
+    const unknownSpan = { ...dirty, changedSince: () => ['/roots/gone.jsonl'] }
+    expect(classifyRootReuse(100, unknownSpan, august, () => null)).toBe('dirty')
+    const unnamed = { ...dirty, changedSince: () => null }
+    expect(classifyRootReuse(100, unnamed, august, () => spanOf('2026-09-16', '2026-09-16'))).toBe('dirty')
+    // No range to scope against is the old, whole-corpus answer.
+    expect(classifyRootReuse(100, { ...dirty, changedSince: () => [] })).toBe('dirty')
+  })
+
+  it('still reports unknown coverage rather than clean', () => {
+    const state = { startedAt: 150, lastEventAt: 100, healthy: true, changedSince: () => ['/roots/today.jsonl'] }
+    expect(classifyRootReuse(100, state, august, () => spanOf('2026-09-16', '2026-09-16'))).toBe('unknown')
+  })
 })
 
 // End-to-end protocol test for `codeburn serve --stdio` (the desktop app's
