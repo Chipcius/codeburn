@@ -202,8 +202,7 @@ enum EarlyQuotaResetDetector {
     }
 }
 
-/// Window names and lead formatting shared by the notification, the dock band
-/// and the history caption.
+/// Window names and lead formatting for the notification.
 enum EarlyQuotaResetFormat {
     /// Copy names for the Claude windows the snapshot store records.
     static func claudeWindowName(forKey key: String) -> String {

@@ -345,7 +345,6 @@ private struct AgentTabQuotaBar: View {
 }
 
 private struct QuotaDetailPopover: View {
-    @Environment(AppStore.self) private var store
     let quota: QuotaSummary
 
     var body: some View {
