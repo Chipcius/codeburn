@@ -55,7 +55,7 @@ Per `grokbot:<agentId>:<requestId>`.
 
 ## Quota
 
-`codeburn quota` reports Grok Bot's weekly allowance — the same "Weekly usage NN%, resets in N days" the app's own account menu shows, read from the call the app itself makes:
+`codeburn quota`, the desktop app's Plans screen (`app/electron/quota/grokbot.ts`, a port of the reader below; the row is omitted when the app is not installed) and the macOS menubar's Grok Bot row (`mac/.../GrokBotSubscriptionService.swift`) all report Grok Bot's weekly allowance — the same "Weekly usage NN%, resets in N days" the app's own account menu shows, read from the call the app itself makes:
 
 - `POST https://api2.cursor.sh/aiserver.v1.DashboardService/GetSandUsageStatus`, Connect-RPC, empty JSON body, `Authorization: Bearer <cursor token>`. Response: `usagePercent` (0..100), `currentPeriodStart`, `nextResetTimestampUtc` (exactly seven days apart), `hasNonZeroIncludedLimit`, `usesPooledEnterpriseAllowance`, `hasAvailableUsage`, `upgradeRecommendation`, and `grokPlanLabel` on newer builds. Emitted as one window labelled `Weekly usage`.
 - `GetCurrentPeriodUsage` on the same service returns `spendLimitUsage { individualUsed, individualLimit }` in cents, the "Change limit" surface. Not read: it is a spend cap, not a capacity window.
