@@ -21,6 +21,7 @@ import {
 } from '../lib/investigation'
 import { contiguousDailyWindow, dataStartKey, formatChartDate, localDateKey, sliceDailyToPeriod, sliceDailyToRange } from '../lib/period'
 import { reportMemoKey } from '../lib/reportMemoKey'
+import { formatAxisMoney, niceTicks } from '../lib/chartAxis'
 import { paceDirection, sparkArea, sparkPath, sparkPoints } from '../lib/spark'
 import type {
   ActReportJson,
@@ -592,6 +593,12 @@ function CountUp({ value, animateKey, animate = true }: { value: number; animate
   return <div ref={ref} className="ov-hero-num" data-countup={value} data-countup-animation={animate ? 'enabled' : 'suppressed'}>{formatUsd(value)}</div>
 }
 
+/** 0 = Sunday, from a local `YYYY-MM-DD` key. */
+function dayOfWeek(date: string): number {
+  const [year, month, day] = date.split('-').map(Number)
+  return new Date(year, month - 1, day).getDay()
+}
+
 function formatShortDay(date: string): string {
   const [, month, day] = date.split('-').map(Number)
   return `${month}/${day}`
@@ -680,7 +687,13 @@ export type InvestigateRequest = {
 function DailyChart({ daily, dataStart = null, animateKey = '', onSelectDay }: { daily: DailyHistoryEntry[]; dataStart?: string | null; animateKey?: string; onSelectDay?: (date: string) => void }) {
   const isNoData = (day: DailyHistoryEntry) => dataStart !== null && day.date < dataStart
   const max = Math.max(...daily.map(day => day.cost), 0)
+  // Bars are drawn against the top tick, not the raw peak, so a bar top and a
+  // gridline mean the same number.
+  const valueTicks = niceTicks(max)
+  const axisMax = valueTicks.at(-1) || 1
   const peakIndex = daily.reduce((peak, day, index) => day.cost > (daily[peak]?.cost ?? -1) ? index : peak, 0)
+  const peak = daily[peakIndex]
+  const todayKey = localDateKey(new Date())
   // Weekly labels work for 30 days, but become unreadable at 6M/Life (26-53
   // labels). Long ranges use five even intervals plus the newest day.
   const tickStride = daily.length <= 45 ? 7 : Math.ceil((daily.length - 1) / 5)
@@ -690,41 +703,61 @@ function DailyChart({ daily, dataStart = null, animateKey = '', onSelectDay }: {
   const [tip, setTip] = useState<{ day: DailyHistoryEntry; x: number; y: number } | null>(null)
   const chartRef = useRef<HTMLDivElement>(null)
   useBarGrowIn(chartRef, '.col', [animateKey])
+  const columnCentre = (index: number) => ((index + 0.5) / Math.max(1, daily.length)) * 100
 
   return (
     <>
-      <div className="chart" ref={chartRef}>
-        {daily.map((day, index) => {
-          const noData = isNoData(day)
-          // A day with recorded activity is a drill-through entry: clicking it
-          // opens the sessions that were active that day (sessions started
-          // earlier included, within the source's day granularity).
-          const drillable = !noData && (day.cost > 0 || day.calls > 0) && onSelectDay !== undefined
-          return (
-            <button
-              type="button"
-              aria-label={`${day.date}: ${noData ? 'no data recorded' : formatUsd(day.cost)}${drillable ? ' — view sessions' : ''}`}
-              className={`col${index === peakIndex && !noData ? ' hi' : ''}${noData ? ' nodata' : ''}`}
-              key={day.date}
-              style={{ height: `${max > 0 ? Math.max(2, day.cost / max * 100) : 2}%` }}
-              data-date={day.date}
-              data-cost={day.cost}
-              data-calls={day.calls}
-              data-led={day.topModels[0]?.name ?? ''}
-              data-nodata={noData ? 'true' : 'false'}
-              onMouseEnter={event => setTip({ day, x: event.clientX, y: event.clientY })}
-              onMouseMove={event => setTip({ day, x: event.clientX, y: event.clientY })}
-              onMouseLeave={() => setTip(null)}
-              onClick={drillable ? () => onSelectDay!(day.date) : undefined}
-            />
-          )
-        })}
-      </div>
-      <div className="ov-xax">
-        {ticks.map(day => {
-          const index = daily.indexOf(day)
-          return <span key={day.date} style={{ left: `${daily.length > 1 ? index / (daily.length - 1) * 100 : 0}%` }}>{formatChartDate(day.date)}</span>
-        })}
+      <div className="chart-frame">
+        <div className="chart-plot">
+          <div className="chart-grid" aria-hidden="true">
+            {valueTicks.map(tick => <span className="chart-gridline" key={tick} style={{ bottom: `${(tick / axisMax) * 100}%` }} />)}
+            {daily.map((day, index) => (dayOfWeek(day.date) === 0 && index > 0
+              ? <span className="chart-weekline" key={day.date} style={{ left: `${columnCentre(index) - (50 / Math.max(1, daily.length))}%` }} />
+              : null))}
+          </div>
+          <div className="chart" ref={chartRef}>
+            {daily.map((day, index) => {
+              const noData = isNoData(day)
+              // A day with recorded activity is a drill-through entry: clicking it
+              // opens the sessions that were active that day (sessions started
+              // earlier included, within the source's day granularity).
+              const drillable = !noData && (day.cost > 0 || day.calls > 0) && onSelectDay !== undefined
+              return (
+                <button
+                  type="button"
+                  aria-label={`${day.date}: ${noData ? 'no data recorded' : formatUsd(day.cost)}${drillable ? ' — view sessions' : ''}`}
+                  className={`col${day.date === todayKey && !noData ? ' hi' : ''}${noData ? ' nodata' : ''}`}
+                  key={day.date}
+                  style={{ height: `${axisMax > 0 ? Math.max(2, (day.cost / axisMax) * 100) : 2}%` }}
+                  data-date={day.date}
+                  data-cost={day.cost}
+                  data-calls={day.calls}
+                  data-led={day.topModels[0]?.name ?? ''}
+                  data-nodata={noData ? 'true' : 'false'}
+                  onMouseEnter={event => setTip({ day, x: event.clientX, y: event.clientY })}
+                  onMouseMove={event => setTip({ day, x: event.clientX, y: event.clientY })}
+                  onMouseLeave={() => setTip(null)}
+                  onClick={drillable ? () => onSelectDay!(day.date) : undefined}
+                />
+              )
+            })}
+          </div>
+          {peak && peak.cost > 0 && (
+            <span className="chart-peak-guide" aria-hidden="true" style={{ bottom: `${(peak.cost / axisMax) * 100}%`, left: `${columnCentre(peakIndex)}%` }} />
+          )}
+        </div>
+        <div className="chart-axis" aria-hidden="true">
+          {valueTicks.map(tick => <span className="chart-axis-tick" key={tick} style={{ bottom: `${(tick / axisMax) * 100}%` }}>{formatAxisMoney(tick)}</span>)}
+          {peak && peak.cost > 0 && (
+            <span className="chart-axis-peak" style={{ bottom: `${(peak.cost / axisMax) * 100}%` }}>{formatUsd(peak.cost)}</span>
+          )}
+        </div>
+        <div className="ov-xax">
+          {ticks.map(day => {
+            const index = daily.indexOf(day)
+            return <span key={day.date} style={{ left: `${daily.length > 1 ? index / (daily.length - 1) * 100 : 0}%` }}>{formatChartDate(day.date)}</span>
+          })}
+        </div>
       </div>
       {tip && (
         <ChartTip x={tip.x} y={tip.y}>
@@ -733,8 +766,16 @@ function DailyChart({ daily, dataStart = null, animateKey = '', onSelectDay }: {
             <div className="chart-tip-s">No data recorded</div>
           ) : (
             <>
-              <div className="chart-tip-v">{formatUsd(tip.day.cost)}</div>
-              <div className="chart-tip-s">{formatCount(tip.day.calls, 'call')} · {tip.day.topModels[0]?.name ?? 'No model'} led</div>
+              <div className="chart-tip-row">
+                <i className={tip.day.date === todayKey ? 'chart-tip-sw hi' : 'chart-tip-sw'} />
+                <span>Spend</span>
+                <b>{formatUsd(tip.day.cost)}</b>
+              </div>
+              <div className="chart-tip-row">
+                <i className="chart-tip-sw mut" />
+                <span>{tip.day.topModels[0]?.name ?? 'No model'} led</span>
+                <b>{formatCount(tip.day.calls, 'call')}</b>
+              </div>
             </>
           )}
         </ChartTip>

@@ -896,8 +896,19 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .ov-activity-name { overflow: hidden; color: var(--ink); font-weight: 560; text-overflow: ellipsis; white-space: nowrap; }
 .ov-activity-main strong { flex: 0 0 auto; font-family: var(--mono); font-size: var(--fs-meta); font-variant-numeric: tabular-nums; }
 .ov-activity-meta { margin-top: 3px; color: var(--mut); font-size: var(--fs-label); font-variant-numeric: tabular-nums; }
-.chart { position: relative; height: 150px; display: flex; align-items: flex-end; gap: 4px; padding-top: 8px; border-bottom: 1px solid var(--line2); }
-.chart .col { flex: 1; background: var(--bar); border-radius: 3px 3px 0 0; min-height: 3px; transition: background var(--dur-fast) var(--ease-out); border: 0; padding: 0; }
+/* Bar chart: a plot column, a value-axis gutter on the right, and the date axis under the plot. */
+.chart-frame { display: grid; grid-template-columns: minmax(0, 1fr) 64px; grid-template-rows: auto auto; column-gap: var(--sp-2); }
+.chart-plot { position: relative; grid-column: 1; grid-row: 1; }
+.chart-axis { position: relative; grid-column: 2; grid-row: 1; }
+.chart-frame > .ov-xax { grid-column: 1; grid-row: 2; }
+.chart-grid { position: absolute; inset: 0; pointer-events: none; }
+.chart-gridline { position: absolute; left: 0; right: 0; border-top: 1px dotted var(--mut2); opacity: .28; }
+.chart-weekline { position: absolute; top: 0; bottom: 0; border-left: 1px dotted var(--mut2); opacity: .16; }
+.chart-peak-guide { position: absolute; right: 0; border-top: 1px dashed var(--accent); opacity: .7; pointer-events: none; }
+.chart-axis-tick, .chart-axis-peak { position: absolute; right: 0; transform: translateY(50%); color: var(--mut2); font-family: var(--mono); font-size: var(--fs-label); font-variant-numeric: tabular-nums; line-height: 1; white-space: nowrap; }
+.chart-axis-peak { z-index: 1; padding: 2px 0 2px 4px; background: var(--card-inner); color: var(--accent-text); font-weight: var(--fw-subhead); }
+.chart { position: relative; height: 150px; display: flex; align-items: flex-end; gap: 4px; border-bottom: 1px solid var(--line); }
+.chart .col { flex: 1 1 0; min-width: 2px; background: var(--bar); border-radius: 2px 2px 0 0; min-height: 3px; transition: background var(--dur-fast) var(--ease-out); border: 0; padding: 0; }
 .chart .col.hi { background: var(--accent); } .chart .col:hover { background: var(--bar-hi); }
 /* Days before recorded history: a faint dashed stub, never a solid zero-height bar reading as real spend. */
 .chart .col.nodata { background: transparent; border-top: 1px dashed var(--line); opacity: .6; }
@@ -907,6 +918,11 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .chart-tip-d { color: inherit; opacity: .62; font-size: var(--fs-label); }
 .chart-tip-v { color: inherit; font-weight: 680; font-size: var(--fs-subhead); font-variant-numeric: tabular-nums; margin-top: 1px; }
 .chart-tip-s { color: inherit; opacity: .62; font-size: var(--fs-label); margin-top: 1px; }
+.chart-tip-row { display: flex; align-items: center; gap: var(--sp-2); margin-top: 3px; font-size: var(--fs-meta); }
+.chart-tip-row .chart-tip-sw { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 2px; background: currentColor; opacity: .5; }
+.chart-tip-row .chart-tip-sw.hi { background: var(--accent); opacity: 1; }
+.chart-tip-row span { flex: 1; opacity: .7; }
+.chart-tip-row b { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: var(--fw-kpi); }
 .ov-xax { position: relative; height: 22px; color: var(--mut); font-size: var(--fs-label); font-family: var(--mono); }
 .ov-xax span { position: absolute; top: 7px; transform: translateX(-50%); white-space: nowrap; }
 .ov-xax span:first-child { transform: none; }

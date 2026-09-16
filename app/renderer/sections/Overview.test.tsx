@@ -220,16 +220,19 @@ describe('Overview', () => {
     // Session row title = the session's project (topSessions has no title field).
     expect(screen.getByText('parser-service')).toBeInTheDocument()
 
-    // The selected range produces one real bar per day and only its peak is highlighted.
+    // The selected range produces one real bar per day; today's is the accented one
+    // and the peak is called out on the value axis instead.
     const bars = container.querySelectorAll('.chart .col')
     expect(bars).toHaveLength(30)
-    expect(bars[10].classList.contains('hi')).toBe(true)
+    expect(bars[29].classList.contains('hi')).toBe(true)
     expect(container.querySelectorAll('.chart .col.hi')).toHaveLength(1)
+    expect(container.querySelector('.chart-axis-peak')).toHaveTextContent('$32.00')
     expect(bars[29]).toHaveAttribute('data-cost', '6.2')
     expect(bars[29]).toHaveAttribute('data-calls', '40')
     expect(bars[29]).toHaveAttribute('data-led', 'claude-opus-4')
     fireEvent.mouseEnter(bars[29], { clientX: 100, clientY: 80 })
-    expect(screen.getByText('40 calls · claude-opus-4 led')).toBeInTheDocument()
+    expect(screen.getByText('claude-opus-4 led')).toBeInTheDocument()
+    expect(screen.getByText('40 calls')).toBeInTheDocument()
     const tooltip = screen.getByRole('tooltip')
     expect(tooltip.parentElement).toBe(document.body)
     expect(tooltip).toHaveStyle({ position: 'fixed' })
