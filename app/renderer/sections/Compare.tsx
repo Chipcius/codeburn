@@ -21,6 +21,7 @@ import { trackEvent } from '../lib/track'
 import type { InvestigateRequest } from './Overview'
 import { sessionRowKey } from './Sessions'
 import type {
+  CategoryComparison,
   CohortComparisonReport,
   CohortModelReport,
   CohortObservation,
@@ -291,12 +292,21 @@ function MetricHeader({ modelA, modelB }: { modelA: string; modelB: string }) {
   return <div className="cmp-metric-head"><span>Metric</span><span>{modelA}</span><span>{modelB}</span></div>
 }
 
+/** A category is a head-to-head only when both models worked in it and both
+ *  produced a rate. Anything less draws a bar against an empty track under a
+ *  legend — a chart that shows no comparison. */
+function isComparable(category: CategoryComparison): boolean {
+  return category.turnsA > 0 && category.turnsB > 0
+    && category.oneShotRateA !== null && category.oneShotRateB !== null
+}
+
 function CategoryCard({ report }: { report: CompareJsonReport }) {
+  const comparable = report.categories.some(isComparable)
   return (
     <div className="panel cmp-card">
       <div className="cmp-head"><h3>Category head-to-head</h3><span className="cmp-head-note">One-shot rate · edit turns</span></div>
       <div className="cmp-category-body">
-        {report.categories.length === 0 ? <EmptyNote>No categories with usage in this range to compare.</EmptyNote> : <>
+        {!comparable ? <EmptyNote>No categories with usage in this range to compare.</EmptyNote> : <>
         <div className="cmp-legend">
           <span className="cmp-legend-item"><span className="cmp-key" />{report.modelA.model}</span>
           <span className="cmp-legend-item"><span className="cmp-key cmp-key-b" />{report.modelB.model}</span>
