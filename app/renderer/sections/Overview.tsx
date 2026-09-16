@@ -788,7 +788,7 @@ function DailyChart({ daily, dataStart = null, animateKey = '', onSelectDay }: {
 }
 
 /** The card header's right slot: the menubar's three daily figures, read off the drawn window. */
-function DailySummaries({ daily }: { daily: DailyHistoryEntry[] }) {
+function DailySummaries({ daily, anchorIsToday }: { daily: DailyHistoryEntry[]; anchorIsToday: boolean }) {
   const peak = daily.reduce<DailyHistoryEntry | undefined>((best, day) => (best && best.cost >= day.cost ? best : day), undefined)
   const yesterday = daily.at(-2)
   const average = mean(daily.map(day => day.cost))
@@ -796,7 +796,7 @@ function DailySummaries({ daily }: { daily: DailyHistoryEntry[] }) {
     <div className="ov-chart-summaries" aria-label="Daily spend summary">
       <div className="ov-summary-chip"><span>Avg/day</span><strong>{formatUsd(average)}</strong></div>
       <div className="ov-summary-chip"><span>Peak</span><strong>{peak ? `${formatUsd(peak.cost)} · ${formatShortDay(peak.date)}` : '$0.00'}</strong></div>
-      <div className="ov-summary-chip"><span>Yesterday</span><strong>{formatUsd(yesterday?.cost ?? 0)}</strong></div>
+      <div className="ov-summary-chip"><span>{anchorIsToday ? 'Yesterday' : 'Previous day'}</span><strong>{formatUsd(yesterday?.cost ?? 0)}</strong></div>
     </div>
   )
 }
@@ -1107,7 +1107,7 @@ export function OverviewContent({
       )}
 
       <div className="ov-card ov-panel ov-chart-widget">
-        <div className="ov-panel-head"><Icon name="chart-column" /><h3>Daily spend</h3>{data.history.daily.length ? <span className="r"><DailySummaries daily={chartDaily} /></span> : null}</div>
+        <div className="ov-panel-head"><Icon name="chart-column" /><h3>Daily spend</h3>{data.history.daily.length ? <span className="r"><DailySummaries daily={chartDaily} anchorIsToday={anchorIsToday} /></span> : null}</div>
         <div className="ov-panel-body">{data.history.daily.length ? <DailyChart daily={chartDaily} dataStart={dataStartKey(data.history.daily)} animateKey={animateKey} onSelectDay={date => onInvestigate?.({ filters: dayFilters(date) })} /> : <EmptyNote>No spend yet.</EmptyNote>}</div>
       </div>
 
