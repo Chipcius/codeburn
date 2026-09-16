@@ -1284,8 +1284,15 @@ html.page-hidden *::after {
 .session-cost-split small { color: var(--mut); }
 .sessions-unattributed { color: var(--mut); }
 
-/* The side drawer: slides over the content column from the right. */
-.drawer-scrim { position: fixed; inset: 0; background: rgb(0 0 0 / 35%); z-index: 60; }
+/* The side drawer: slides over the content column from the right. React drops
+   the drawer on close, so the component holds it mounted for --dur-slow under a
+   `closing` class and the exit is the entrance run backwards. */
+.drawer-scrim { position: fixed; inset: 0; background: rgb(0 0 0 / 35%); z-index: 60; animation: scrim-in var(--dur-slow) var(--ease-out) backwards; }
+.drawer-scrim.closing { animation: scrim-out var(--dur-slow) var(--ease-in-out) forwards; }
+@keyframes scrim-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scrim-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes drawer-in { from { opacity: 0; transform: translateX(100%); } to { opacity: 1; transform: none; } }
+@keyframes drawer-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(100%); } }
 .session-drawer {
   position: fixed; top: 0; right: 0; bottom: 0; z-index: 61;
   width: min(420px, 92vw); overflow-y: auto;
@@ -1295,7 +1302,9 @@ html.page-hidden *::after {
   padding: var(--sp-4) var(--sp-4) var(--sp-7);
   display: flex; flex-direction: column; gap: var(--sp-4);
   outline: none;
+  animation: drawer-in var(--dur-slow) var(--ease-out) backwards;
 }
+.session-drawer.closing { animation: drawer-out var(--dur-slow) var(--ease-in-out) forwards; }
 @media (max-width: 1100px) {
   .session-drawer { left: 0; width: auto; }
   :root[data-platform='darwin'] .session-drawer { padding-top: 34px; }

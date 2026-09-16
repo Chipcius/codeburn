@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { Stat } from './Stat'
 import { useEscape } from '../hooks/useEscape'
 import { formatCompact, formatDayLong, formatDuration, formatUsd, shortenProjectPath } from '../lib/format'
+import { DUR, useExitAnimation } from '../lib/motion'
 import { codeburn } from '../lib/ipc'
 import type { InvestigationFilters } from '../lib/investigation'
 import { contributeRow } from '../lib/investigation'
@@ -31,8 +32,9 @@ export function SessionDrawer({ row, filters, medianCost, onClose }: {
   onClose: () => void
 }) {
   const panelRef = useRef<HTMLDivElement>(null)
+  const { closing, beginExit } = useExitAnimation(onClose, DUR.slow)
 
-  useEscape(true, onClose)
+  useEscape(true, beginExit)
 
   useEffect(() => {
     const panel = panelRef.current
@@ -69,10 +71,10 @@ export function SessionDrawer({ row, filters, medianCost, onClose }: {
 
   return (
     <>
-      <div className="drawer-scrim" aria-hidden="true" onClick={onClose} />
+      <div className={closing ? 'drawer-scrim closing' : 'drawer-scrim'} aria-hidden="true" onClick={beginExit} />
       <aside
         ref={panelRef}
-        className="session-drawer"
+        className={closing ? 'session-drawer closing' : 'session-drawer'}
         role="dialog"
         aria-modal="true"
         aria-label={`Session details: ${row.title || shortenProjectPath(row.project)}`}
@@ -89,7 +91,7 @@ export function SessionDrawer({ row, filters, medianCost, onClose }: {
               {row.durationMs > 0 && <> · {formatDuration(row.durationMs)}</>}
             </div>
           </div>
-          <button type="button" className="drawer-close" aria-label="Close session details" onClick={onClose}><Icon name="x" /></button>
+          <button type="button" className="drawer-close" aria-label="Close session details" onClick={beginExit}><Icon name="x" /></button>
         </div>
 
         <p className="drawer-lead">
