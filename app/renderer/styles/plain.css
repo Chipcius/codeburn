@@ -1014,8 +1014,10 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 }
 @keyframes skel-shimmer { 100% { transform: translateX(100%); } }
 
-/* Section body fade/slide on section switch (keyed remount in App). */
-.section-fade { animation: section-in var(--dur-base) var(--ease-out); }
+/* Section body rise on section switch. The class rides a keyed remount in App,
+   so a poll or a ⌘R refresh re-renders the same node and never replays it.
+   `backwards` holds the start frame, so the settled section is never flashed. */
+.section-fade { animation: section-in var(--dur-base) var(--ease-out) backwards; }
 @keyframes section-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
 /* Action toasts: single, bottom-right, slide-in. */
