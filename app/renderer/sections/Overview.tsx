@@ -845,7 +845,7 @@ export function OverviewContent({
   provider?: string
   range?: DateRange | null
   overview: Polled<MenubarPayload>
-  onNavigate?: (section: 'optimize' | 'sessions' | 'periods' | 'spend' | 'plans') => void
+  onNavigate?: (section: 'optimize' | 'sessions' | 'spend' | 'plans') => void
   /** Drill-through entries: day bars, expensive sessions, models, categories. */
   onInvestigate?: (request: InvestigateRequest) => void
   ready?: boolean
@@ -1084,13 +1084,6 @@ export function OverviewContent({
       </div>
 
       <SignalsCard signals={signals} />
-
-      <div className="ov-card ov-routing" aria-label="Compare periods entry">
-        <div className="ov-card-inner ov-routing-body">
-          <div><span className="ov-label">Compare periods</span><p>Pick two ranges and see exactly what drove the change: projects, models, and the sessions behind them.</p></div>
-          <button className="ov-link" type="button" onClick={() => onNavigate?.('periods')}>Compare →</button>
-        </div>
-      </div>
 
       <div className="ov-analytics-row">
         <CostPerOutcome outcome={yieldReport} />
