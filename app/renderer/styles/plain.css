@@ -1265,9 +1265,14 @@ html.page-hidden *::after {
 
 /* The top bar wraps rather than pushing its right-hand filters off screen. */
 .bar { flex-wrap: nowrap; row-gap: var(--sp-2); box-sizing: border-box; min-height: 52px; padding: var(--sp-2) var(--sp-5); }
+/* The scope caption is the first thing the bar gives up. Below 1280 a Compare
+   periods scope runs out of room and ellipsizes, which says less than nothing,
+   so it goes rather than truncates. */
+@media (max-width: 1279px) {
+  .bar .scope { display: none; }
+}
 @media (max-width: 1199px) {
   .bar { gap: var(--sp-2); }
-  .bar .scope { display: none; }
   .bar .dropdown { width: auto; min-width: 110px; }
 }
 /* Below 1100 the period pills and the bar's own chrome give their slack to the
