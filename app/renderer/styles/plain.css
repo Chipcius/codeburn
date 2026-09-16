@@ -1589,7 +1589,8 @@ html.page-hidden *::after {
 .spend-proj-drill, .pr-drill { margin-bottom: 8px; }
 /* ---- Compare periods (sections/PeriodCompare.tsx) ---- */
 .pcmp { display: flex; flex-direction: column; gap: 12px; }
-.pcmp-controls { display: flex; flex-direction: column; gap: var(--sp-3); overflow: visible; }
+.pcmp-controls { overflow: visible; }
+.pcmp-controls-body, .pcmp-summary-body { display: flex; flex-direction: column; gap: var(--sp-3); }
 .pcmp-controls-row { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
 .pcmp-swap { align-self: center; display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 5px 11px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: inherit; font: inherit; font-size: var(--fs-meta); font-weight: var(--fw-medium); line-height: 1; cursor: pointer; }
 .pcmp-swap:hover { background: var(--hover); border-color: var(--acc, currentColor); }
@@ -1603,12 +1604,11 @@ html.page-hidden *::after {
 .pcmp-meta { margin: 0; font-size: var(--fs-meta); color: var(--mut); }
 .pcmp-table { display: flex; flex-direction: column; overflow-x: auto; font-size: var(--fs-meta); }
 .pcmp-tr { display: grid; grid-template-columns: minmax(140px, 2fr) repeat(4, minmax(64px, 1fr)); gap: 8px; align-items: center; padding: 5px 6px; border-radius: 6px; text-align: left; }
-.cmp-card > .pcmp-controls-row, .cmp-card > .pcmp-ranges, .cmp-card > .pcmp-meta,
-.cmp-card > .pcmp-caption, .cmp-card > .pcmp-drill { padding: 0 var(--sp-3); }
-.cmp-card > .pcmp-controls-row { padding-top: var(--sp-3); }
-.cmp-card > .pcmp-table { padding: var(--sp-1) var(--sp-2) var(--sp-2); }
-.cmp-card > .pcmp-caption:last-child { padding-bottom: var(--sp-3); }
-.cmp-card > .pcmp-coverage { padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-7); }
+.cmp-head > .pcmp-controls-row { margin-left: auto; }
+.pcmp-fold > .pbody, .pcmp-fold-body { margin-top: 2px; }
+.pcmp-fold-body { display: grid; gap: var(--sp-3); }
+.pcmp-fold .cmp-card { border: 0; border-radius: 0; box-shadow: none; padding: 0; }
+
 .pcmp-th { font-size: var(--fs-label); font-weight: var(--fw-subhead); text-transform: uppercase; letter-spacing: 0.04em; color: var(--mut2); }
 .pcmp-label { overflow: hidden; font-size: var(--fs-body); text-overflow: ellipsis; white-space: nowrap; }
 button.pcmp-row { width: 100%; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; }
@@ -1626,7 +1626,7 @@ button.pcmp-row-on { background: rgba(128, 128, 128, 0.18); }
 .pcmp-drill-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .pcmp-drill-actions { display: flex; gap: 12px; }
 .pcmp-coverage { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-meta); color: var(--mut); }
-.pcmp-summary { display: flex; flex-direction: column; gap: var(--sp-4); padding: var(--sp-4); }
+
 .pcmp-lead { margin: 0; font-size: var(--fs-subhead); line-height: 1.45; color: var(--ink); }
 .pcmp-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-3); }
 .pcmp-tile { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: var(--sp-4); border: 1px solid var(--line); border-radius: 12px; background: var(--card-inner); box-shadow: var(--card-inner-shadow); }
@@ -1638,7 +1638,7 @@ button.pcmp-row-on { background: rgba(128, 128, 128, 0.18); }
 .pcmp-legend i { display: inline-block; width: 9px; height: 9px; margin-right: 5px; border-radius: 2px; vertical-align: -1px; }
 .pcmp-swatch-a { background: var(--bar); }
 .pcmp-swatch-b { background: var(--accent); }
-.pcmp-chart { padding: var(--sp-2) var(--sp-3) 0; }
+.pcmp-chart { padding: var(--sp-4) var(--sp-4) 0; }
 .pcmp-days { justify-content: space-between; }
 .pcmp-day { flex: 1; min-width: 0; display: flex; justify-content: center; align-items: flex-end; gap: 1px; height: 100%; border: 0; padding: 0; background: none; }
 .pcmp-bar { flex: 0 1 calc(50% - 0.5px); min-width: 0; max-width: 14px; border-radius: 3px 3px 0 0; min-height: 3px; transition: filter var(--dur-fast) var(--ease-out); }
@@ -1657,8 +1657,7 @@ button.pcmp-row-on { background: rgba(128, 128, 128, 0.18); }
 .pcmp-tile-change.pcmp-up { color: var(--warn, #e08a4e); }
 .pcmp-tile-change.pcmp-down { color: var(--ok, #5aab6e); }
 
-.pcmp-fold { padding: 0; }
-.pcmp-fold > summary { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-3); list-style: none; cursor: pointer; font-size: var(--fs-meta); color: var(--mut); }
+.pcmp-fold > summary { display: flex; align-items: center; gap: var(--sp-2); min-height: 40px; padding: 0 17px; list-style: none; cursor: pointer; font-size: var(--fs-meta); color: var(--mut); }
 .pcmp-fold > summary::-webkit-details-marker { display: none; }
 .pcmp-fold > summary::before { content: ""; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); }
 .pcmp-fold[open] > summary::before { transform: rotate(45deg); }

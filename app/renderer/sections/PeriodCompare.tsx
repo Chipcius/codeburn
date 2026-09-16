@@ -250,6 +250,7 @@ export function PeriodCompare({
   return (
     <div className="pcmp" aria-label="Compare periods">
       <div className="panel cmp-card pcmp-controls">
+        <div className="pbody pcmp-controls-body">
         <div className="pcmp-controls-row">
           <SegTabs
             options={[{ value: 'last7', label: 'Last 7 vs prior 7' }, { value: 'custom', label: 'Custom' }]}
@@ -265,6 +266,7 @@ export function PeriodCompare({
           <RangeField label="B · analyzed" value={rangeB} onChange={setRangeB} />
         </div>
         <RangeMeta rangeA={rangeA} rangeB={rangeB} />
+        </div>
       </div>
 
       {!report.data
@@ -289,8 +291,10 @@ export function PeriodCompare({
               />
               <details className="panel cmp-card pcmp-fold">
                 <summary>All metrics</summary>
-                <TotalsCard report={report.data} />
-                <NormalizedCard report={report.data} />
+                <div className="pcmp-fold-body">
+                  <TotalsCard report={report.data} />
+                  <NormalizedCard report={report.data} />
+                </div>
               </details>
               <CoverageCard report={report.data} />
             </>
@@ -380,6 +384,7 @@ function SummaryCard({ report }: { report: PeriodDiffReport }) {
   ]
   return (
     <div className="panel cmp-card pcmp-summary">
+      <div className="pbody pcmp-summary-body">
       <p className="pcmp-lead">{leadSentence(report)}</p>
       <div className="pcmp-tiles">
         {tiles.map(tile => (
@@ -389,6 +394,7 @@ function SummaryCard({ report }: { report: PeriodDiffReport }) {
             <span className={`pcmp-tile-change ${tile.tone}`}>{tile.change}, {signedWholePct(tile.pct)}</span>
           </div>
         ))}
+      </div>
       </div>
     </div>
   )
@@ -432,7 +438,7 @@ function DayBarsCard({ report }: { report: PeriodDiffReport }) {
           <span><i className="pcmp-swatch-b" />{labelB}</span>
         </span>
       </div>
-      <div className="pcmp-chart">
+      <div className="pbody pcmp-chart">
         <div className="chart pcmp-days" style={{ gap: `${span > 45 ? 3 : span > 20 ? 6 : 10}px` }} aria-label="Cost per day in both ranges">
           {Array.from({ length: span }, (_, index) => (
             <button
@@ -502,6 +508,7 @@ function TotalsCard({ report }: { report: PeriodDiffReport }) {
   return (
     <div className="cmp-card pcmp-block">
       <div className="cmp-head"><h3>Totals</h3><span className="cmp-head-note">B − A · API-equivalent cost is not a subscription bill</span></div>
+      <div className="pbody">
       {(carriedA > 0 || carriedB > 0) && (
         <p className="pcmp-caption">
           Session detail only. A further {formatUsd(carriedA)} (A) and {formatUsd(carriedB)} (B) comes from daily
@@ -527,6 +534,7 @@ function TotalsCard({ report }: { report: PeriodDiffReport }) {
             </div>
           )
         })}
+      </div>
       </div>
     </div>
   )
@@ -581,6 +589,7 @@ function NormalizedCard({ report }: { report: PeriodDiffReport }) {
   return (
     <div className="cmp-card pcmp-block">
       <div className="cmp-head"><h3>Normalized</h3><span className="cmp-head-note">A dash means the denominator is zero or unknown.</span></div>
+      <div className="pbody">
       <div className="pcmp-table" role="table" aria-label="Normalized difference">
         <div className="pcmp-tr pcmp-th" role="row">
           <span role="columnheader">View</span><span role="columnheader">A</span><span role="columnheader">B</span><span role="columnheader">Diff</span><span role="columnheader">%</span>
@@ -591,6 +600,7 @@ function NormalizedCard({ report }: { report: PeriodDiffReport }) {
       <p className="pcmp-caption">
         Denominators: {report.normalized.denominators.perDay}; {report.normalized.denominators.per100Calls}.
       </p>
+      </div>
     </div>
   )
 }
@@ -630,8 +640,7 @@ function MoversCard({
       <div className="cmp-head">
         <h3>What changed, biggest movers</h3>
         <span className="cmp-head-note">{view === 'raw' ? 'Raw' : view === 'perDay' ? 'Per day' : 'Per 100 calls'}</span>
-      </div>
-      <div className="pcmp-controls-row">
+        <span className="pcmp-controls-row">
         <div role="group" aria-label="Contribution lens">
           <SegTabs
             options={[{ value: 'projects', label: 'By project' }, { value: 'models', label: 'By model' }]}
@@ -651,7 +660,9 @@ function MoversCard({
             {showAll ? 'Show top five' : `Show all ${ranked.length}`}
           </button>
         )}
+        </span>
       </div>
+      <div className="pbody">
       {view === 'perDay' && (
         <p className="pcmp-caption">Each side's cost divided by its own calendar days (A: {report.rangeA.days}, B: {report.rangeB.days}). Differences and percentages compare these daily averages. A row with no value on either side sorts last, so it can fall below the top five here.</p>
       )}
@@ -709,6 +720,7 @@ function MoversCard({
         />
       )}
       <p className="pcmp-caption">Click a row to see its sessions. Projects and models split the same difference two ways. Do not add them together.</p>
+      </div>
     </div>
   )
 }
@@ -795,6 +807,7 @@ function CoverageCard({ report }: { report: PeriodDiffReport }) {
   return (
     <details className="panel cmp-card pcmp-fold">
       <summary>What is counted{aggregateOnly > 0 && `: ${formatUsd(aggregateOnly)} has no session detail behind it`}</summary>
+      <div className="pbody">
       <ul className="pcmp-coverage">
         <li>Share of calls with a known price. A: {report.coverage.pricingCoverageA === null ? 'unknown' : `${Math.round(report.coverage.pricingCoverageA * 100)}%`}, B: {report.coverage.pricingCoverageB === null ? 'unknown' : `${Math.round(report.coverage.pricingCoverageB * 100)}%`}.</li>
         {unpriced.length > 0 && (
@@ -813,6 +826,7 @@ function CoverageCard({ report }: { report: PeriodDiffReport }) {
         )}
         <li>Every difference is B − A over all usage in each range. Nothing is sampled, guessed or written by a model.</li>
       </ul>
+      </div>
     </details>
   )
 }
