@@ -16,7 +16,7 @@
 
   --grad: linear-gradient(135deg, #5B8CFF, #8B7CF6);
   --grad-bar: linear-gradient(to top, rgba(91,140,255,.55), #6FA2FF 60%, #4DD8E6);
-  --mono: ui-monospace, "SF Mono", "Berkeley Mono", Menlo, Consolas, monospace;
+  --mono: ui-monospace, "SF Mono", "Berkeley Mono", Menlo, "Cascadia Mono", Consolas, monospace;
   --sans: system-ui, -apple-system, "SF Pro Text", "Segoe UI", sans-serif;
 }
 body {

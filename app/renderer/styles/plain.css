@@ -165,8 +165,10 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
 .ni.on { background: var(--nav-on); color: var(--nav-ink); font-weight: var(--fw-medium); }
 /* Shortcuts are noise until the modifier is down; opacity keeps the row from
    reflowing and keeps the badge in the accessibility tree. */
-.ni .k { opacity: 0; transition: opacity var(--dur-fast) var(--ease-out); }
+.ni .k { position: absolute; right: 8px; opacity: 0; transition: opacity var(--dur-fast) var(--ease-out); }
+.ni .ni-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sb[data-show-keys] .ni .k { opacity: 1; }
+.sb[data-show-keys] .ni .ni-label { padding-right: 52px; }
 .foot { margin-top: 4px; padding: 8px 0 0; border-top: 1px solid var(--line); }
 .foot .about { display: flex; align-items: center; height: 28px; padding: 0 8px; gap: 10px; border-radius: 7px; color: var(--mut); text-decoration: none; font-size: var(--fs-body); font-weight: 520; cursor: pointer; }
 .foot .about:hover { background: var(--nav-hover); color: var(--nav-ink); }

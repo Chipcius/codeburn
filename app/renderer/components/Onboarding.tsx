@@ -99,9 +99,11 @@ export function Onboarding({ defaultEnabled, onDone }: { defaultEnabled: boolean
               <button type="button" className="onboard-link" onClick={() => { void codeburn.openExternal?.(COLLECT_URL) }}>
                 What data we collect
               </button>
-              <p className="onboard-hint">
-                Tip: if a provider looks empty, grant Full Disk Access in System Settings › Privacy &amp; Security.
-              </p>
+              {document.documentElement.dataset.platform === 'darwin' && (
+                <p className="onboard-hint">
+                  Tip: if a provider looks empty, grant Full Disk Access in System Settings › Privacy &amp; Security.
+                </p>
+              )}
             </>
           ) : (
             <>
