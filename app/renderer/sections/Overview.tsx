@@ -655,9 +655,6 @@ function DailyChart({ daily, dataStart = null, animateKey = '', onSelectDay }: {
   const isNoData = (day: DailyHistoryEntry) => dataStart !== null && day.date < dataStart
   const max = Math.max(...daily.map(day => day.cost), 0)
   const peakIndex = daily.reduce((peak, day, index) => day.cost > (daily[peak]?.cost ?? -1) ? index : peak, 0)
-  const peak = daily[peakIndex]
-  const yesterday = daily.at(-2)
-  const average = mean(daily.map(day => day.cost))
   // Weekly labels work for 30 days, but become unreadable at 6M/Life (26-53
   // labels). Long ranges use five even intervals plus the newest day.
   const tickStride = daily.length <= 45 ? 7 : Math.ceil((daily.length - 1) / 5)
@@ -703,11 +700,6 @@ function DailyChart({ daily, dataStart = null, animateKey = '', onSelectDay }: {
           return <span key={day.date} style={{ left: `${daily.length > 1 ? index / (daily.length - 1) * 100 : 0}%` }}>{formatChartDate(day.date)}</span>
         })}
       </div>
-      <div className="ov-chart-summaries" aria-label="Daily spend summary">
-        <div className="ov-summary-chip"><span>Avg/day</span><strong>{formatUsd(average)}</strong></div>
-        <div className="ov-summary-chip"><span>Peak</span><strong>{peak ? `${formatUsd(peak.cost)} · ${formatShortDay(peak.date)}` : '$0.00'}</strong></div>
-        <div className="ov-summary-chip"><span>Yesterday</span><strong>{formatUsd(yesterday?.cost ?? 0)}</strong></div>
-      </div>
       {tip && (
         <ChartTip x={tip.x} y={tip.y}>
           <div className="chart-tip-d">{formatChartDate(tip.day.date)}</div>
@@ -722,6 +714,20 @@ function DailyChart({ daily, dataStart = null, animateKey = '', onSelectDay }: {
         </ChartTip>
       )}
     </>
+  )
+}
+
+/** The card header's right slot: the menubar's three daily figures, read off the drawn window. */
+function DailySummaries({ daily }: { daily: DailyHistoryEntry[] }) {
+  const peak = daily.reduce<DailyHistoryEntry | undefined>((best, day) => (best && best.cost >= day.cost ? best : day), undefined)
+  const yesterday = daily.at(-2)
+  const average = mean(daily.map(day => day.cost))
+  return (
+    <div className="ov-chart-summaries" aria-label="Daily spend summary">
+      <div className="ov-summary-chip"><span>Avg/day</span><strong>{formatUsd(average)}</strong></div>
+      <div className="ov-summary-chip"><span>Peak</span><strong>{peak ? `${formatUsd(peak.cost)} · ${formatShortDay(peak.date)}` : '$0.00'}</strong></div>
+      <div className="ov-summary-chip"><span>Yesterday</span><strong>{formatUsd(yesterday?.cost ?? 0)}</strong></div>
+    </div>
   )
 }
 
@@ -1028,7 +1034,7 @@ export function OverviewContent({
       )}
 
       <div className="ov-card ov-panel ov-chart-widget">
-        <div className="ov-panel-head"><Icon name="chart-column" /><h3>Daily spend</h3></div>
+        <div className="ov-panel-head"><Icon name="chart-column" /><h3>Daily spend</h3>{data.history.daily.length ? <span className="r"><DailySummaries daily={chartDaily} /></span> : null}</div>
         <div className="ov-panel-body">{data.history.daily.length ? <DailyChart daily={chartDaily} dataStart={dataStartKey(data.history.daily)} animateKey={animateKey} onSelectDay={date => onInvestigate?.({ filters: dayFilters(date) })} /> : <EmptyNote>No spend yet.</EmptyNote>}</div>
       </div>
 

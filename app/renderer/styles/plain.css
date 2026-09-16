@@ -883,7 +883,7 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .ov-activity-meta { margin-top: 3px; color: var(--mut); font-size: var(--fs-label); font-variant-numeric: tabular-nums; }
 .chart { position: relative; height: 150px; display: flex; align-items: flex-end; gap: 4px; padding-top: 8px; border-bottom: 1px solid var(--line2); }
 .chart .col { flex: 1; background: var(--bar); border-radius: 3px 3px 0 0; min-height: 3px; transition: background var(--dur-fast) var(--ease-out); border: 0; padding: 0; }
-.chart .col.hi { background: var(--bar-hi); } .chart .col:hover { background: var(--accent); }
+.chart .col.hi { background: var(--accent); } .chart .col:hover { background: var(--bar-hi); }
 /* Days before recorded history: a faint dashed stub, never a solid zero-height bar reading as real spend. */
 .chart .col.nodata { background: transparent; border-top: 1px dashed var(--line); opacity: .6; }
 .chart .col.nodata:hover { background: transparent; }
@@ -896,8 +896,8 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .ov-xax span { position: absolute; top: 7px; transform: translateX(-50%); white-space: nowrap; }
 .ov-xax span:first-child { transform: none; }
 .ov-xax span:last-child { transform: translateX(-100%); }
-.ov-chart-summaries { display: flex; flex-wrap: wrap; gap: var(--sp-2); padding-top: var(--sp-3); border-top: 1px solid var(--line2); }
-.ov-summary-chip { display: flex; align-items: baseline; gap: 7px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); font-size: var(--fs-label); }
+.ov-chart-summaries { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.ov-summary-chip { display: flex; align-items: baseline; gap: 7px; padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--card-inner); font-size: var(--fs-label); }
 .ov-summary-chip span { color: var(--mut2); }
 .ov-summary-chip strong { color: var(--ink); font-family: var(--mono); font-size: var(--fs-meta); font-weight: var(--fw-subhead); font-variant-numeric: tabular-nums; }
 .ov-active-days { color: var(--accent-text) !important; font-family: var(--mono); font-variant-numeric: tabular-nums; }
