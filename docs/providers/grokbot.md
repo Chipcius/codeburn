@@ -64,7 +64,7 @@ The app's account menu shows "Weekly usage NN%, resets in N days" with a **Chang
 
 Both are authorised by the Cursor access token the app keeps in `~/Library/Application Support/Grok Bot/sand-secrets.json` under `cursor-accounts.<slot>.cursor-access-token`. Every value there is an Electron `safeStorage` blob (base64 of `v10` plus AES-128-CBC ciphertext, key in the macOS keychain), and CodeBurn does not decrypt an app's safe storage — the same rule stated for "Codex Safe Storage" at `src/quota/codex.ts:109`. Nothing else local carries the plan or the percentage: `local-account.json` has only an email and a display name, and `gateway.json`'s plaintext token authorises the loopback box host, not the dashboard.
 
-`codeburn quota` already reads the same Cursor account's window through `src/quota/cursor.ts` when the Cursor IDE is installed, whose token is stored unencrypted. If Grok Bot ever writes a readable credential, `src/quota/grokbot.ts` would mirror `src/quota/grok.ts` against the two endpoints above with a weekly window.
+`src/quota/cursor.ts` is not a substitute. It reads `cursor.com/api/usage-summary` with the Cursor IDE's own token and reports that dashboard's monthly window — a different allowance on the same vendor's dashboard, not Grok Bot's weekly Sand allowance, and whether the two are even the same account cannot be checked from either side. If Grok Bot ever writes a readable credential, `src/quota/grokbot.ts` would mirror `src/quota/grok.ts` against the two endpoints above with a weekly window.
 
 ## Live sessions
 
