@@ -129,12 +129,23 @@ function EfficiencyScorecard({ current, bare = false }: { current: MenubarPayloa
 
   return (
     <div className={`${bare ? '' : 'ov-card '}ov-efficiency`}>
+      <div className="ov-activity-head">
+        <span className="ov-label">Efficiency</span>
+        <button
+          className="ov-info"
+          type="button"
+          aria-label="How the efficiency score is built"
+          title={`Composite of one-shot, cache hit, and retry tax.${current.oneShotRate === null ? ' Partial grade: one-shot is unavailable.' : ''}`}
+        >
+          <Icon name="info" />
+        </button>
+      </div>
       <div className="ov-efficiency-main">
         <RingGauge
           fraction={score / 100}
           face={<>
-            <span className="ov-gauge-cap">Efficiency</span>
-            <strong className="ov-gauge-score">{Math.round(score)} / 100</strong>
+            <strong className="ov-gauge-score">{Math.round(score)}</strong>
+            <span className="ov-gauge-cap">/100</span>
           </>}
         >
           <span className={`ov-grade ${gradeTone}`} aria-label={`Efficiency grade ${grade}`}>{grade}</span>
@@ -154,7 +165,6 @@ function EfficiencyScorecard({ current, bare = false }: { current: MenubarPayloa
           </div>
         </div>
       </div>
-      <p className="ov-widget-caption">Composite of one-shot, cache hit, and retry tax.{current.oneShotRate === null ? ' Partial grade: one-shot is unavailable.' : ''}</p>
     </div>
   )
 }
@@ -457,6 +467,12 @@ function deriveStats(data: MenubarPayload, now: Date) {
   const pacePct = priorAverage > 0 ? ((currentAverage - priorAverage) / priorAverage) * 100 : null
   // Cumulative spend, one point per calendar day of the month so far, so a
   // silent day is a flat step rather than a missing column.
+  const yesterdayKey = localDateKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1))
+  const yesterdayCost = daily.find(day => day.date === yesterdayKey)?.cost ?? null
+  const sevenDayAvg = daily.length ? mean(daily.slice(-7).map(day => day.cost)) : null
+  const dayOverDayPct = yesterdayCost !== null && yesterdayCost > 0
+    ? (((todayEntry?.cost ?? 0) - yesterdayCost) / yesterdayCost) * 100
+    : null
   let running = 0
   const mtdSeries = contiguousDailyWindow(daily, `${monthPrefix}-01`, todayKey).map(day => (running += day.cost))
   const remainingDays = Math.max(0, daysInMonth - now.getDate())
@@ -470,6 +486,9 @@ function deriveStats(data: MenubarPayload, now: Date) {
     pacePct,
     mtdSeries,
     projectedTail,
+    yesterdayCost,
+    sevenDayAvg,
+    dayOverDayPct,
     prevMonthName: prevMonth.toLocaleString('en-US', { month: 'long' }),
   }
 }
@@ -968,23 +987,30 @@ export function OverviewContent({
         </div>
         <div className="ov-card-inner ov-hero-split" aria-label="Key performance indicators">
           <div className="ov-hero-main">
-            {/* A returning launch already showed a truthful persisted headline.
-                Replaying the live hero from $0 on handoff makes that exact value
-                appear to collapse and recover; snap to the revalidated total. */}
-            <CountUp value={heroCost} animateKey={animateKey} animate={!suppressHeroReplay} />
-            <div className="ov-hero-sub" title={heroSessionHelp}>{formatCount(heroCalls, 'call')} · {heroSessionLabel}</div>
-            {combined
-              ? <CombinedDevices usage={combined} />
-              : (
-                <>
-                  {saved > 0 && (
-                    <div className="ov-saved-line"><span>Saved by applied fixes</span><strong>{formatUsd(saved)}</strong><small>across {applied} {applied === 1 ? 'fix' : 'fixes'}</small></div>
-                  )}
-                  {localSaved > 0 && (
-                    <div className="ov-saved-line"><span>Saved via local models</span><strong>{formatUsd(localSaved)}</strong><small>local-model routing</small></div>
-                  )}
-                </>
-              )}
+            <div className="ov-hero-figures">
+              {/* A returning launch already showed a truthful persisted headline.
+                  Replaying the live hero from $0 on handoff makes that exact value
+                  appear to collapse and recover; snap to the revalidated total. */}
+              <CountUp value={heroCost} animateKey={animateKey} animate={!suppressHeroReplay} />
+              <div className="ov-hero-sub" title={heroSessionHelp}>{formatCount(heroCalls, 'call')} · {heroSessionLabel}</div>
+              {combined
+                ? <CombinedDevices usage={combined} />
+                : (
+                  <>
+                    {saved > 0 && (
+                      <div className="ov-saved-line"><span>Saved by applied fixes</span><strong>{formatUsd(saved)}</strong><small>across {applied} {applied === 1 ? 'fix' : 'fixes'}</small></div>
+                    )}
+                    {localSaved > 0 && (
+                      <div className="ov-saved-line"><span>Saved via local models</span><strong>{formatUsd(localSaved)}</strong><small>local-model routing</small></div>
+                    )}
+                  </>
+                )}
+            </div>
+            <div className="ov-hero-foot">
+              <div><span>Yesterday</span><strong>{stats.yesterdayCost === null ? 'n/a' : formatUsd(stats.yesterdayCost)}</strong></div>
+              <div><span>7-day avg</span><strong>{stats.sevenDayAvg === null ? 'n/a' : formatUsd(stats.sevenDayAvg)}</strong></div>
+              <div><span>vs yesterday</span><strong className={stats.dayOverDayPct === null ? undefined : `tone-${paceDirection(stats.dayOverDayPct)}`}>{stats.dayOverDayPct === null ? 'n/a' : `${stats.dayOverDayPct >= 0 ? '+' : '-'}${Math.abs(Math.round(stats.dayOverDayPct))}%`}</strong></div>
+            </div>
           </div>
           <ActivityHeatmap daily={data.history.daily} bare />
           <EfficiencyScorecard current={data.current} bare />

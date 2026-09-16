@@ -653,11 +653,25 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .ov-hero-kpi-accent > strong { color: var(--accent-text); }
 .ov-hero-kpi-saved > strong { color: var(--ok); }
 /* The hero and monthly stats are single, equal-column divided cards. */
-.ov-hero-split { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: var(--sp-3); align-items: stretch; }
+/* The efficiency cell carries a gauge plus three labelled rows, so it takes the widest share. */
+.ov-hero-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 1.1fr); column-gap: var(--sp-3); align-items: stretch; }
 .ov-hero-split > * { min-width: 0; }
 .ov-hero-split > * + * { border-left: 1px solid var(--line); padding-left: var(--sp-3); }
 .ov-hero-split.snapshot-hero > * { grid-column: 1 / -1; }
-.ov-hero-main { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px; }
+.ov-hero-main { display: flex; flex-direction: column; }
+.ov-hero-figures { display: flex; flex: 1 1 auto; flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px; }
+/* Three secondary figures on the cell floor, so the headline stays centred above them. */
+.ov-hero-foot { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: var(--sp-3); padding-top: var(--sp-3); border-top: 1px solid var(--line); }
+.ov-hero-foot > div { display: flex; min-width: 0; flex-direction: column; gap: 1px; }
+.ov-hero-foot > div + div { border-left: 1px solid var(--line); padding-left: var(--sp-3); }
+.ov-hero-foot > div + div + div { text-align: left; }
+.ov-hero-foot span { overflow: hidden; color: var(--mut2); font-size: var(--fs-label); text-overflow: ellipsis; white-space: nowrap; }
+.ov-hero-foot strong { overflow: hidden; color: var(--ink); font-family: var(--mono); font-size: var(--fs-meta); font-weight: var(--fw-subhead); font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
+.ov-hero-foot strong.tone-good { color: var(--ok); }
+.ov-hero-foot strong.tone-bad { color: var(--bad); }
+.ov-info { display: inline-flex; padding: 0; border: 0; background: none; color: var(--mut2); cursor: help; }
+.ov-info .icon { width: 13px; height: 13px; }
+.ov-info:hover, .ov-info:focus-visible { color: var(--ink); }
 .ov-saved-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 7px; margin-top: 5px; padding-top: 9px; border-top: 1px solid var(--line2); color: var(--mut2); font-size: var(--fs-label); }
 .ov-saved-line strong { color: var(--ok); font-family: var(--mono); font-size: var(--fs-subhead); font-weight: var(--fw-kpi); font-variant-numeric: tabular-nums; }
 .ov-saved-line small { color: var(--mut2); font-size: var(--fs-label); }
@@ -670,21 +684,21 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .ov-hero-split .ov-heatmap-bare { display: flex; flex-direction: column; justify-content: flex-start; gap: var(--sp-3); }
 .ov-activity-head { display: flex; align-items: baseline; gap: 8px; }
 .ov-hero-sub .neutral { color: var(--mut); font-weight: 560; }
-.ov-efficiency { display: flex; min-width: 0; flex-direction: column; }
+.ov-efficiency { display: flex; min-width: 0; flex-direction: column; gap: var(--sp-3); }
 .ov-efficiency-main { display: flex; align-items: flex-start; gap: var(--sp-2); }
-.ov-gauge { display: flex; flex: 0 0 72px; flex-direction: column; align-items: center; gap: var(--sp-1); }
-.ov-gauge-ring { position: relative; width: 72px; height: 72px; }
+.ov-gauge { display: flex; flex: 0 0 84px; flex-direction: column; align-items: center; gap: var(--sp-1); }
+.ov-gauge-ring { position: relative; width: 84px; height: 84px; }
 .ov-gauge svg { display: block; width: 100%; height: 100%; }
 .ov-gauge-track { fill: none; stroke: var(--bar); stroke-width: 10; }
 .ov-gauge-arc { fill: none; stroke: var(--accent); stroke-width: 10; stroke-linecap: round; }
-.ov-gauge-face { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
-.ov-gauge-cap { color: var(--mut); font-size: var(--fs-micro); font-weight: var(--fw-medium); }
-.ov-gauge-score { color: var(--ink); font-family: var(--mono); font-size: var(--fs-label); font-weight: var(--fw-kpi); font-variant-numeric: tabular-nums; letter-spacing: -.02em; white-space: nowrap; }
+.ov-gauge-face { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; }
+.ov-gauge-cap { color: var(--mut); font-family: var(--mono); font-size: var(--fs-label); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.ov-gauge-score { color: var(--ink); font-family: var(--mono); font-size: var(--fs-stat); font-weight: var(--fw-kpi); font-variant-numeric: tabular-nums; letter-spacing: -.03em; line-height: 1.05; }
 .ov-grade { display: inline-flex; align-items: center; border-radius: 999px; padding: 0 7px; font-size: var(--fs-micro); font-weight: var(--fw-strong); line-height: 15px; }
 .ov-grade.grade-ok { background: color-mix(in srgb, var(--ok) 18%, var(--card-inner)); color: var(--ok); }
 .ov-grade.grade-warn { background: color-mix(in srgb, var(--warn) 18%, var(--card-inner)); color: var(--warn); }
 .ov-grade.grade-bad { background: color-mix(in srgb, var(--bad) 18%, var(--card-inner)); color: var(--bad); }
-.ov-component-list { display: grid; flex: 1 1 auto; min-width: 0; gap: var(--sp-2); }
+.ov-component-list { display: grid; flex: 1 1 auto; min-width: 0; gap: var(--sp-3); }
 .ov-component-row > div:first-child { display: flex; min-width: 0; align-items: baseline; justify-content: space-between; gap: var(--sp-2); color: var(--mut); font-size: var(--fs-label); }
 .ov-component-row > div:first-child > span { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ov-component-row strong { flex: 0 0 auto; color: var(--ink); font-family: var(--mono); font-size: var(--fs-label); font-weight: var(--fw-subhead); font-variant-numeric: tabular-nums; }
