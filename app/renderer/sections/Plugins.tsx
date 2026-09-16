@@ -114,6 +114,7 @@ function PluginsList() {
       {plugins.length === 0 ? (
         <div className={`card ${styles.empty}`}>
           <h2 className={styles.emptyTitle}>Coming soon</h2>
+          <div className={styles.emptyBodyPanel}>
           <p className={styles.emptyBody}>
             Plugins will let CodeBurn do more than count. The first one ships with CodeBurn Teams: it sends your session outcomes, retries and kind of work to your team dashboard, and nothing else.
           </p>
@@ -121,6 +122,7 @@ function PluginsList() {
           <p className={styles.emptyFooter}>
             Have a plugin file already? <button type="button" className="set-text-button" onClick={() => setShowInstallFlow(true)}>Install it</button>
           </p>
+          </div>
         </div>
       ) : (
         <div className={styles.list}>
