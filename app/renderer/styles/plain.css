@@ -1,7 +1,8 @@
 :root {
   color-scheme: light dark;
-  --canvas: #f5f6f8;
-  --side: #ffffff;
+  --canvas: #e9eaee;
+  --side: #e9eaee;
+  --page: #f7f7f9;
   --panel: #ffffff;
   --phead: #fafbfc;
   --s-flagship: #2a78d6;
@@ -12,7 +13,7 @@
   --card-shadow: 0 1px 2px rgba(20,24,33,.05), 0 1px 3px rgba(20,24,33,.06);
   --accent: #e8590c;
   --accent-text: #bf4808;
-  --bg: #f5f6f8;
+  --bg: #e9eaee;
   --line: #e6e8ec;
   --line2: #eef0f3;
   --ink: #181b20;
@@ -48,10 +49,11 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --canvas: #0e1013;
+    --canvas: #0a0b0d;
     --side: #0a0b0d;
-    --panel: #16181d;
-    --phead: #1a1d22;
+    --page: #16181d;
+    --panel: #1b1e24;
+    --phead: #1f232a;
     --s-flagship: #3987e5;
     --s-premium: #199e70;
     --s-balanced: #d55181;
@@ -60,7 +62,7 @@
     --card-shadow: 0 1px 2px rgba(0,0,0,.24), 0 1px 3px rgba(0,0,0,.30);
     --accent: #f2701c;
     --accent-text: #f2701c;
-    --bg: #0e1013;
+    --bg: #0a0b0d;
     --line: #282c33;
     --line2: #20242a;
     --ink: #e8eaee;
@@ -82,10 +84,10 @@
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --canvas: #0e1013; --side: #0a0b0d; --panel: #16181d; --phead: #1a1d22;
+  --canvas: #0a0b0d; --side: #0a0b0d; --page: #16181d; --panel: #1b1e24; --phead: #1f232a;
   --s-flagship: #3987e5; --s-premium: #199e70; --s-balanced: #d55181; --s-fast: #c98500; --s-other: #6b7280;
   --card-shadow: 0 1px 2px rgba(0,0,0,.24), 0 1px 3px rgba(0,0,0,.30);
-  --accent: #f2701c; --accent-text: #f2701c; --bg: #0e1013; --line: #282c33; --line2: #20242a;
+  --accent: #f2701c; --accent-text: #f2701c; --bg: #0a0b0d; --line: #282c33; --line2: #20242a;
   --ink: #e8eaee; --mut: #959ca8; --mut2: #8b93a1; --ok: #3ecf8e;
   --warn: #e8b93e; --bad: #f26d6d; --bar: #2b3038; --bar-hi: #c6ccd6;
   --fill: #20242b; --hover: #20242b;
@@ -96,10 +98,10 @@
 
 :root[data-theme='light'] {
   color-scheme: light;
-  --canvas: #f5f6f8; --side: #ffffff; --panel: #ffffff; --phead: #fafbfc;
+  --canvas: #e9eaee; --side: #e9eaee; --page: #f7f7f9; --panel: #ffffff; --phead: #fafbfc;
   --s-flagship: #2a78d6; --s-premium: #1baf7a; --s-balanced: #e87ba4; --s-fast: #eda100; --s-other: #8b93a1;
   --card-shadow: 0 1px 2px rgba(20,24,33,.05), 0 1px 3px rgba(20,24,33,.06);
-  --accent: #e8590c; --accent-text: #bf4808; --bg: #f5f6f8; --line: #e6e8ec; --line2: #eef0f3;
+  --accent: #e8590c; --accent-text: #bf4808; --bg: #e9eaee; --line: #e6e8ec; --line2: #eef0f3;
   --ink: #181b20; --mut: #626a78; --mut2: #646b78; --ok: #0f7455;
   --warn: #925b00; --bad: #c2382f; --bar: #d7dbe1; --bar-hi: #3a4150;
   --fill: #f1f2f4; --hover: #f2f3f5;
@@ -111,7 +113,12 @@
 html, body, #root { height: 100%; margin: 0; }
 body { overflow: hidden; background: var(--bg); color: var(--ink); }
 .win { height: 100%; min-height: 0; border-radius: 0; background: var(--canvas); box-shadow: none; }
-.ct { min-height: 0; }
+.ct { min-height: 0; box-sizing: border-box; padding: 0 var(--sp-2); }
+/* The frame (window ground, sidebar, top bar) is one near-black plane; the
+   content is a rounded card inset on it, and the card is what scrolls. */
+.sb { border-right: 0; }
+.bar { border-bottom: 0; }
+.hint { border-top: 0; }
 /* Subtle in-flight hairline at the top of the section body: shown while a
    provider/period switch refreshes behind instantly-served memoized data. */
 .switch-line { flex: 0 0 auto; height: 2px; background: transparent; }
@@ -125,7 +132,7 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
 .refresh-mark { opacity: .3; width: 13px; height: 13px; }
 .refresh-mark.spinning { opacity: .85; animation: refresh-mark-spin 1s linear infinite; }
 @keyframes refresh-mark-spin { to { transform: rotate(360deg); } }
-.body { overflow-y: auto; min-height: 0; align-items: center; padding: var(--sp-5); gap: var(--sp-4); }
+.body { overflow-y: auto; min-height: 0; align-items: center; padding: var(--sp-5); gap: var(--sp-4); margin-bottom: var(--sp-2); background: var(--page); border-radius: 12px; }
 /* Children keep their natural height (don't flex-shrink to fit) so the pane
    scrolls instead of squishing; capped width keeps content from stretching. */
 .body > * { box-sizing: border-box; flex-shrink: 0; width: 100%; max-width: 1180px; }
@@ -365,7 +372,7 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
 .update-banner > .set-text-button { color: var(--mut); }
 
 /* Settings */
-.body.set-body { align-self: stretch; align-items: stretch; justify-content: flex-start; width: auto; height: 100%; min-height: 0; max-width: none; margin: 0; padding: 0; overflow: hidden; flex-direction: row; gap: 0; }
+.body.set-body { align-self: stretch; align-items: stretch; justify-content: flex-start; width: auto; height: 100%; min-height: 0; max-width: none; margin: 0 0 var(--sp-2); padding: 0; overflow: hidden; flex-direction: row; gap: 0; }
 .body.set-body > .set-rail, .body.set-body > .set-pane { width: auto; max-width: none; min-height: 0; margin: 0; }
 .body.set-body > .set-rail { flex-shrink: 0; }
 .body.set-body > .set-pane { flex-shrink: 1; }

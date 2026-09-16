@@ -2,6 +2,9 @@
   padding: var(--sp-5);
   flex: 1;
   overflow-y: auto;
+  margin-bottom: var(--sp-2);
+  background: var(--page);
+  border-radius: 12px;
 }
 
 
