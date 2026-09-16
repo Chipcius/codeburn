@@ -14,15 +14,42 @@ export function sparkPoints(values: number[], width: number, height: number, ins
   ])
 }
 
-/** A smooth curve: each segment is a cubic whose handles sit on the segment's horizontal midpoint. */
+function round(value: number): number {
+  return Math.round(value * 100) / 100
+}
+
+/**
+ * Monotone cubic (Fritsch-Carlson): smooth through every point without the
+ * overshoot a Catmull-Rom spline would add to a cumulative, only-rising series.
+ */
 export function sparkPath(points: SparkPoint[]): string {
   if (!points.length) return ''
-  let d = `M${points[0][0]} ${points[0][1]}`
-  for (let index = 1; index < points.length; index++) {
-    const [x0, y0] = points[index - 1]
-    const [x1, y1] = points[index]
-    const mid = (x0 + x1) / 2
-    d += ` C${mid} ${y0} ${mid} ${y1} ${x1} ${y1}`
+  if (points.length === 1) return `M${round(points[0][0])} ${round(points[0][1])}`
+  const last = points.length - 1
+  const dx: number[] = []
+  const slope: number[] = []
+  for (let index = 0; index < last; index++) {
+    dx[index] = points[index + 1][0] - points[index][0]
+    slope[index] = dx[index] === 0 ? 0 : (points[index + 1][1] - points[index][1]) / dx[index]
+  }
+  const tangent: number[] = new Array(points.length)
+  tangent[0] = slope[0]
+  tangent[last] = slope[last - 1]
+  for (let index = 1; index < last; index++) {
+    if (slope[index - 1] * slope[index] <= 0) {
+      tangent[index] = 0
+    } else {
+      const left = 2 * dx[index] + dx[index - 1]
+      const right = dx[index] + 2 * dx[index - 1]
+      tangent[index] = (left + right) / (left / slope[index - 1] + right / slope[index])
+    }
+  }
+  let d = `M${round(points[0][0])} ${round(points[0][1])}`
+  for (let index = 0; index < last; index++) {
+    const third = dx[index] / 3
+    d += ` C${round(points[index][0] + third)} ${round(points[index][1] + tangent[index] * third)}`
+      + ` ${round(points[index + 1][0] - third)} ${round(points[index + 1][1] - tangent[index + 1] * third)}`
+      + ` ${round(points[index + 1][0])} ${round(points[index + 1][1])}`
   }
   return d
 }

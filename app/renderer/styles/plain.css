@@ -657,7 +657,7 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .ov-hero-split > * { min-width: 0; }
 .ov-hero-split > * + * { border-left: 1px solid var(--line); padding-left: var(--sp-3); }
 .ov-hero-split.snapshot-hero > * { grid-column: 1 / -1; }
-.ov-hero-main { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.ov-hero-main { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px; }
 .ov-saved-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 7px; margin-top: 5px; padding-top: 9px; border-top: 1px solid var(--line2); color: var(--mut2); font-size: var(--fs-label); }
 .ov-saved-line strong { color: var(--ok); font-family: var(--mono); font-size: var(--fs-subhead); font-weight: var(--fw-kpi); font-variant-numeric: tabular-nums; }
 .ov-saved-line small { color: var(--mut2); font-size: var(--fs-label); }
@@ -717,8 +717,8 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .ov-signal-trailing { flex: 0 0 auto; color: var(--ink); font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .ov-stats3 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 12px; }
 .ov-stats3 > * { min-width: 0; }
-.ov-stat { display: flex; min-width: 0; flex-direction: column; }
-.ov-stat-top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-3); }
+.ov-stat { position: relative; display: flex; min-width: 0; flex-direction: column; overflow: hidden; }
+.ov-stat-figures, .ov-stat-foot { position: relative; z-index: 1; }
 .ov-stat-figures { min-width: 0; }
 .ov-stat .v { color: var(--ink); font-family: var(--mono); font-size: var(--fs-stat); font-weight: var(--fw-kpi); font-variant-numeric: tabular-nums; letter-spacing: -.03em; line-height: 1.1; }
 .ov-stat .v small { color: var(--mut2); font-family: var(--sans); font-size: var(--fs-body); font-weight: var(--fw-medium); }
@@ -731,16 +731,17 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .ov-stat-foot .ov-link { display: inline-flex; align-items: center; gap: var(--sp-1); }
 .ov-stat-foot .icon { width: 12px; height: 12px; }
 /* Corner curve: the dotted ground fades out toward the figures so it never competes with them. */
-.ov-trend { position: relative; flex: 0 1 132px; width: 132px; height: 44px; }
+/* The curve lives in the card's bottom-right corner and the figures read over its faded left. */
+.ov-trend { position: absolute; right: 6px; bottom: 5px; z-index: 0; width: 55%; height: 70%; }
 .ov-trend.tone-good { color: var(--ok); }
 .ov-trend.tone-bad { color: var(--bad); }
 .ov-trend.tone-flat { color: var(--mut2); }
-.ov-trend::before { content: ""; position: absolute; inset: 0; background-image: radial-gradient(var(--mut2) 1px, transparent 1px); background-size: 8px 8px; opacity: .18; -webkit-mask-image: linear-gradient(to right, transparent, #000 45%); mask-image: linear-gradient(to right, transparent, #000 45%); }
+.ov-trend::before { content: ""; position: absolute; inset: 0; background-image: radial-gradient(var(--mut2) 1px, transparent 1px); background-size: 8px 8px; opacity: .07; -webkit-mask-image: radial-gradient(130% 140% at 100% 100%, #000 15%, transparent 72%); mask-image: radial-gradient(130% 140% at 100% 100%, #000 15%, transparent 72%); }
 .ov-trend svg { position: relative; display: block; width: 100%; height: 100%; }
 .ov-trend-line { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .ov-trend-line.dashed { stroke-dasharray: 3 3; }
 .ov-trend-guide { stroke: var(--mut2); stroke-width: 1; stroke-dasharray: 2 3; opacity: .5; }
-.ov-trend-dot { position: absolute; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: currentColor; }
+.ov-trend-dot { position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 2px var(--card-inner); }
 .ov-panel-head h3 { min-width: 0; overflow: hidden; margin: 0; color: var(--ink); font-size: var(--fs-subhead); font-weight: var(--fw-subhead); text-overflow: ellipsis; white-space: nowrap; }
 .ov-panel-head .r { flex: 0 0 auto; margin-left: auto; color: var(--mut2); font-size: var(--fs-label); }
 .ov-model-panel { overflow: hidden; padding: 0; }

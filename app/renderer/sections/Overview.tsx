@@ -474,16 +474,17 @@ function deriveStats(data: MenubarPayload, now: Date) {
   }
 }
 
-const TREND_WIDTH = 132
-const TREND_HEIGHT = 44
+const TREND_WIDTH = 160
+const TREND_HEIGHT = 64
 
 /**
- * The card's corner curve: cumulative spend, filled with a gradient in the
- * delta's colour, with today marked and any projected tail drawn dashed.
+ * The card's corner curve: cumulative spend anchored to the inner surface's
+ * bottom-right, filled with a soft gradient in the delta's colour, with today
+ * marked and any projected tail drawn dashed.
  */
 function SpendTrend({ values, tone, dashFrom }: { values: number[]; tone: 'good' | 'bad' | 'flat'; dashFrom?: number }) {
-  const gradientId = useId()
-  const points = sparkPoints(values, TREND_WIDTH, TREND_HEIGHT)
+  const id = useId()
+  const points = sparkPoints(values, TREND_WIDTH, TREND_HEIGHT, 6)
   if (points.length < 2) return null
   const solid = dashFrom === undefined ? points : points.slice(0, dashFrom + 1)
   const dashed = dashFrom === undefined ? [] : points.slice(dashFrom)
@@ -494,12 +495,18 @@ function SpendTrend({ values, tone, dashFrom }: { values: number[]; tone: 'good'
     <div className={`ov-trend tone-${tone}`} aria-hidden="true">
       <svg viewBox={`0 0 ${TREND_WIDTH} ${TREND_HEIGHT}`} preserveAspectRatio="none">
         <defs>
-          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+          <linearGradient id={`${id}-fill`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.22" />
+            <stop offset="55%" stopColor="currentColor" stopOpacity="0" />
           </linearGradient>
+          <radialGradient id={`${id}-glow`}>
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.06" />
+            <stop offset="55%" stopColor="currentColor" stopOpacity="0.02" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+          </radialGradient>
         </defs>
-        <path d={sparkArea(solid, TREND_HEIGHT)} fill={`url(#${gradientId})`} />
+        <ellipse cx={last[0]} cy={last[1]} rx={TREND_WIDTH * 0.55} ry={TREND_HEIGHT * 0.7} fill={`url(#${id}-glow)`} />
+        <path d={sparkArea(solid, TREND_HEIGHT)} fill={`url(#${id}-fill)`} />
         <path className="ov-trend-line" d={sparkPath(solid)} vectorEffect="non-scaling-stroke" />
         {dashed.length > 1 && <path className="ov-trend-line dashed" d={sparkPath(dashed)} vectorEffect="non-scaling-stroke" />}
         <line className="ov-trend-guide" x1={guide[0]} y1="0" x2={guide[0]} y2={TREND_HEIGHT} vectorEffect="non-scaling-stroke" />
@@ -989,22 +996,20 @@ export function OverviewContent({
           <div className="ov-card">
             <div className="ov-panel-head"><Icon name="calendar" /><h3>Month to date</h3></div>
             <div className="ov-card-inner ov-stat">
-              <div className="ov-stat-top">
-                <div className="ov-stat-figures">
-                  <div className="v">{formatUsd(stats.mtd)}</div>
-                  {stats.pacePct === null ? (
-                    <div className="d">No {stats.prevMonthName} pace yet</div>
-                  ) : (
-                    <>
-                      <span className={`ov-stat-pill tone-${paceDirection(stats.pacePct)}`}>
-                        <Icon name={stats.pacePct < 0 ? 'arrow-down' : 'arrow-up'} />
-                        {Math.abs(Math.round(stats.pacePct))}%
-                      </span>
-                      <div className="d">vs {stats.prevMonthName} pace</div>
-                    </>
-                  )}
-                </div>
-                <SpendTrend values={stats.mtdSeries} tone={stats.pacePct === null ? 'flat' : paceDirection(stats.pacePct)} />
+              <SpendTrend values={stats.mtdSeries} tone={stats.pacePct === null ? 'flat' : paceDirection(stats.pacePct)} />
+              <div className="ov-stat-figures">
+                <div className="v">{formatUsd(stats.mtd)}</div>
+                {stats.pacePct === null ? (
+                  <div className="d">No {stats.prevMonthName} pace yet</div>
+                ) : (
+                  <>
+                    <span className={`ov-stat-pill tone-${paceDirection(stats.pacePct)}`}>
+                      <Icon name={stats.pacePct < 0 ? 'arrow-down' : 'arrow-up'} />
+                      {Math.abs(Math.round(stats.pacePct))}%
+                    </span>
+                    <div className="d">vs {stats.prevMonthName} pace</div>
+                  </>
+                )}
               </div>
               <div className="ov-stat-foot">
                 <button className="ov-link" type="button" onClick={() => onNavigate?.('spend')}>See spend <Icon name="arrow-right" /></button>
@@ -1014,16 +1019,14 @@ export function OverviewContent({
           <div className="ov-card">
             <div className="ov-panel-head"><Icon name="trending-up" /><h3>Projected month</h3></div>
             <div className="ov-card-inner ov-stat">
-              <div className="ov-stat-top">
-                <div className="ov-stat-figures">
-                  <div className="v">{formatUsd(stats.projected)} <small>est</small></div>
-                  <span className="ov-stat-pill tone-bad">
-                    <Icon name="arrow-up" />
-                    {formatUsd(Math.max(0, stats.projected - stats.mtd))}
-                  </span>
-                  <div className="d">to go</div>
-                </div>
-                <SpendTrend values={[...stats.mtdSeries, ...stats.projectedTail]} tone="bad" dashFrom={Math.max(0, stats.mtdSeries.length - 1)} />
+              <SpendTrend values={[...stats.mtdSeries, ...stats.projectedTail]} tone="bad" dashFrom={Math.max(0, stats.mtdSeries.length - 1)} />
+              <div className="ov-stat-figures">
+                <div className="v">{formatUsd(stats.projected)} <small>est</small></div>
+                <span className="ov-stat-pill tone-bad">
+                  <Icon name="arrow-up" />
+                  {formatUsd(Math.max(0, stats.projected - stats.mtd))}
+                </span>
+                <div className="d">to go</div>
               </div>
               <div className="ov-stat-foot">
                 <button className="ov-link" type="button" onClick={() => onNavigate?.('plans')}>See plans <Icon name="arrow-right" /></button>
