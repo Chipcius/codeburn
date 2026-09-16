@@ -508,6 +508,8 @@ export type BranchSpendCoverage = {
 export type BranchSpendProjectReport = {
   id: string
   label: string
+  /** Normalized `origin` remote; shared by every clone and worktree of a repo. */
+  originKey?: string | null
   totalCost: number
   branches: BranchSpendRow[]
   coverage: BranchSpendCoverage
