@@ -55,16 +55,16 @@ Per `grokbot:<agentId>:<requestId>`.
 
 ## Quota
 
-**No quota reader, because the credential is not reachable.**
+`codeburn quota` reports Grok Bot's weekly allowance — the same "Weekly usage NN%, resets in N days" the app's own account menu shows, read from the call the app itself makes:
 
-The app's account menu shows "Weekly usage NN%, resets in N days" with a **Change limit** action. In the shipped 0.30.0 renderer that reading comes from two Connect-RPC calls on `aiserver.v1.DashboardService`:
+- `POST https://api2.cursor.sh/aiserver.v1.DashboardService/GetSandUsageStatus`, Connect-RPC, empty JSON body, `Authorization: Bearer <cursor token>`. Response: `usagePercent` (0..100), `currentPeriodStart`, `nextResetTimestampUtc` (exactly seven days apart), `hasNonZeroIncludedLimit`, `usesPooledEnterpriseAllowance`, `hasAvailableUsage`, `upgradeRecommendation`, and `grokPlanLabel` on newer builds. Emitted as one window labelled `Weekly usage`.
+- `GetCurrentPeriodUsage` on the same service returns `spendLimitUsage { individualUsed, individualLimit }` in cents, the "Change limit" surface. Not read: it is a spend cap, not a capacity window.
 
-- `POST https://api2.cursor.sh/aiserver.v1.DashboardService/GetSandUsageStatus` → `usagePercent`, `nextResetTimestampUtc`, `usesPooledEnterpriseAllowance`, `hasNonZeroIncludedLimit`, `sandTrialExpiresAt`, `grokPlanLabel`. The renderer shows nothing when `usesPooledEnterpriseAllowance` is set.
-- `POST https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage` → `spendLimitUsage { individualUsed, individualLimit }` in cents, which is what "Change limit" edits.
+**The credential is the Cursor IDE's, not Grok Bot's.** Grok Bot keeps its own copy of the Cursor session in `sand-secrets.json` as an Electron `safeStorage` blob (base64 of `v10` plus AES-128-CBC ciphertext, key in the macOS keychain), and CodeBurn does not decrypt an app's safe storage — the rule stated for "Codex Safe Storage" at `src/quota/codex.ts:109`. The Cursor IDE stores the same kind of token unencrypted in its VS Code state database under `cursorAuth/accessToken`, so `src/quota/grokbot.ts` reuses `src/quota/cursor.ts`'s read-only lookup of that row rather than duplicating it.
 
-Both are authorised by the Cursor access token the app keeps in `~/Library/Application Support/Grok Bot/sand-secrets.json` under `cursor-accounts.<slot>.cursor-access-token`. Every value there is an Electron `safeStorage` blob (base64 of `v10` plus AES-128-CBC ciphertext, key in the macOS keychain), and CodeBurn does not decrypt an app's safe storage — the same rule stated for "Codex Safe Storage" at `src/quota/codex.ts:109`. Nothing else local carries the plan or the percentage: `local-account.json` has only an email and a display name, and `gateway.json`'s plaintext token authorises the loopback box host, not the dashboard.
+The consequence is a real precondition, not a detail: **this reading is Grok Bot's only when the Cursor app is signed into the account Grok Bot uses.** With Cursor signed out, the provider reports "not signed in", the same state `src/quota/cursor.ts` reports. With Cursor signed into a different account, the percentage is that other account's. Nothing local can verify the two match. `src/quota/cursor.ts` is not a substitute either: it reads `cursor.com/api/usage-summary` and reports that dashboard's monthly window, a different allowance on the same vendor's dashboard.
 
-`src/quota/cursor.ts` is not a substitute. It reads `cursor.com/api/usage-summary` with the Cursor IDE's own token and reports that dashboard's monthly window — a different allowance on the same vendor's dashboard, not Grok Bot's weekly Sand allowance, and whether the two are even the same account cannot be checked from either side. If Grok Bot ever writes a readable credential, `src/quota/grokbot.ts` would mirror `src/quota/grok.ts` against the two endpoints above with a weekly window.
+**Quota is the only usage number that exists.** The bots run on xAI's cloud VM; the prompts, the model and the token counts never leave it, so no per-request usage is obtainable by any method — not by reading disk, not by any endpoint. The weekly percentage is a capacity reading, not accounting, and it cannot be reconciled against the estimated token totals above.
 
 ## Live sessions
 
