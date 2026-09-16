@@ -1,25 +1,47 @@
 import { useEffect, useState, type ReactNode } from 'react'
 
+import { version } from '../../package.json'
 import { codeburn } from '../lib/ipc'
-import { isWindowsPlatform, shortcutLabel } from '../lib/platform'
+import { shortcutLabel } from '../lib/platform'
 import type { CompanionStatus } from '../lib/types'
-import { AboutModal, SOCIALS } from './AboutModal'
+import { AboutModal } from './AboutModal'
 import { Icon } from './icons'
 
 export type Section = 'overview' | 'sessions' | 'pullRequests' | 'spend' | 'optimize' | 'models' | 'compare' | 'periods' | 'plans' | 'settings' | 'plugins'
 
-export const NAV_ITEMS: Array<{ id: Section; label: string; key: string; icon: ReactNode }> = [
-  { id: 'overview', label: 'Overview', key: '1', icon: <Icon name="layout-dashboard" /> },
-  { id: 'sessions', label: 'Sessions', key: '2', icon: <Icon name="list" /> },
-  { id: 'pullRequests', label: 'Pull requests', key: '3', icon: <Icon name="git-pull-request" /> },
-  { id: 'spend', label: 'Spend', key: '4', icon: <Icon name="coins" /> },
-  { id: 'optimize', label: 'Optimize', key: '5', icon: <Icon name="sparkles" /> },
-  { id: 'models', label: 'Models', key: '6', icon: <Icon name="box" /> },
-  { id: 'compare', label: 'Compare', key: '7', icon: <Icon name="scale" /> },
-  { id: 'plans', label: 'Plans', key: '8', icon: <Icon name="credit-card" /> },
-  { id: 'periods', label: 'Compare periods', key: '9', icon: <Icon name="calendar-range" /> },
-  { id: 'settings', label: 'Settings', key: ',', icon: <Icon name="settings" /> },
-  { id: 'plugins', label: 'Plugins', key: '.', icon: <Icon name="puzzle" /> },
+type NavItem = { id: Section; label: string; key: string; icon: ReactNode }
+
+/** Grouped by what the screen is for, not by shortcut: every key below is the
+ *  one it has always been, only the order they are listed in changed. */
+export const NAV_GROUPS: Array<{ label?: string; items: NavItem[] }> = [
+  {
+    items: [{ id: 'overview', label: 'Overview', key: '1', icon: <Icon name="layout-dashboard" /> }],
+  },
+  {
+    label: 'Usage',
+    items: [
+      { id: 'sessions', label: 'Sessions', key: '2', icon: <Icon name="list" /> },
+      { id: 'pullRequests', label: 'Pull requests', key: '3', icon: <Icon name="git-pull-request" /> },
+      { id: 'spend', label: 'Spend', key: '4', icon: <Icon name="coins" /> },
+      { id: 'models', label: 'Models', key: '6', icon: <Icon name="box" /> },
+    ],
+  },
+  {
+    label: 'Insight',
+    items: [
+      { id: 'optimize', label: 'Optimize', key: '5', icon: <Icon name="sparkles" /> },
+      { id: 'compare', label: 'Compare', key: '7', icon: <Icon name="scale" /> },
+      { id: 'periods', label: 'Compare periods', key: '9', icon: <Icon name="calendar-range" /> },
+    ],
+  },
+  {
+    label: 'Account',
+    items: [
+      { id: 'plans', label: 'Plans', key: '8', icon: <Icon name="credit-card" /> },
+      { id: 'plugins', label: 'Plugins', key: '.', icon: <Icon name="puzzle" /> },
+      { id: 'settings', label: 'Settings', key: ',', icon: <Icon name="settings" /> },
+    ],
+  },
 ]
 
 export function Sidebar({
@@ -33,36 +55,45 @@ export function Sidebar({
   // A count, not a flag: every open is a fresh key, so reopening the modal
   // mid-fade cancels the exit instead of being closed by its pending timer.
   const [aboutOpens, setAboutOpens] = useState(0)
+  const showKeys = useModifierHeld()
 
   return (
     <>
-      <nav className="sb">
+      <nav className="sb" data-show-keys={showKeys ? '' : undefined}>
         <div className="app"><b className="flame-text">CodeBurn</b></div>
-        {NAV_ITEMS.map(item => (
-          <div
-            key={item.id}
-            className={item.id === active ? 'ni on' : 'ni'}
-            role="button"
-            aria-current={item.id === active ? 'page' : undefined}
-            tabIndex={0}
-            onClick={() => onNavigate(item.id)}
-            onKeyDown={e => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault()
-                onNavigate(item.id)
-              }
-            }}
-          >
-            {item.icon}
-            {item.label}
-            <span className="k">{shortcutLabel(item.key)}</span>
+        {NAV_GROUPS.map(group => (
+          <div className="grp" key={group.label ?? 'top'}>
+            {group.label ? <div className="grp-label">{group.label}</div> : null}
+            {group.items.map(item => (
+              <div
+                key={item.id}
+                className={item.id === active ? 'ni on' : 'ni'}
+                role="button"
+                aria-current={item.id === active ? 'page' : undefined}
+                tabIndex={0}
+                onClick={() => onNavigate(item.id)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    onNavigate(item.id)
+                  }
+                }}
+              >
+                {item.icon}
+                {item.label}
+                <span className="k">{shortcutLabel(item.key)}</span>
+              </div>
+            ))}
           </div>
         ))}
         <div className="push" />
         <CompanionSwitches />
         <div className="foot">
-          <a className="about" href="#about" onClick={event => { event.preventDefault(); setAboutOpens(opens => opens + 1) }}>About</a>
-          <SocialGlyphs />
+          <a className="about" href="#about" onClick={event => { event.preventDefault(); setAboutOpens(opens => opens + 1) }}>
+            <Icon name="info" />
+            About
+            <span className="ver">v{version}</span>
+          </a>
         </div>
       </nav>
       {aboutOpens > 0 ? <AboutModal openKey={String(aboutOpens)} onClose={() => setAboutOpens(0)} /> : null}
@@ -70,37 +101,31 @@ export function Sidebar({
   )
 }
 
-/**
- * The row of brand glyphs in the corner, beside About.
- *
- * Windows is the one platform that gives that corner to something else: the two companion
- * switches sit above About, and a 186px sidebar has no room for both. Every other platform
- * keeps the glyphs it always had, since nothing replaced them there. About lists the same
- * links under Links on every platform.
- */
-function SocialGlyphs() {
-  if (isWindowsPlatform()) return null
-  return (
-    <div className="social">
-      {SOCIALS.map(social => (
-        <a
-          key={social.label}
-          href={social.url}
-          title={social.label}
-          aria-label={social.label}
-          onClick={event => { event.preventDefault(); void codeburn.openExternal(social.url) }}
-        >
-          {social.icon}
-        </a>
-      ))}
-    </div>
-  )
+/** Shortcut badges are noise until someone reaches for the modifier, so the nav
+ *  only shows them while it is down. They stay in the DOM for screen readers. */
+function useModifierHeld(): boolean {
+  const [held, setHeld] = useState(false)
+
+  useEffect(() => {
+    const sync = (event: KeyboardEvent) => setHeld(event.metaKey || event.ctrlKey)
+    const clear = () => setHeld(false)
+    window.addEventListener('keydown', sync)
+    window.addEventListener('keyup', sync)
+    window.addEventListener('blur', clear)
+    return () => {
+      window.removeEventListener('keydown', sync)
+      window.removeEventListener('keyup', sync)
+      window.removeEventListener('blur', clear)
+    }
+  }, [])
+
+  return held
 }
 
 /**
  * The two surfaces the Windows desktop app carries besides its own window: the tray app
  * ("Menu bar") and the Capacity Dock rail it draws ("Sidebar"). Both are on by default and
- * live above About, in the corner the social glyphs share on every other platform.
+ * live above About.
  *
  * Nothing renders until the main process says this build has a tray app staged, which is why
  * there is no placeholder row and no disabled switch: on macOS, on Linux, and in a dev build

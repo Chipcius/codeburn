@@ -26,6 +26,9 @@
   --bar-hi: #3a4150;
   --fill: #f1f2f4;
   --hover: #f2f3f5;
+  --nav-on: rgba(0,0,0,.06);
+  --nav-hover: rgba(0,0,0,.035);
+  --nav-ink: #181b20;
   --tip-bg: #1a1d23;
   --tip-ink: #ffffff;
   /* Type ladder — sizes + weights (theme-independent). */
@@ -75,6 +78,9 @@
     --bar-hi: #c6ccd6;
     --fill: #20242b;
     --hover: #20242b;
+    --nav-on: rgba(255,255,255,.08);
+    --nav-hover: rgba(255,255,255,.04);
+    --nav-ink: #ffffff;
     --tip-bg: #eef0f3;
     --tip-ink: #15181d;
   }
@@ -91,6 +97,7 @@
   --ink: #e8eaee; --mut: #959ca8; --mut2: #8b93a1; --ok: #3ecf8e;
   --warn: #e8b93e; --bad: #f26d6d; --bar: #2b3038; --bar-hi: #c6ccd6;
   --fill: #20242b; --hover: #20242b;
+  --nav-on: rgba(255,255,255,.08); --nav-hover: rgba(255,255,255,.04); --nav-ink: #ffffff;
   --tip-bg: #eef0f3; --tip-ink: #15181d;
 }
 :root[data-theme='dark'] .pl-light { display: none; }
@@ -105,6 +112,7 @@
   --ink: #181b20; --mut: #626a78; --mut2: #646b78; --ok: #0f7455;
   --warn: #925b00; --bad: #c2382f; --bar: #d7dbe1; --bar-hi: #3a4150;
   --fill: #f1f2f4; --hover: #f2f3f5;
+  --nav-on: rgba(0,0,0,.06); --nav-hover: rgba(0,0,0,.035); --nav-ink: #181b20;
   --tip-bg: #1a1d23; --tip-ink: #ffffff;
 }
 :root[data-theme='light'] .pl-light { display: inline-flex; }
@@ -138,25 +146,28 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
 .body > * { box-sizing: border-box; flex-shrink: 0; width: 100%; max-width: 1180px; }
 /* Use the real OS window controls, not the wireframe's fake traffic-light dots. */
 .lights { display: none; }
-.sb { padding-top: 12px; }
+.sb { box-sizing: border-box; flex: 0 0 200px; min-width: 0; padding: 12px 12px 10px; }
 
-/* Sidebar brand (flame logo + wordmark), nav icons, and About/social footer. */
-.app { gap: 6px; }
+/* Sidebar: one monochrome column. Grouped rows, a pill for the row you are on,
+   and no colour of its own besides the wordmark. */
+.app { gap: 6px; padding: 0 8px 14px; }
 .app .flamemark { flex: 0 0 auto; width: auto; }
-.ni svg { width: 16px; height: 16px; flex: 0 0 auto; }
-.ni.on svg { stroke: var(--accent); }
-.foot { display: flex; align-items: center; gap: 10px; margin-top: 4px; padding: 11px 8px 2px; border-top: 1px solid var(--line); }
-.foot .about { color: var(--mut); text-decoration: none; font-size: var(--fs-body); font-weight: 520; cursor: pointer; }
-.foot .about:hover { color: var(--ink); }
-/* On every platform but Windows, where the corner above About carries the two companion
-   switches instead and a 186px sidebar has no room for both. */
-.foot .social { display: flex; gap: 2px; margin-left: auto; }
-.foot .social a { color: var(--mut2); display: flex; padding: 5px; border-radius: 6px; cursor: pointer; }
-.foot .social a:hover { color: var(--accent); background: var(--hover); }
-.foot .social svg { width: 16px; height: 16px; fill: currentColor; stroke: none; }
+.sb .icon { width: 14px; height: 14px; stroke-width: 1.5; }
+.grp-label { padding: 16px 8px 4px; color: var(--mut2); font-size: var(--fs-label); font-weight: var(--fw-subhead); letter-spacing: .06em; text-transform: uppercase; }
+.ni { height: 28px; margin-bottom: 0; padding: 0 8px; gap: 10px; color: var(--mut); }
+.ni:hover { background: var(--nav-hover); }
+.ni.on { background: var(--nav-on); color: var(--nav-ink); font-weight: var(--fw-medium); }
+/* Shortcuts are noise until the modifier is down; opacity keeps the row from
+   reflowing and keeps the badge in the accessibility tree. */
+.ni .k { opacity: 0; transition: opacity var(--dur-fast) var(--ease-out); }
+.sb[data-show-keys] .ni .k { opacity: 1; }
+.foot { margin-top: 4px; padding: 8px 0 0; border-top: 1px solid var(--line); }
+.foot .about { display: flex; align-items: center; height: 28px; padding: 0 8px; gap: 10px; border-radius: 7px; color: var(--mut); text-decoration: none; font-size: var(--fs-body); font-weight: 520; cursor: pointer; }
+.foot .about:hover { background: var(--nav-hover); color: var(--nav-ink); }
+.foot .ver { margin-left: auto; color: var(--mut2); font-size: var(--fs-meta); font-variant-numeric: tabular-nums; }
 /* Windows only: the tray app and the Capacity Dock rail, above About. Same 8px gutter and
    12.5px type as a nav item, so the corner reads as one column rather than two. */
-.companion { padding: 8px 8px 2px; border-top: 1px solid var(--line); }
+.companion { padding: 8px 0 2px; border-top: 1px solid var(--line); }
 .companion-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
 .companion-label { color: var(--mut); font-size: var(--fs-body); font-weight: 480; }
 .companion-row .switch { margin-left: auto; }
@@ -271,8 +282,8 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
 :root[data-platform='darwin'] :is(.onboard, .about-modal-backdrop, .drawer-scrim, .session-drawer, .pop-menu, .calendar-popover, .toast-host) { -webkit-app-region: no-drag; }
 .app b { filter: none; }
 .ni { cursor: pointer; }
-.ni.on { background: var(--hover); color: var(--ink); box-shadow: none; }
-.ni.on::before { background: var(--accent); }
+.ni.on { box-shadow: none; }
+.ni.on::before { content: none; }
 .seg { background: var(--bg); border: 1px solid var(--line); }
 .seg span { cursor: pointer; }
 .seg .on { background: var(--panel); box-shadow: inset 0 -2px 0 var(--accent); }
@@ -1067,7 +1078,7 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 
 /* Hover: every surface that answers a pointer settles its colour over
    --dur-fast. Nothing in this list moves a box. */
-.ni, .foot .about, .foot .social a, .set-rail-item,
+.ni, .foot .about, .set-rail-item,
 .li-clickable, .session-row, .ov-drill, .opt-finding-toggle, .pop-item,
 .cmp-sample, button.pcmp-row, .calendar-day, .sessions-more, .ov-heat-cell, .pr-card-trigger,
 .session-provider-filter button, .sessions-clear, .tray-accent,
