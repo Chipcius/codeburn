@@ -93,7 +93,7 @@ export function ProviderLogo({ provider, size = 16 }: { provider: string; size?:
   return (
     <span
       className="provider-logo provider-mono"
-      style={{ width: size, height: size, fontSize: Math.round(size * 0.58) }}
+      style={{ width: size, height: size }}
       aria-hidden
     >{initial}</span>
   )

@@ -6,6 +6,7 @@ import { ConnectAffordance } from '../components/ConnectAffordance'
 import { Dropdown } from '../components/Dropdown'
 import { Panel } from '../components/Panel'
 import { ProviderLogo } from '../components/ProviderLogo'
+import { BarNav } from '../components/TopBar'
 import type { Section } from '../components/Sidebar'
 import { clearPolledMemo, usePolled } from '../hooks/usePolled'
 import { updateDownloadUrl, useUpdateStatus } from '../hooks/useUpdateStatus'
@@ -147,7 +148,7 @@ export function Settings({ period, refreshToken = 0, onNavigate, initialPane, cl
 
   return (
     <>
-      <div className="bar"><div className="t">Settings</div></div>
+      <div className="bar"><BarNav /><h1 className="t">Settings</h1></div>
       <ToastHost />
       <div className={motionClass('body set-body', 'section-fade')}>
         <nav className="set-rail" aria-label="Settings sections">
@@ -250,8 +251,8 @@ function GeneralPane({ period, refreshToken, claudeConfigs, claudeConfigSource, 
         <div className="about-sec">
           <div className="about-sec-h">Display</div>
           <div className="about-row"><label className="tx" htmlFor="settings-currency">Currency</label><span className="r">
-            {plans.data ? <Dropdown id="settings-currency" ariaLabel="Currency" value={plans.data.currency} options={currencies.map(code => ({ value: code, label: code }))} onChange={value => { trackEvent('settings_change', { setting: 'currency', value }); void codeburn.setCurrency(value).then(finishCurrency) }} width={92} /> : plans.error ? <SettingsErrorText error={plans.error} /> : <span className="set-cap">Loading…</span>}
             <button className="set-text-button" onClick={() => { trackEvent('settings_change', { setting: 'currency', value: 'USD' }); void codeburn.resetCurrency().then(finishCurrency) }}>Reset to USD</button>
+            {plans.data ? <Dropdown id="settings-currency" ariaLabel="Currency" value={plans.data.currency} options={currencies.map(code => ({ value: code, label: code }))} onChange={value => { trackEvent('settings_change', { setting: 'currency', value }); void codeburn.setCurrency(value).then(finishCurrency) }} width={92} /> : plans.error ? <SettingsErrorText error={plans.error} /> : <span className="set-cap">Loading…</span>}
           </span></div>
           <div className="about-row"><label className="tx" htmlFor="settings-period">Default period<small>Applied on next launch.</small></label><span className="r"><Dropdown id="settings-period" ariaLabel="Default period" value={defaultPeriod} options={[{ value: 'today', label: 'Today' }, { value: 'week', label: '7d' }, { value: '30days', label: '30d' }, { value: 'month', label: 'Month' }, { value: 'all', label: 'All' }]} onChange={value => { setDefaultPeriod(value); writeSetting('codeburn.defaultPeriod', value); trackEvent('settings_change', { setting: 'defaultPeriod', value }) }} width={92} /></span></div>
           <div className="about-row"><label className="tx" htmlFor="settings-scope">Scope<small>{projectFiltered ? 'Local only while the Projects pane hides something: paired devices report their usage unfiltered, so a combined total would carry the hidden projects.' : 'Combined aggregates usage across every paired device, like the menubar. Local shows this device only.'}</small></label><span className="r"><Dropdown id="settings-scope" ariaLabel="Scope" value={scope} options={projectFiltered ? [{ value: 'local', label: 'Local' }] : [{ value: 'local', label: 'Local' }, { value: 'combined', label: 'Combined' }]} onChange={value => onScopeChange?.(value)} width={110} /></span></div>
