@@ -7,6 +7,7 @@ import { RangeCalendar } from '../components/RangeCalendar'
 import { useEscape } from '../hooks/useEscape'
 import { usePolled } from '../hooks/usePolled'
 import { ChartTip } from '../components/ChartTip'
+import { formatAxisMoney, niceTicks, ticksClearOfPeak } from '../lib/chartAxis'
 import { formatCompact, formatUsd, shortenProjectPath } from '../lib/format'
 import { codeburn } from '../lib/ipc'
 import { reportMemoKey } from '../lib/reportMemoKey'
@@ -407,7 +408,11 @@ function DayBarsCard({ report }: { report: PeriodDiffReport }) {
   const span = Math.max(daysA.length, daysB.length)
   if (span === 0) return null
   const max = Math.max(0, ...daysA.map(day => day.cost), ...daysB.map(day => day.cost))
-  const height = (cost: number): string => `${max > 0 ? Math.max(2, (cost / max) * 100) : 2}%`
+  // Bars are drawn against the top tick, so a bar top and a gridline agree.
+  const valueTicks = niceTicks(max)
+  const axisMax = valueTicks.at(-1) || 1
+  const height = (cost: number): string => `${axisMax > 0 ? Math.max(2, (cost / axisMax) * 100) : 2}%`
+  const peakIndex = Math.max(daysA.findIndex(day => day.cost === max), daysB.findIndex(day => day.cost === max))
   const labelA = rangeLabel(report.rangeA)
   const labelB = rangeLabel(report.rangeB)
   // Same stride as the Overview chart, floored so a short range still gets a
@@ -439,6 +444,14 @@ function DayBarsCard({ report }: { report: PeriodDiffReport }) {
         </span>
       </div>
       <div className="pbody pcmp-chart">
+        <div className="chart-frame">
+        <div className="chart-plot">
+        <div className="chart-grid" aria-hidden="true">
+          {valueTicks.map(tick => <span className="chart-gridline" key={tick} style={{ bottom: `${(tick / axisMax) * 100}%` }} />)}
+          {Array.from({ length: span }, (_, index) => (index > 0 && index % 7 === 0
+            ? <span className="chart-weekline" key={index} style={{ left: `${(index / span) * 100}%` }} />
+            : null))}
+        </div>
         <div className="chart pcmp-days" style={{ gap: `${span > 45 ? 3 : span > 20 ? 6 : 10}px` }} aria-label="Cost per day in both ranges">
           {Array.from({ length: span }, (_, index) => (
             <button
@@ -452,6 +465,14 @@ function DayBarsCard({ report }: { report: PeriodDiffReport }) {
             >{bar('A', index)}{bar('B', index)}</button>
           ))}
         </div>
+        {max > 0 && (
+          <span className="chart-peak-guide" aria-hidden="true" style={{ bottom: `${(max / axisMax) * 100}%`, left: `${((Math.max(0, peakIndex) + 0.5) / span) * 100}%` }} />
+        )}
+        </div>
+        <div className="chart-axis" aria-hidden="true">
+          {ticksClearOfPeak(valueTicks, max, axisMax).map(tick => <span className="chart-axis-tick" key={tick} style={{ bottom: `${(tick / axisMax) * 100}%` }}>{formatAxisMoney(tick)}</span>)}
+          {max > 0 && <span className="chart-axis-peak" style={{ bottom: `${(max / axisMax) * 100}%` }}>{formatUsd(max)}</span>}
+        </div>
         <div className="ov-xax">
           {ticks.map(index => {
             // A centred label on the appended edge tick runs past the card;
@@ -462,8 +483,9 @@ function DayBarsCard({ report }: { report: PeriodDiffReport }) {
               : <span key={index} style={{ left: `${((index + 0.5) / span) * 100}%` }}>Day {index + 1}</span>
           })}
         </div>
+        </div>
+        <p className="pcmp-caption">Each pair is one day of A beside the same-numbered day of B.</p>
       </div>
-      <p className="pcmp-caption">Each pair is one day of A beside the same-numbered day of B.</p>
       {tip && (
         <ChartTip x={tip.x} y={tip.y}>
           {(['A', 'B'] as const).map(side => {
