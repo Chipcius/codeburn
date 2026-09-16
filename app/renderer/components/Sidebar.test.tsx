@@ -56,12 +56,12 @@ describe('Sidebar', () => {
     expect(screen.getByRole('button', { name: /Overview/ })).not.toHaveClass('on')
   })
 
-  it('renders the brand flame mark, static under the closed motion gate', () => {
+  it('renders the wordmark as animated text with no flame image', () => {
     const { container } = render(<Sidebar active="overview" onNavigate={() => {}} />)
-    const flame = container.querySelector('.app .flamemark')
-    expect(flame?.tagName.toLowerCase()).toBe('img')
-    // motionEnabled() is off under vitest, so the idle flicker never attaches.
-    expect(container.querySelector('.fm-flicker')).toBeNull()
+    const mark = container.querySelector('.app b')
+    expect(mark).toHaveClass('flame-text')
+    expect(mark).toHaveTextContent('CodeBurn')
+    expect(container.querySelector('.app img')).toBeNull()
   })
 
   it('keeps About and the social glyphs in the corner off Windows', () => {

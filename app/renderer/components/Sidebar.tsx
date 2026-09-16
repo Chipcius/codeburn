@@ -4,7 +4,6 @@ import { codeburn } from '../lib/ipc'
 import { isWindowsPlatform, shortcutLabel } from '../lib/platform'
 import type { CompanionStatus } from '../lib/types'
 import { AboutModal, SOCIALS } from './AboutModal'
-import { FlameMark } from './FlameMark'
 import { Icon } from './icons'
 
 export type Section = 'overview' | 'sessions' | 'pullRequests' | 'spend' | 'optimize' | 'models' | 'compare' | 'periods' | 'plans' | 'settings' | 'plugins'
@@ -38,7 +37,7 @@ export function Sidebar({
   return (
     <>
       <nav className="sb">
-        <div className="app"><FlameMark size={20} live /><b>CodeBurn</b></div>
+        <div className="app"><b className="flame-text">CodeBurn</b></div>
         {NAV_ITEMS.map(item => (
           <div
             key={item.id}
