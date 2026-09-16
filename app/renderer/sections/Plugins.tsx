@@ -71,7 +71,7 @@ function PluginsList() {
       setPlugins(result as PluginInfo[])
       setError(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(err instanceof Error ? err.message : typeof err === 'object' && err !== null && 'message' in err ? String((err as { message: unknown }).message) : String(err))
       setPlugins([])
     } finally {
       setLoading(false)

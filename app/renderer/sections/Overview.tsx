@@ -1086,7 +1086,7 @@ export function OverviewContent({
           <div className="ov-card">
             <div className="ov-panel-head"><Icon name="trending-up" /><h3>Projected month</h3></div>
             <div className="ov-card-inner ov-stat">
-              <SpendTrend values={[...stats.mtdSeries, ...stats.projectedTail]} tone="bad" dashFrom={Math.max(0, stats.mtdSeries.length - 1)} />
+              <SpendTrend values={[...stats.mtdSeries, ...stats.projectedTail]} tone="flat" dashFrom={Math.max(0, stats.mtdSeries.length - 1)} />
               <div className="ov-stat-figures">
                 <div className="v">{formatUsd(stats.projected)} <small>est</small></div>
                 <span className="ov-stat-pill tone-neutral">
