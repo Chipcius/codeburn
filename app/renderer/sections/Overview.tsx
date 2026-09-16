@@ -74,7 +74,7 @@ const GAUGE_LENGTH = 2 * Math.PI * GAUGE_RADIUS
  * under the 30s poll snaps to its new length: the ring is a reading, not a
  * replayed animation.
  */
-function RingGauge({ fraction, children }: { fraction: number; children: ReactNode }) {
+function RingGauge({ fraction, face, children }: { fraction: number; face: ReactNode; children: ReactNode }) {
   const arcRef = useRef<SVGCircleElement>(null)
   const swept = useRef(false)
   const offset = GAUGE_LENGTH * (1 - clamp(fraction, 0, 1))
@@ -94,20 +94,23 @@ function RingGauge({ fraction, children }: { fraction: number; children: ReactNo
 
   return (
     <div className="ov-gauge">
-      <svg viewBox={`0 0 ${GAUGE_BOX} ${GAUGE_BOX}`} aria-hidden="true">
-        <circle className="ov-gauge-track" cx={GAUGE_BOX / 2} cy={GAUGE_BOX / 2} r={GAUGE_RADIUS} />
-        <circle
-          ref={arcRef}
-          className="ov-gauge-arc"
-          cx={GAUGE_BOX / 2}
-          cy={GAUGE_BOX / 2}
-          r={GAUGE_RADIUS}
-          strokeDasharray={GAUGE_LENGTH}
-          strokeDashoffset={offset}
-          transform={`rotate(-90 ${GAUGE_BOX / 2} ${GAUGE_BOX / 2})`}
-        />
-      </svg>
-      <div className="ov-gauge-face">{children}</div>
+      <div className="ov-gauge-ring">
+        <svg viewBox={`0 0 ${GAUGE_BOX} ${GAUGE_BOX}`} aria-hidden="true">
+          <circle className="ov-gauge-track" cx={GAUGE_BOX / 2} cy={GAUGE_BOX / 2} r={GAUGE_RADIUS} />
+          <circle
+            ref={arcRef}
+            className="ov-gauge-arc"
+            cx={GAUGE_BOX / 2}
+            cy={GAUGE_BOX / 2}
+            r={GAUGE_RADIUS}
+            strokeDasharray={GAUGE_LENGTH}
+            strokeDashoffset={offset}
+            transform={`rotate(-90 ${GAUGE_BOX / 2} ${GAUGE_BOX / 2})`}
+          />
+        </svg>
+        <div className="ov-gauge-face">{face}</div>
+      </div>
+      {children}
     </div>
   )
 }
@@ -126,9 +129,13 @@ function EfficiencyScorecard({ current, bare = false }: { current: MenubarPayloa
   return (
     <div className={`${bare ? '' : 'ov-card '}ov-efficiency`}>
       <div className="ov-efficiency-main">
-        <RingGauge fraction={score / 100}>
-          <span className="ov-gauge-cap">Efficiency</span>
-          <strong className="ov-gauge-score">{Math.round(score)} / 100</strong>
+        <RingGauge
+          fraction={score / 100}
+          face={<>
+            <span className="ov-gauge-cap">Efficiency</span>
+            <strong className="ov-gauge-score">{Math.round(score)} / 100</strong>
+          </>}
+        >
           <span className={`ov-grade ${gradeTone}`} aria-label={`Efficiency grade ${grade}`}>{grade}</span>
         </RingGauge>
         <div className="ov-component-list">
