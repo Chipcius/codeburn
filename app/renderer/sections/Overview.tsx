@@ -556,12 +556,13 @@ function buildModelIndex(data: MenubarPayload): Map<string, string> {
 
 function streakDays(daily: DailyHistoryEntry[], now: Date): number {
   const byDate = new Map(daily.map(day => [day.date, day.cost]))
+  const spent = (offset: number) =>
+    (byDate.get(localDateKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - offset))) ?? 0) > 0
+  // A day that has not happened yet does not end a streak: before the first
+  // session of the day the count runs from yesterday, so a long run of active
+  // days never reads as 0.
   let streak = 0
-  for (let offset = 0; ; offset++) {
-    const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() - offset)
-    if ((byDate.get(localDateKey(date)) ?? 0) <= 0) break
-    streak++
-  }
+  for (let offset = spent(0) ? 0 : 1; spent(offset); offset++) streak++
   return streak
 }
 
