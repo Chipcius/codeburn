@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import gsap from 'gsap'
 
 import { CliErrorPanel } from '../components/CliErrorPanel'
@@ -8,7 +8,7 @@ import { EmptyNote } from '../components/EmptyState'
 import { ListRow } from '../components/ListRow'
 import { SectionSkeleton } from '../components/Skeleton'
 import { StaleBanner } from '../components/StaleBanner'
-import { motionEnabled, useBarGrowIn } from '../lib/motion'
+import { DUR, motionEnabled, useBarGrowIn } from '../lib/motion'
 import { type Polled, usePolled } from '../hooks/usePolled'
 import { formatCompact, formatCount, formatUsd, formatUsdWithCurrency } from '../lib/format'
 import { codeburn } from '../lib/ipc'
@@ -63,6 +63,55 @@ function efficiencyGrade(score: number): EfficiencyGrade {
   return 'F'
 }
 
+/** Ring gauge geometry: 96px box, 10px stroke, so the arc radius is 43. */
+const GAUGE_BOX = 96
+const GAUGE_STROKE = 10
+const GAUGE_RADIUS = (GAUGE_BOX - GAUGE_STROKE) / 2
+const GAUGE_LENGTH = 2 * Math.PI * GAUGE_RADIUS
+
+/**
+ * Sweeps the arc up from zero once, on the first mount. A later score arriving
+ * under the 30s poll snaps to its new length: the ring is a reading, not a
+ * replayed animation.
+ */
+function RingGauge({ fraction, children }: { fraction: number; children: ReactNode }) {
+  const arcRef = useRef<SVGCircleElement>(null)
+  const swept = useRef(false)
+  const offset = GAUGE_LENGTH * (1 - clamp(fraction, 0, 1))
+
+  useEffect(() => {
+    const arc = arcRef.current
+    if (!arc || swept.current) return
+    swept.current = true
+    if (!motionEnabled()) return
+    const tween = gsap.fromTo(arc, { strokeDashoffset: GAUGE_LENGTH }, {
+      strokeDashoffset: offset,
+      duration: DUR.slow / 1000,
+      ease: 'power2.out',
+    })
+    return () => { tween.kill() }
+  }, [offset])
+
+  return (
+    <div className="ov-gauge">
+      <svg viewBox={`0 0 ${GAUGE_BOX} ${GAUGE_BOX}`} aria-hidden="true">
+        <circle className="ov-gauge-track" cx={GAUGE_BOX / 2} cy={GAUGE_BOX / 2} r={GAUGE_RADIUS} />
+        <circle
+          ref={arcRef}
+          className="ov-gauge-arc"
+          cx={GAUGE_BOX / 2}
+          cy={GAUGE_BOX / 2}
+          r={GAUGE_RADIUS}
+          strokeDasharray={GAUGE_LENGTH}
+          strokeDashoffset={offset}
+          transform={`rotate(-90 ${GAUGE_BOX / 2} ${GAUGE_BOX / 2})`}
+        />
+      </svg>
+      <div className="ov-gauge-face">{children}</div>
+    </div>
+  )
+}
+
 function EfficiencyScorecard({ current, bare = false }: { current: MenubarPayload['current']; bare?: boolean }) {
   const oneShot = current.oneShotRate ?? 0.6
   const cacheFrac = clamp(current.cacheHitPercent / 100, 0, 1)
@@ -72,32 +121,29 @@ function EfficiencyScorecard({ current, bare = false }: { current: MenubarPayloa
   // Missing one-shot data uses the specified neutral 0.6 and is disclosed below.
   const score = 100 * (0.45 * oneShot + 0.30 * cacheFrac + 0.25 * (1 - retryPenalty))
   const grade = efficiencyGrade(score)
-  const gradeTone = grade === 'A+' || grade === 'A'
-    ? 'grade-a'
-    : grade === 'D'
-      ? 'grade-d'
-      : grade === 'F'
-        ? 'grade-f'
-        : 'grade-bc'
+  const gradeTone = grade === 'C' ? 'grade-warn' : grade === 'D' || grade === 'F' ? 'grade-bad' : 'grade-ok'
 
   return (
     <div className={`${bare ? '' : 'ov-card '}ov-efficiency`}>
-      <div className="ov-efficiency-head">
-        <div><div className="ov-label">Efficiency</div><div className="ov-efficiency-score">{Math.round(score)} / 100</div></div>
-        <div className={`ov-grade ${gradeTone}`} aria-label={`Efficiency grade ${grade}`}>{grade}</div>
-      </div>
-      <div className="ov-component-list">
-        <div className="ov-component-row">
-          <div><span>One-shot</span><strong>{formatRate(current.oneShotRate)}</strong></div>
-          <div className="ov-component-track"><span style={{ width: `${oneShot * 100}%` }} /></div>
-        </div>
-        <div className="ov-component-row">
-          <div><span>Cache hit</span><strong>{Math.round(current.cacheHitPercent)}%</strong></div>
-          <div className="ov-component-track"><span style={{ width: `${cacheFrac * 100}%` }} /></div>
-        </div>
-        <div className="ov-component-row">
-          <div><span>Retry tax</span><strong>{formatUsd(current.retryTax.totalUSD)} · {(retrySpendFraction * 100).toFixed(1)}% of spend</strong></div>
-          <div className="ov-component-track adverse"><span style={{ width: `${retryPenalty * 100}%` }} /></div>
+      <div className="ov-efficiency-main">
+        <RingGauge fraction={score / 100}>
+          <span className="ov-gauge-cap">Efficiency</span>
+          <strong className="ov-gauge-score">{Math.round(score)} / 100</strong>
+          <span className={`ov-grade ${gradeTone}`} aria-label={`Efficiency grade ${grade}`}>{grade}</span>
+        </RingGauge>
+        <div className="ov-component-list">
+          <div className="ov-component-row">
+            <div><span>One-shot</span><strong>{formatRate(current.oneShotRate)}</strong></div>
+            <div className="ov-component-track"><span style={{ width: `${oneShot * 100}%` }} /></div>
+          </div>
+          <div className="ov-component-row">
+            <div><span>Cache hit</span><strong>{Math.round(current.cacheHitPercent)}%</strong></div>
+            <div className="ov-component-track"><span style={{ width: `${cacheFrac * 100}%` }} /></div>
+          </div>
+          <div className="ov-component-row">
+            <div><span>Retry tax</span><strong>{formatUsd(current.retryTax.totalUSD)} · {(retrySpendFraction * 100).toFixed(1)}% of spend</strong></div>
+            <div className="ov-component-track adverse"><span style={{ width: `${retryPenalty * 100}%` }} /></div>
+          </div>
         </div>
       </div>
       <p className="ov-widget-caption">Composite of one-shot, cache hit, and retry tax.{current.oneShotRate === null ? ' Partial grade: one-shot is unavailable.' : ''}</p>

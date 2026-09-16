@@ -632,10 +632,13 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .ov-kpi-primary { box-shadow: inset 0 2px 0 var(--accent); }
 .ov-kpi-primary > span, .ov-kpi-primary > strong { color: var(--accent-text); }
 .ov-kpi-saved > strong { color: var(--ok); }
-.ov-card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--card-shadow); padding: var(--sp-3); }
-.ov-panel-head { display: flex; align-items: center; gap: var(--sp-2); min-height: 20px; margin: 0 0 var(--sp-3); padding: 0 var(--sp-1); }
+.ov-card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--card-shadow); padding: 0 6px 6px; }
+.ov-panel-head { display: flex; align-items: center; gap: var(--sp-2); min-height: 44px; margin: 0; padding: 0 14px; }
 .ov-panel-head > .icon { width: 16px; height: 16px; color: var(--mut2); }
-.ov-panel-body, .ov-card-inner { background: var(--card-inner); border: 1px solid var(--card-inner-line); border-radius: 14px; box-shadow: var(--card-inner-shadow); padding: var(--sp-4); }
+.ov-panel-body, .ov-card-inner { background: var(--card-inner); border: 1px solid var(--card-inner-line); border-radius: 8px; box-shadow: var(--card-inner-shadow); padding: var(--sp-4); }
+/* Headerless cards carry the same 6px rim on all four sides; a header row supplies the top rim itself. */
+.ov-card > .ov-panel-body, .ov-card > .ov-card-inner { margin-top: 6px; }
+.ov-card > .ov-panel-head + .ov-panel-body, .ov-card > .ov-panel-head + .ov-card-inner { margin-top: 0; }
 .ov-hero { display: flex; flex-direction: column; gap: 6px; padding: var(--sp-4); }
 .ov-label { color: var(--mut); font-size: var(--fs-meta); font-weight: var(--fw-body); }
 .ov-streak { font-size: var(--fs-meta); font-weight: 560; color: var(--mut); background: var(--hover); border-radius: 20px; padding: 3px 10px; white-space: nowrap; }
@@ -687,7 +690,7 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .ov-link:hover, .ov-link:focus-visible, .ov-coach-cta:hover, .ov-coach-cta:focus-visible, .set-text-button:hover, .set-text-button:focus-visible { text-decoration-color: currentColor; }
 .ov-insight-band { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 12px; align-items: stretch; }
 .ov-insight-band > :only-child { grid-column: 1 / -1; }
-.ov-coach { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3); border: 1px solid var(--line); border-radius: 12px; background: var(--panel); box-shadow: var(--card-shadow); }
+.ov-coach { display: flex; align-items: center; gap: var(--sp-3); padding: 6px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); box-shadow: var(--card-shadow); }
 .ov-coach-inner { display: flex; flex: 1; min-width: 0; align-items: center; gap: var(--sp-3); }
 .ov-coach > svg { width: 16px; height: 16px; flex: 0 0 auto; color: var(--mut2); }
 .ov-coach-tx { font-size: var(--fs-body); color: var(--mut); flex: 1; line-height: 1.45; }
