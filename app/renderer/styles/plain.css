@@ -1191,51 +1191,118 @@ html.page-hidden *::after {
 .splash-status-note { font-size: var(--fs-label); color: #6f665c; }
 @keyframes splash-prov-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
-/* ————— First-launch onboarding (fixed dark canvas, like the splash) ————— */
+/* ————— First-launch onboarding: text on the full-bleed brand backdrop, no card ————— */
 .onboard {
-  position: fixed; inset: 0; z-index: 3100;
-  display: flex; align-items: center; justify-content: center;
-  background: radial-gradient(120% 80% at 50% 42%, color-mix(in srgb, #f2701c 8%, #171310), #171310 70%);
+  position: fixed; inset: 0; z-index: 3100; overflow: hidden;
+  display: flex; align-items: center; justify-content: flex-start;
+  padding-left: 12%; background: #14100e;
 }
-.onboard-card {
-  display: flex; flex-direction: column; align-items: center; gap: 12px;
-  width: min(420px, calc(100vw - 64px)); padding: 36px 36px 24px;
-  text-align: center; border-radius: 14px;
-  background: color-mix(in srgb, #fff 4%, transparent);
-  border: 1px solid color-mix(in srgb, #fff 9%, transparent);
+.onboard-bg {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; object-position: center;
+  animation: onboard-drift 40s var(--ease-in-out) infinite alternate;
 }
-.onboard-glyph { color: #f2701c; display: flex; margin-bottom: 2px; }
-.onboard-mark { width: 40px; height: 40px; }
-.onboard-title { margin: 0; font-size: var(--fs-kpi); font-weight: var(--fw-strong); letter-spacing: -0.01em; color: #f4f1ec; }
-.onboard-body { margin: 0; max-width: 320px; font-size: var(--fs-body); line-height: 1.55; color: #b3a595; }
+.onboard-grain {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 140px 140px;
+}
+/* Scrim over the calm left of the backdrop so the column always clears 4.5:1,
+   fading out well before the sweep so the artwork still reads. */
+.onboard-veil {
+  position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(97deg, rgba(8,6,5,0.88) 0%, rgba(8,6,5,0.86) 42%, rgba(8,6,5,0.5) 66%, rgba(8,6,5,0) 88%);
+}
+.onboard-col {
+  position: relative; display: flex; flex-direction: column; align-items: flex-start;
+  gap: var(--sp-6); width: min(560px, calc(100vw - 24%)); text-align: left;
+  --onboard-h: clamp(30px, 2.9vw, 40px);
+}
+.onboard-lockup { display: block; line-height: 1; }
+/* Inline on the wordmark's own line box: an inline-block's bottom margin edge IS
+   the baseline, and the PNG is trimmed to its ink, so ink bottom = baseline by
+   construction. The left margin clears the 0.066em side bearing every headline
+   cap carries, so the flame's ink lines up with the glyph stem below it. */
+.onboard-flame {
+  display: inline-block; vertical-align: baseline;
+  height: 56px; width: auto; image-rendering: auto;
+  margin-right: 14px; margin-left: calc(var(--onboard-h) * 0.066);
+}
+/* ponytail: background-position on a background-clip:text element repaints the
+   wordmark every frame (+5.3pp renderer CPU, 2.7% -> 8.0% of one core). Only the
+   first-run screen pays it; step the timing function or drop it if that matters. */
+.flame-text {
+  font-size: 30px; font-weight: 600; letter-spacing: -0.01em; line-height: 1;
+  background: linear-gradient(90deg, #ff6a00, #ffda44, #e8553a, #ff8c00, #ffda44, #ff6a00);
+  background-size: 300% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: flameShift 3s ease infinite;
+}
+.onboard-version {
+  position: absolute; right: 20px; bottom: 20px; pointer-events: none;
+  font-size: var(--fs-meta); color: rgba(255, 255, 255, 0.55);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+}
+.onboard-step {
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-5);
+  min-height: 170px;
+  animation: onboard-step-in var(--dur-base) var(--ease-out) both;
+}
+.onboard-title {
+  margin: 0; font-size: var(--onboard-h); font-weight: 300;
+  line-height: 1.34; letter-spacing: 0.18em; text-transform: uppercase; color: #f8f5f0;
+  text-wrap: balance;
+}
+.onboard-body {
+  margin: 0; max-width: 44ch; font-size: 14px; line-height: 1.6;
+  color: rgba(255, 255, 255, 0.82);
+}
 .onboard-consent {
-  margin-top: 6px; display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  width: 100%; padding: 10px 14px; border-radius: 9px;
-  border: 1px solid color-mix(in srgb, #fff 10%, transparent);
-  font-size: var(--fs-body); color: #f4f1ec;
+  margin-top: var(--sp-1); display: flex; align-items: center; gap: var(--sp-4);
+  font-size: 14px; color: #f8f5f0;
 }
 .onboard-link {
   background: none; border: none; padding: 0; cursor: pointer;
-  font: inherit; font-size: var(--fs-label); color: #b3a595; text-decoration: underline; text-underline-offset: 3px;
+  font: inherit; font-size: var(--fs-meta); color: rgba(255, 255, 255, 0.78);
+  text-decoration: underline; text-underline-offset: 3px;
 }
-.onboard-link:hover, .onboard-link:focus-visible { color: #f4f1ec; }
-.onboard-hint { margin: 2px 0 0; max-width: 320px; font-size: var(--fs-label); line-height: 1.5; color: #8a7d6f; }
-.onboard-controls {
-  margin-top: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%;
+.onboard-link:hover, .onboard-link:focus-visible { color: #f8f5f0; }
+.onboard-hint { margin: 0; max-width: 44ch; font-size: var(--fs-label); line-height: 1.6; color: rgba(255, 255, 255, 0.66); }
+.onboard-progress { display: flex; gap: 6px; }
+.onboard-seg {
+  width: 40px; height: 2px; border-radius: 1px;
+  background: rgba(255, 255, 255, 0.18);
+  transition: background var(--dur-base) var(--ease-out);
 }
+.onboard-seg.on { background: #f2a33a; }
+.onboard-controls { display: flex; align-items: center; gap: var(--sp-4); }
 .onboard-btn {
-  min-width: 96px; padding: 7px 14px; border-radius: 8px; cursor: pointer;
-  font: inherit; font-size: var(--fs-meta); font-weight: var(--fw-medium);
-  color: #f4f1ec; background: transparent; border: 1px solid color-mix(in srgb, #fff 16%, transparent);
+  padding: 10px 28px; border-radius: 999px; cursor: pointer;
+  font: inherit; font-size: var(--fs-meta); font-weight: var(--fw-medium); letter-spacing: 0.04em;
+  color: #f8f5f0; background: transparent; border: 1px solid rgba(255, 255, 255, 0.22);
 }
-.onboard-btn:hover { background: color-mix(in srgb, #fff 6%, transparent); }
-.onboard-btn.primary { background: #f2701c; border-color: #f2701c; color: #fff; }
-.onboard-btn.primary:hover { background: color-mix(in srgb, #f2701c 88%, #fff); }
-.onboard-btn-ghost { min-width: 96px; }
-.onboard-dots { display: flex; gap: 6px; }
-.onboard-dot { width: 6px; height: 6px; border-radius: 50%; background: color-mix(in srgb, #fff 18%, transparent); transition: background var(--dur-fast) var(--ease-out); }
-.onboard-dot.on { background: #f2701c; }
-.onboard-in { animation: splash-word-in 320ms var(--ease-out) both; }
+.onboard-btn:hover { background: rgba(255, 255, 255, 0.08); }
+/* Dark ink on the brand orange: white on #e8590c is only 3.6:1. */
+.onboard-btn.primary { background: #e8590c; border-color: #e8590c; color: #1b1206; font-weight: var(--fw-subhead); }
+.onboard-btn.primary:hover { background: #f2701c; border-color: #f2701c; }
+.onboard-quiet {
+  background: none; border: none; padding: 10px 4px; cursor: pointer;
+  font: inherit; font-size: var(--fs-meta); font-weight: var(--fw-medium); letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.78);
+}
+.onboard-quiet:hover, .onboard-quiet:focus-visible { color: #f8f5f0; }
+@keyframes flameShift { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+@keyframes onboard-step-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+/* Short windows: the consent step is the tall one, so the lockup gives way first. */
+@media (max-height: 720px) {
+  .onboard-step { min-height: 150px; }
+  .onboard-col { gap: var(--sp-5); }
+}
+@keyframes onboard-drift {
+  from { transform: scale(1) translate3d(0, 0, 0); }
+  to { transform: scale(1.04) translate3d(-10px, -7px, 0); }
+}
 
 /* Toggle switch (shared shape; used by onboarding consent + Settings privacy). */
 .switch {
