@@ -508,7 +508,6 @@ function SpendTrend({ values, tone, dashFrom }: { values: number[]; tone: 'good'
   if (points.length < 2) return null
   const solid = dashFrom === undefined ? points : points.slice(0, dashFrom + 1)
   const dashed = dashFrom === undefined ? [] : points.slice(dashFrom)
-  const guide = solid.at(-1) ?? points[0]
   const last = points.at(-1) ?? points[0]
 
   return (
@@ -529,7 +528,6 @@ function SpendTrend({ values, tone, dashFrom }: { values: number[]; tone: 'good'
         <path d={sparkArea(solid, TREND_HEIGHT)} fill={`url(#${id}-fill)`} />
         <path className="ov-trend-line" d={sparkPath(solid)} vectorEffect="non-scaling-stroke" />
         {dashed.length > 1 && <path className="ov-trend-line dashed" d={sparkPath(dashed)} vectorEffect="non-scaling-stroke" />}
-        <line className="ov-trend-guide" x1={guide[0]} y1="0" x2={guide[0]} y2={TREND_HEIGHT} vectorEffect="non-scaling-stroke" />
       </svg>
       <span className="ov-trend-dot" style={{ left: `${(last[0] / TREND_WIDTH) * 100}%`, top: `${(last[1] / TREND_HEIGHT) * 100}%` }} />
     </div>
