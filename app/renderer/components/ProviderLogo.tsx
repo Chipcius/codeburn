@@ -71,6 +71,7 @@ const THEMED_LOGOS: Record<string, { light: string; dark: string }> = {
   copilot: { light: copilotLight, dark: copilotDark },
   cursor: { light: cursorLight, dark: cursorDark },
   grok: { light: grokLight, dark: grokDark },
+  grokbot: { light: grokLight, dark: grokDark },
   opencode: { light: opencodeLight, dark: opencodeDark },
   qwen: { light: qwenLight, dark: qwenDark },
 }
