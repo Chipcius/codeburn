@@ -528,9 +528,6 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
 .hint { font-size: var(--fs-label); }
 .est { font-size: var(--fs-micro); }
 .alias { font-size: var(--fs-meta); }
-.plrow b { font-size: var(--fs-subhead); font-weight: var(--fw-subhead); }
-.plrow span { font-size: var(--fs-meta); }
-.plrow .r { font-size: var(--fs-meta); }
 .pace { font-size: var(--fs-label); }
 .stat .v small { font-size: var(--fs-body); }
 .li .lx b { font-size: var(--fs-body); font-weight: var(--fw-medium); }
@@ -600,8 +597,9 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .track i.bad { background: var(--bad); }
 
 /* Plans: live subscription quota, followed by manual dollar budgets. */
-.quota-title { display: inline-flex; align-items: baseline; gap: 8px; }
-.quota-title small { color: var(--mut); font-size: var(--fs-label); font-weight: 520; }
+.quota-title, .plan-title { display: inline-flex; min-width: 0; align-items: baseline; gap: 8px; }
+.quota-title small, .plan-title small { overflow: hidden; color: var(--mut); font-size: var(--fs-label); font-weight: 520; text-overflow: ellipsis; white-space: nowrap; }
+.plan-card .phead .r { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .quota-connection { display: inline-flex; align-items: center; gap: 5px; color: var(--mut); font-size: var(--fs-label); font-weight: 520; }
 .quota-connection i { width: 6px; height: 6px; border-radius: 50%; background: var(--mut2); }
 .quota-connection-connected i { background: var(--ok); }

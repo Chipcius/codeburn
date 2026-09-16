@@ -246,12 +246,11 @@ function PlanPanel({ plan }: { plan: JsonPlanSummary }) {
     : `${plan.provider} · pay as you go, no plan`
 
   return (
-    <Panel>
-      <div className="plrow">
-        <b>{PLAN_NAMES[plan.id]}</b>
-        <span>{detail}</span>
-        <span className="r">{right}</span>
-      </div>
+    <Panel
+      className="plan-card"
+      title={<span className="plan-title">{PLAN_NAMES[plan.id]}<small>{detail}</small></span>}
+      right={right}
+    >
       <div className="track" data-testid={`plan-track-${plan.provider}`}>
         <i className={trackClass} style={{ width: `${displayPercent}%` }} />
       </div>
