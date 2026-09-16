@@ -180,15 +180,22 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
 .companion .switch.on { background: var(--accent); border-color: var(--accent); }
 .companion .switch.on .switch-knob { background: #fff; }
 
-/* About overlay: a compact, portal-free card using the reskin's surface tokens. */
+/* About overlay: a compact, portal-free card using the reskin's surface tokens.
+   Same held-mount exit as the session drawer, at --dur-base. */
 .about-modal-backdrop {
   position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 24px;
   background: rgba(8, 10, 14, .56);
+  animation: scrim-in var(--dur-base) var(--ease-out) backwards;
 }
+.about-modal-backdrop.closing { animation: scrim-out var(--dur-base) var(--ease-in-out) forwards; }
+.about-modal-backdrop.closing .about-modal { animation: modal-out var(--dur-base) var(--ease-in-out) forwards; }
+@keyframes modal-in { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes modal-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(0.98); } }
 .about-modal {
   position: relative; width: min(720px, 100%); overflow: hidden; border: 1px solid var(--line);
   border-radius: 12px; background: var(--panel); color: var(--ink);
   box-shadow: 0 18px 50px rgba(0, 0, 0, .28), 0 3px 12px rgba(0, 0, 0, .16);
+  animation: modal-in var(--dur-base) var(--ease-out) backwards;
 }
 .about-modal-close {
   position: absolute; top: 10px; right: 10px; z-index: 1; width: 28px; height: 28px; padding: 0;

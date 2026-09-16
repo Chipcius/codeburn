@@ -7,6 +7,7 @@ import { BUILD_STAMP } from '../lib/build'
 import { useEscape } from '../hooks/useEscape'
 import { updateDownloadUrl, useUpdateStatus } from '../hooks/useUpdateStatus'
 import { codeburn } from '../lib/ipc'
+import { DUR, useExitAnimation } from '../lib/motion'
 
 export type SocialLink = {
   label: string
@@ -33,11 +34,12 @@ function openExternal(event: MouseEvent<HTMLAnchorElement>, url: string): void {
 export function AboutModal({ socials = SOCIALS, onClose }: { socials?: SocialLink[]; onClose: () => void }) {
   const status = useUpdateStatus()
   const [checked, setChecked] = useState(false)
+  const { closing, beginExit } = useExitAnimation(onClose, DUR.base)
 
-  useEscape(true, onClose)
+  useEscape(true, beginExit)
 
   return (
-    <div className="about-modal-backdrop" onClick={onClose}>
+    <div className={closing ? 'about-modal-backdrop closing' : 'about-modal-backdrop'} onClick={beginExit}>
       <div
         className="about-modal"
         role="dialog"
@@ -45,7 +47,7 @@ export function AboutModal({ socials = SOCIALS, onClose }: { socials?: SocialLin
         aria-labelledby="about-modal-title"
         onClick={event => event.stopPropagation()}
       >
-        <button className="about-modal-close" type="button" aria-label="Close About" onClick={onClose}><Icon name="x" /></button>
+        <button className="about-modal-close" type="button" aria-label="Close About" onClick={beginExit}><Icon name="x" /></button>
         <div className="about-modal-grid">
           <div className="about-modal-hero">
             <span className="about-modal-logo" aria-hidden="true"><FlameMark size={52} /></span>
