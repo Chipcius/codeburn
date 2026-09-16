@@ -21,7 +21,7 @@ import {
 } from '../lib/investigation'
 import { contiguousDailyWindow, dataStartKey, formatChartDate, localDateKey, sliceDailyToPeriod, sliceDailyToRange } from '../lib/period'
 import { reportMemoKey } from '../lib/reportMemoKey'
-import { formatAxisMoney, niceTicks, ticksClearOfPeak } from '../lib/chartAxis'
+import { barBucketDays, barLayout, formatAxisMoney, niceTicks, ticksClearOfPeak } from '../lib/chartAxis'
 import { paceDirection, sparkArea, sparkPath, sparkPoints } from '../lib/spark'
 import type {
   ActReportJson,
@@ -688,7 +688,28 @@ export type InvestigateRequest = {
   sessionId?: string | null
 }
 
-function DailyChart({ daily, dataStart = null, animateKey = '', onSelectDay }: { daily: DailyHistoryEntry[]; dataStart?: string | null; animateKey?: string; onSelectDay?: (date: string) => void }) {
+/** Fold `size` consecutive days into one column, dated by the last day it covers
+ *  so the axis label, the today highlight and the no-data cutoff stay truthful. */
+function bucketDays(daily: DailyHistoryEntry[], size: number): DailyHistoryEntry[] {
+  if (size <= 1) return daily
+  const buckets: DailyHistoryEntry[] = []
+  for (let start = 0; start < daily.length; start += size) {
+    const slice = daily.slice(start, start + size)
+    const lead = slice.reduce((best, day) => (day.cost > best.cost ? day : best), slice[0])
+    buckets.push({
+      ...slice[slice.length - 1],
+      cost: slice.reduce((total, day) => total + day.cost, 0),
+      calls: slice.reduce((total, day) => total + day.calls, 0),
+      topModels: lead.topModels,
+    })
+  }
+  return buckets
+}
+
+function DailyChart({ daily: allDays, dataStart = null, animateKey = '', onSelectDay }: { daily: DailyHistoryEntry[]; dataStart?: string | null; animateKey?: string; onSelectDay?: (date: string) => void }) {
+  const daily = bucketDays(allDays, barBucketDays(allDays.length))
+  const bucketed = daily.length !== allDays.length
+  const bars = barLayout(daily.length)
   const isNoData = (day: DailyHistoryEntry) => dataStart !== null && day.date < dataStart
   const max = Math.max(...daily.map(day => day.cost), 0)
   // Bars are drawn against the top tick, not the raw peak, so a bar top and a
@@ -715,11 +736,11 @@ function DailyChart({ daily, dataStart = null, animateKey = '', onSelectDay }: {
         <div className="chart-plot">
           <div className="chart-grid" aria-hidden="true">
             {valueTicks.map(tick => <span className="chart-gridline" key={tick} style={{ bottom: `${(tick / axisMax) * 100}%` }} />)}
-            {daily.map((day, index) => (dayOfWeek(day.date) === 0 && index > 0
+            {bucketed ? null : daily.map((day, index) => (dayOfWeek(day.date) === 0 && index > 0
               ? <span className="chart-weekline" key={day.date} style={{ left: `${columnCentre(index) - (50 / Math.max(1, daily.length))}%` }} />
               : null))}
           </div>
-          <div className="chart" ref={chartRef}>
+          <div className="chart" ref={chartRef} style={{ gap: `${bars.gap}px` }}>
             {daily.map(day => {
               const noData = isNoData(day)
               // A day with recorded activity is a drill-through entry: clicking it
@@ -732,7 +753,7 @@ function DailyChart({ daily, dataStart = null, animateKey = '', onSelectDay }: {
                   aria-label={`${day.date}: ${noData ? 'no data recorded' : formatUsd(day.cost)}${drillable ? ' — view sessions' : ''}`}
                   className={`col${day.date === todayKey && !noData ? ' hi' : ''}${noData ? ' nodata' : ''}`}
                   key={day.date}
-                  style={{ height: `${axisMax > 0 ? Math.max(2, (day.cost / axisMax) * 100) : 2}%` }}
+                  style={{ height: `${axisMax > 0 ? Math.max(2, (day.cost / axisMax) * 100) : 2}%`, minWidth: `${bars.minWidth}px` }}
                   data-date={day.date}
                   data-cost={day.cost}
                   data-calls={day.calls}
