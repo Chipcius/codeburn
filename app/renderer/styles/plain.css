@@ -1241,7 +1241,7 @@ html.page-hidden *::after {
 .bar-nav { display: flex; gap: 2px; margin-right: 8px; }
 .bar-nav-btn {
   width: 26px; height: 26px; border: 1px solid var(--line); border-radius: 6px;
-  background: transparent; color: var(--fg); font-size: var(--fs-kpi); line-height: 1;
+  background: transparent; color: var(--ink); font-size: var(--fs-kpi); line-height: 1;
   cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
 }
 .bar-nav-btn .icon { width: 14px; height: 14px; }
@@ -1269,7 +1269,7 @@ html.page-hidden *::after {
   cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
 }
 .drill-chip-x .icon { width: 11px; height: 11px; }
-.drill-chip-x:hover { background: var(--line2); color: var(--fg); }
+.drill-chip-x:hover { background: var(--line2); color: var(--ink); }
 .drill-chips-clear {
   border: none; background: transparent; color: var(--accent-text);
   font-size: var(--fs-label); cursor: pointer; margin-left: 4px;
@@ -1290,7 +1290,7 @@ html.page-hidden *::after {
 .session-drawer {
   position: fixed; top: 0; right: 0; bottom: 0; z-index: 61;
   width: min(420px, 92vw); overflow-y: auto;
-  background: var(--panel, var(--bg)); color: var(--fg);
+  background: var(--panel, var(--bg)); color: var(--ink);
   border-left: 1px solid var(--line);
   box-shadow: -12px 0 32px rgb(0 0 0 / 18%);
   padding: var(--sp-4) var(--sp-4) var(--sp-7);
@@ -1306,7 +1306,7 @@ html.page-hidden *::after {
 .drawer-sub { color: var(--mut); font-size: var(--fs-label); margin-top: 3px; }
 .drawer-close {
   width: 26px; height: 26px; flex: none; border: 1px solid var(--line); border-radius: 6px;
-  background: transparent; color: var(--fg); font-size: var(--fs-kpi); line-height: 1; cursor: pointer;
+  background: transparent; color: var(--ink); font-size: var(--fs-kpi); line-height: 1; cursor: pointer;
 }
 .drawer-close .icon { width: 14px; height: 14px; }
 .drawer-close:hover { background: var(--hover); }
