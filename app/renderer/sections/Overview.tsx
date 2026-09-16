@@ -33,6 +33,7 @@ import type {
 } from '../lib/types'
 import type { OverviewHeadlineSnapshot } from '../lib/overviewSnapshot'
 import { formatCombinedSessionCount, formatSessionCount, sessionCountIsExact, COMBINED_SESSION_COUNT_HELP, SESSION_COUNT_HELP } from '../lib/session-count-label'
+import { Icon } from '../components/icons'
 
 export { localDateKey } from '../lib/period'
 
@@ -327,17 +328,17 @@ const SIGNAL_GROUPS = [
   {
     key: 'wins' as const,
     label: 'Wins',
-    icon: <><circle cx="12" cy="12" r="9" /><polyline points="8 12 11 15 16 9" /></>,
+    icon: <Icon name="circle-check" />,
   },
   {
     key: 'improvements' as const,
     label: 'Improvements',
-    icon: <><polyline points="7 17 17 7" /><polyline points="9 7 17 7 17 15" /></>,
+    icon: <Icon name="trending-up" />,
   },
   {
     key: 'risks' as const,
     label: 'Risks',
-    icon: <><path d="M12 4 21 19 3 19Z" /><line x1="12" y1="10" x2="12" y2="14" /><line x1="12" y1="16.5" x2="12" y2="16.6" /></>,
+    icon: <Icon name="triangle-alert" />,
   },
 ]
 
@@ -349,7 +350,7 @@ function SignalsCard({ signals }: { signals: SignalGroups }) {
       {groups.map(group => (
         <div className={`ov-signal-group ${group.key}`} key={group.key}>
           <div className="ov-signal-head">
-            <svg viewBox="0 0 24 24" aria-hidden="true">{group.icon}</svg>
+            {group.icon}
             <span>{group.label}</span>
           </div>
           <ul className="ov-signal-list">
@@ -883,7 +884,7 @@ export function OverviewContent({
 
       <div className="ov-insight-band">
         <div className="ov-coach">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>
+          <Icon name="trending-up" />
           <div className="ov-coach-tx">
             {rangeActive
               ? <>{topModel ? <><span className="num">{topModel.name}</span> is the biggest driver in this range</> : 'No single model dominates this range'}. <span className="num">{formatUsd(data.optimize.savingsUSD)}</span> is recoverable.</>

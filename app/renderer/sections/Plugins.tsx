@@ -5,6 +5,7 @@ import { PluginDetailsModal } from './PluginDetails'
 import { InstallFlowModal } from './InstallFlow'
 import styles from './Plugins.module.css'
 import { isWindowsPlatform } from '../lib/platform'
+import { Icon } from '../components/icons'
 import { BarNav } from '../components/TopBar'
 
 interface PluginInfo {
@@ -30,10 +31,7 @@ function PluginsComingSoon() {
   return (
     <div className={styles.container}>
       <div className={styles.soon}>
-        <svg className={styles.soonMark} viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="12" r="1" />
-          <path d="M12 2v6m0 8v6M4.22 4.22l4.24 4.24m5.08 5.08l4.24 4.24M2 12h6m8 0h6M4.22 19.78l4.24-4.24m5.08-5.08l4.24-4.24" />
-        </svg>
+        <Icon name="puzzle" className={styles.soonMark} />
         <div className={styles.soonTitle}>Plugins are coming to Windows</div>
         <p className={styles.soonBody}>
           They arrive in a later Windows release; on macOS and Linux they are available today.

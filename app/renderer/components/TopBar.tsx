@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 import type { ClaudeConfigSelector, DateRange } from '../lib/types'
 import { Dropdown } from './Dropdown'
+import { Icon } from './icons'
 import { ProviderPop, type ProviderOption } from './ProviderPop'
 import { RangeCalendar } from './RangeCalendar'
 import { SegTabs, type SegOption } from './SegTabs'
@@ -37,7 +38,7 @@ export function BarNav({ canBack = false, canForward = false, onBack, onForward 
         disabled={!canBack}
         onClick={() => { if (canBack) onBack?.() }}
       >
-        ‹
+        <Icon name="chevron-left" />
       </button>
       <button
         type="button"
@@ -47,7 +48,7 @@ export function BarNav({ canBack = false, canForward = false, onBack, onForward 
         disabled={!canForward}
         onClick={() => { if (canForward) onForward?.() }}
       >
-        ›
+        <Icon name="chevron-right" />
       </button>
     </div>
   )
@@ -173,10 +174,7 @@ function CalendarPop({ value, onSelect }: { value: DateRange | null; onSelect: (
         aria-expanded={open}
         onClick={() => setOpen(current => !current)}
       >
-        <svg viewBox="0 0 16 16" aria-hidden="true">
-          <rect x="2.25" y="3.25" width="11.5" height="10.5" rx="1.5" />
-          <path d="M5 1.75v3M11 1.75v3M2.5 6.25h11" />
-        </svg>
+        <Icon name="calendar" />
         {value && <span>{label}</span>}
       </button>
       {open && (

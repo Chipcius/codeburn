@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
+import { Icon } from './icons'
+
 export type DropdownOption = { value: string; label: string }
 
 export function Dropdown({
@@ -92,7 +94,7 @@ export function Dropdown({
       >
         {renderIcon?.(value)}
         <span className="dropdown-label">{selected?.label ?? value}</span>
-        <span className="dropdown-chevron" aria-hidden="true">⌄</span>
+        <Icon name="chevron-down" className="dropdown-chevron" />
       </button>
       {open && (
         <div id={menuId} className="pop-menu dropdown-menu" role="listbox" aria-label={ariaLabel}>

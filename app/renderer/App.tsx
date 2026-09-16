@@ -54,6 +54,7 @@ import { Settings, type SettingsPane } from './sections/Settings'
 import { SpendContent } from './sections/Spend'
 import { PluginsSection } from './sections/Plugins'
 import type { DateRange, MenubarPayload, ModelReportRow, Period, Scope, TelemetryStatus } from './lib/types'
+import { Icon } from './components/icons'
 
 // Bucket raw dollar amounts before they leave the machine: telemetry carries
 // coarse ranges, never exact spend.
@@ -976,21 +977,7 @@ function AppMain() {
 function RefreshMark({ refreshing, label }: { refreshing: boolean; label: string }) {
   return (
     <>
-      <svg
-        className={refreshing ? 'refresh-mark spinning' : 'refresh-mark'}
-        width="12"
-        height="12"
-        viewBox="0 0 12 12"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M10.1 6a4.1 4.1 0 1 1-1.25-2.95" />
-        <path d="M10.6 1.3v2.9H7.7" />
-      </svg>
+      <Icon name="refresh-cw" className={refreshing ? 'refresh-mark spinning' : 'refresh-mark'} />
       <span className="sr-only" role="status" aria-live="polite">{refreshing ? 'Refreshing' : ''}</span>
       <span>{label}</span>
     </>

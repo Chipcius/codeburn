@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import { FlameMark } from './FlameMark'
+import { Icon } from './icons'
 import { codeburn } from '../lib/ipc'
 import { motionClass } from '../lib/motion'
 
@@ -17,17 +18,17 @@ const SCREENS: Screen[] = [
   {
     title: 'Every agent. One dashboard.',
     body: 'Claude Code, Codex, Cursor, Copilot and 20+ more: spend, sessions, models and quotas, side by side.',
-    glyph: <><rect x="3" y="4" width="18" height="14" rx="2" /><path d="M7 14v-3M11 14V8M15 14v-5M3 18h18" /></>,
+    glyph: <Icon name="layout-dashboard" className="onboard-mark" />,
   },
   {
     title: 'Local-first by design.',
     body: 'Usage is read from files already on your machine. No accounts, no API keys, nothing leaves your device.',
-    glyph: <><rect x="4.5" y="10" width="15" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></>,
+    glyph: <Icon name="lock" className="onboard-mark" />,
   },
   {
     title: 'Find the waste.',
     body: 'Retry tax, routing waste and task success by category: see what your agents actually deliver for the money.',
-    glyph: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></>,
+    glyph: <Icon name="search" className="onboard-mark" />,
   },
 ]
 
@@ -51,7 +52,7 @@ export function Onboarding({ defaultEnabled, onDone }: { defaultEnabled: boolean
         <div className="onboard-glyph" aria-hidden>
           {isConsent
             ? <FlameMark size={40} />
-            : <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">{SCREENS[step].glyph}</svg>}
+            : SCREENS[step].glyph}
         </div>
 
         {isConsent ? (
