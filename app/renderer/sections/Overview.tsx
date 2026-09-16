@@ -876,7 +876,7 @@ export function OverviewContent({
       )}
 
       <div className="ov-card ov-panel ov-chart-widget">
-        <div className="ov-panel-head"><h3>Daily spend</h3><span className="r">{topModel ? `Biggest driver: ${topModel.name}` : 'No model driver yet'}</span></div>
+        <div className="ov-panel-head"><h3>Daily spend</h3></div>
         <div className="ov-panel-body">{data.history.daily.length ? <DailyChart daily={chartDaily} dataStart={dataStartKey(data.history.daily)} animateKey={animateKey} onSelectDay={date => onInvestigate?.({ filters: dayFilters(date) })} /> : <EmptyNote>No spend yet.</EmptyNote>}</div>
       </div>
 
