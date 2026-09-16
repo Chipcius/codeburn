@@ -296,6 +296,7 @@ function CategoryCard({ report }: { report: CompareJsonReport }) {
     <div className="panel cmp-card">
       <div className="cmp-head"><h3>Category head-to-head</h3><span className="cmp-head-note">One-shot rate · edit turns</span></div>
       <div className="cmp-category-body">
+        {report.categories.length === 0 ? <EmptyNote>No categories with usage in this range to compare.</EmptyNote> : <>
         <div className="cmp-legend">
           <span className="cmp-legend-item"><span className="cmp-key" />{report.modelA.model}</span>
           <span className="cmp-legend-item"><span className="cmp-key cmp-key-b" />{report.modelB.model}</span>
@@ -317,6 +318,7 @@ function CategoryCard({ report }: { report: CompareJsonReport }) {
             </div>
           ))}
         </div>
+        </>}
       </div>
     </div>
   )

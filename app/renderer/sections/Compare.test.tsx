@@ -55,6 +55,15 @@ describe('Compare', () => {
     mocks.telemetryTrack.mockReset().mockResolvedValue(true)
   })
 
+  it('shows an empty note instead of a bare legend when no category is comparable', async () => {
+    mocks.getCompareModels.mockResolvedValue([modelA, modelB])
+    mocks.getCompare.mockResolvedValue({ ...report, categories: [] })
+    render(<Compare period="30days" provider="all" />)
+
+    expect(await screen.findByText('No categories with usage in this range to compare.')).toBeInTheDocument()
+    expect(document.querySelector('.cmp-legend')).toBeNull()
+  })
+
   it('reports each distinct pair put on screen as a name-only compare_view', async () => {
     const user = userEvent.setup()
     mocks.getCompareModels.mockResolvedValue([modelA, modelB])
