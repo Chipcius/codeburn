@@ -221,6 +221,11 @@ export type HydrationState = {
 
 export type MenubarPayload = {
   generated: string
+  /// Cost and calls for every headline period, all taken from the one
+  /// aggregation that produced this payload. A client that lets the user switch
+  /// period shows these, so the six numbers it can display never come from
+  /// generations minutes apart. Omitted on scoped or filtered requests.
+  periodTotals?: Record<'today' | 'week' | '30days' | 'month' | 'all' | 'lifetime', { cost: number; calls: number }>
   /// Consecutive days with any activity, ending today or yesterday. One value
   /// for the machine: computed across every provider and independent of the
   /// selected period and provider filter, so every surface shows the same

@@ -141,6 +141,9 @@ export type MenubarPayload = {
   /** Consecutive active days across every provider, independent of the selected
    *  period and provider filter. Omitted by CLIs that predate the field. */
   streak?: number
+  /** Cost and calls for every headline period, all from the one aggregation
+   *  that produced this payload. Omitted on scoped or filtered requests. */
+  periodTotals?: Record<'today' | 'week' | '30days' | 'month' | 'all' | 'lifetime', { cost: number; calls: number }>
   // Optional: older CLIs omit it. Present and true only on a stale read-only
   // serve; absent otherwise. Absence must always be read as "assume fresh."
   stale?: boolean

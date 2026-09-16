@@ -22,6 +22,7 @@ import {
 import { contiguousDailyWindow, dataStartKey, formatChartDate, localDateKey, sliceDailyToPeriod, sliceDailyToRange } from '../lib/period'
 import { reportMemoKey } from '../lib/reportMemoKey'
 import { barBucketDays, barLayout, formatAxisMoney, niceTicks, ticksClearOfPeak } from '../lib/chartAxis'
+import { generationHeadline, rememberGeneration } from '../lib/generation'
 import { rememberStreak } from '../lib/streak'
 import { paceDirection, sparkArea, sparkPath, sparkPoints } from '../lib/spark'
 import type {
@@ -919,7 +920,7 @@ export function OverviewContent({
   scope?: Scope
   headlineSnapshot?: OverviewHeadlineSnapshot | null
 }) {
-  const { data, error } = overview
+  const { data, error, lastSuccessAt } = overview
   const heroSelectionKey = `${period}|${provider}|${range?.from ?? ''}|${range?.to ?? ''}|${scope}`
   // Suppress only the single persisted-headline -> live-data handoff. A stored
   // headline remains available after that handoff, so testing the snapshot prop
@@ -988,8 +989,12 @@ export function OverviewContent({
   // the menubar. Only the hero totals are aggregated; the detailed panels below
   // (daily chart, models) stay local — the combined payload carries totals only.
   const combined = scope === 'combined' ? data.combined : undefined
-  const heroCost = combined ? combined.combined.cost : data.current.cost
-  const heroCalls = combined ? combined.combined.calls : data.current.calls
+  // One generation behind every period the user can switch to. Only the
+  // unscoped local view has them; a custom range is not a headline period.
+  rememberGeneration(rangeActive || combined ? null : data, lastSuccessAt)
+  const headline = rangeActive || combined ? null : generationHeadline(period)
+  const heroCost = combined ? combined.combined.cost : headline?.cost ?? data.current.cost
+  const heroCalls = combined ? combined.combined.calls : headline?.calls ?? data.current.calls
   const heroSessions = combined ? combined.combined.sessions : data.current.sessions
   const heroSessionLabel = combined
     ? formatCombinedSessionCount()

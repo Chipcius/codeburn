@@ -39,6 +39,7 @@ import { codeburn } from './lib/ipc'
 import { trackEvent } from './lib/track'
 import { isMacPlatform, isModifierChord, shortcutLabel } from './lib/platform'
 import { localDateKey, PERIOD_LABELS } from './lib/period'
+import { generationAt } from './lib/generation'
 import { detectedProviders as detectedProviderList, providerLabel, readDisabledProviders, type DetectedProvider } from './lib/providers'
 import { reportMemoKey } from './lib/reportMemoKey'
 import { persistRefreshValue, readRefreshValue, refreshValueToMs, RefreshCadenceContext, type RefreshCadence } from './lib/refreshCadence'
@@ -859,9 +860,14 @@ function AppMain() {
   const refreshing = usePolledInFlight() || overview.switching || (!!headlineSnapshot && overview.loading)
   const selectedReportKeys = selectedReportMemoKeys(section, period, provider, customRange, activeOverviewKey)
   const selectedReportTimestamps = selectedReportKeys.map(polledMemoTimestamp)
-  const selectedLastSuccessAt = selectedReportKeys.length > 0 && selectedReportTimestamps.every((value): value is number => value != null)
+  const reportLastSuccessAt = selectedReportKeys.length > 0 && selectedReportTimestamps.every((value): value is number => value != null)
     ? Math.min(...selectedReportTimestamps)
     : null
+  // The headline on screen is the generation's, so the clock describes the
+  // generation. Without this the footer aged with whichever period's detail
+  // payload happened to be oldest, which is not what the numbers came from.
+  const headlineFromGeneration = !customRange && scope === 'local' && !claudeConfigSource
+  const selectedLastSuccessAt = headlineFromGeneration ? generationAt() ?? reportLastSuccessAt : reportLastSuccessAt
 
   return (
     <Window>
