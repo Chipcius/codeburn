@@ -14,6 +14,7 @@ import { fetchCopilotQuota } from './copilot.js'
 import { fetchCursorQuota } from './cursor.js'
 import { fetchGeminiQuota } from './gemini.js'
 import { fetchGrokQuota } from './grok.js'
+import { fetchGrokbotQuota } from './grokbot.js'
 import { fetchKimiQuota } from './kimi.js'
 import type { ProviderName, QuotaProvider } from './types.js'
 import { fetchZaiQuota } from './zai.js'
@@ -48,6 +49,7 @@ const READERS: { id: ProviderName; name: string; read: ProviderReader }[] = [
   { id: 'cursor', name: 'Cursor', read: async signal => (await fetchCursorQuota({ signal })).quota },
   { id: 'zai', name: 'Z.ai', read: async signal => (await fetchZaiQuota({ signal })).quota },
   { id: 'grok', name: 'Grok', read: async signal => (await fetchGrokQuota({ signal })).quota },
+  { id: 'grokbot', name: 'Grok Bot', read: async signal => (await fetchGrokbotQuota({ signal })).quota },
   { id: 'clinepass', name: 'ClinePass', read: async signal => (await fetchClinePassQuota({ signal })).quota },
 ]
 
