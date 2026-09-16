@@ -12,6 +12,7 @@ import { codeburn } from '../lib/ipc'
 import { reportMemoKey } from '../lib/reportMemoKey'
 import { trackEvent } from '../lib/track'
 import type { DateRange, FindingClass, MenubarPayload, OptimizeJsonReport, Period, SessionYieldJson, WasteAction, YieldJsonReport } from '../lib/types'
+import { Icon, type IconName } from '../components/icons'
 
 type OptimizeTab = 'waste' | 'reverts' | 'abandoned' | 'fixes'
 
@@ -154,10 +155,10 @@ function AppliedFixRows({ fixes }: { fixes: AppliedFix[] }) {
 
 type OptimizeFinding = OptimizeJsonReport['findings'][number]
 
-const IMPACT_ICON: Record<'high' | 'medium' | 'low', string> = {
-  high: '↑',
-  medium: '→',
-  low: '↓',
+const IMPACT_ICON: Record<'high' | 'medium' | 'low', IconName> = {
+  high: 'arrow-up',
+  medium: 'arrow-right',
+  low: 'arrow-down',
 }
 
 const CLASS_HEADERS: Record<FindingClass, string> = {
@@ -207,13 +208,13 @@ function ActionableFindingRows({ findings, byClass }: { findings: OptimizeFindin
               onClick={() => setExpandedId(current => current === finding.id ? null : finding.id)}
             >
               <span className={`opt-impact opt-impact-${finding.severity}`}>
-                <span aria-hidden="true">{IMPACT_ICON[finding.severity]}</span>
+                <Icon name={IMPACT_ICON[finding.severity]} className="opt-impact-mark" />
                 {finding.severity.charAt(0).toUpperCase() + finding.severity.slice(1)}
               </span>
               <span className="opt-finding-titlewrap">
                 <b className="opt-finding-title">{finding.title}</b>
                 {finding.trend === 'improving' && (
-                  <span className="opt-trend opt-trend-improving">improving<span aria-hidden="true"> ↓</span></span>
+                  <span className="opt-trend opt-trend-improving">improving<Icon name="arrow-down" className="opt-impact-mark" /></span>
                 )}
               </span>
               <span className="opt-finding-savings">{formatUsd(finding.estimatedSavingsUSD)}</span>
@@ -256,7 +257,7 @@ function FindingRows({ findings, empty }: { findings: Finding[]; empty: string }
           <span className="opt-finding-rank">{String(i + 1).padStart(2, '0')}</span>
           <b className="opt-finding-title">{finding.title}</b>
           <span className={`opt-impact opt-impact-${finding.impact}`}>
-            <span aria-hidden="true">{IMPACT_ICON[finding.impact]}</span>
+            <Icon name={IMPACT_ICON[finding.impact]} className="opt-impact-mark" />
             {finding.impact.charAt(0).toUpperCase() + finding.impact.slice(1)}
           </span>
           <span className="opt-finding-savings">{formatUsd(finding.savingsUSD)}</span>

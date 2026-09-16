@@ -14,6 +14,7 @@ import type { CliError, DateRange, MenubarPayload, Period } from '../lib/types'
 import { prFilters } from '../lib/investigation'
 import { rangeLabel } from '../components/TopBar'
 import type { InvestigateRequest } from './Overview'
+import { Icon } from '../components/icons'
 
 type PullRequests = NonNullable<MenubarPayload['current']['pullRequests']>
 type PrRow = PullRequests['rows'][number]
@@ -233,7 +234,7 @@ function PrRowView({ pr, expanded, onToggle, onInvestigate }: { pr: PrRow; expan
       >
         <div className="pr-card-identity">
           <span className="pr-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24"><circle cx="6" cy="5" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M6 7.5V19M11 5h4a3 3 0 0 1 3 3v8.5"/></svg>
+            <Icon name="git-pull-request" />
           </span>
           <div>
             <a className="pr-link" href={pr.url} title={pr.url} onClick={event => openPr(event, pr.url)}>{pr.label}</a>

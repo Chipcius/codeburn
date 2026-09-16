@@ -167,6 +167,11 @@
   justify-content: center;
 }
 
+.modalClose .icon {
+  width: 14px;
+  height: 14px;
+}
+
 .modalClose:hover {
   background: var(--hover);
   color: var(--ink);
@@ -261,11 +266,7 @@
 .soonMark {
   width: 30px;
   height: 30px;
-  fill: none;
-  stroke: var(--accent);
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  color: var(--accent);
   opacity: .9;
 }
 

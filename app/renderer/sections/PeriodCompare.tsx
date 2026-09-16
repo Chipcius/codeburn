@@ -11,6 +11,7 @@ import { codeburn } from '../lib/ipc'
 import { reportMemoKey } from '../lib/reportMemoKey'
 import { trackEvent } from '../lib/track'
 import type { DateRange, PeriodContribution, PeriodDiffReport, PeriodRangeInfo, PeriodSessionDiff } from '../lib/types'
+import { Icon } from '../components/icons'
 
 // Compare periods: two ranges, one deterministic difference. A is the
 // reference, B the analyzed period; every difference on screen is B − A,
@@ -255,7 +256,7 @@ export function PeriodCompare({
             onChange={pickPreset}
           />
           <button type="button" className="pcmp-swap" onClick={swap} aria-label="Swap A and B">
-            <span className="pcmp-swap-icon" aria-hidden="true">⇄</span> Swap
+            <Icon name="arrow-left-right" className="pcmp-swap-icon" /> Swap
           </button>
         </div>
         <div className="pcmp-ranges">

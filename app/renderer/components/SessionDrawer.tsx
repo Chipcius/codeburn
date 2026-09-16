@@ -6,6 +6,7 @@ import { codeburn } from '../lib/ipc'
 import type { InvestigationFilters } from '../lib/investigation'
 import { contributeRow } from '../lib/investigation'
 import type { SessionDrillRow } from '../lib/types'
+import { Icon } from './icons'
 
 /**
  * The drill-through side drawer: a plain-language read of one session, then the
@@ -90,7 +91,7 @@ export function SessionDrawer({ row, filters, medianCost, onClose }: {
               {row.durationMs > 0 && <> · {formatDuration(row.durationMs)}</>}
             </div>
           </div>
-          <button type="button" className="drawer-close" aria-label="Close session details" onClick={onClose}>×</button>
+          <button type="button" className="drawer-close" aria-label="Close session details" onClick={onClose}><Icon name="x" /></button>
         </div>
 
         <p className="drawer-lead">

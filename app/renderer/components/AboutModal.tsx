@@ -2,6 +2,7 @@ import { useEffect, useState, type MouseEvent, type ReactNode } from 'react'
 
 import { version } from '../../package.json'
 import { FlameMark } from './FlameMark'
+import { Icon } from './icons'
 import { BUILD_STAMP } from '../lib/build'
 import { updateDownloadUrl, useUpdateStatus } from '../hooks/useUpdateStatus'
 import { codeburn } from '../lib/ipc'
@@ -50,7 +51,7 @@ export function AboutModal({ socials = SOCIALS, onClose }: { socials?: SocialLin
         aria-labelledby="about-modal-title"
         onClick={event => event.stopPropagation()}
       >
-        <button className="about-modal-close" type="button" aria-label="Close About" onClick={onClose}>×</button>
+        <button className="about-modal-close" type="button" aria-label="Close About" onClick={onClose}><Icon name="x" /></button>
         <div className="about-modal-grid">
           <div className="about-modal-hero">
             <span className="about-modal-logo" aria-hidden="true"><FlameMark size={52} /></span>
@@ -71,7 +72,7 @@ export function AboutModal({ socials = SOCIALS, onClose }: { socials?: SocialLin
                 >
                   {social.icon}
                   <span>{social.label}</span>
-                  <span className="about-modal-external" aria-hidden="true">↗</span>
+                  <Icon name="arrow-up-right" className="about-modal-external" />
                 </a>
               ))}
             </div>
