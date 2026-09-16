@@ -279,7 +279,10 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
   position: absolute; top: calc(100% + 6px); right: 0; min-width: 150px; padding: 4px;
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0,0,0,.14); z-index: 20;
+  transform-origin: top right; animation: pop-in var(--dur-fast) var(--ease-out) backwards;
 }
+/* Every anchored surface grows out of its trigger edge: 2px of travel, no more. */
+@keyframes pop-in { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: none; } }
 .pop-item { display: flex; align-items: center; gap: 6px; padding: 6px 11px; font-size: var(--fs-body); border-radius: 6px; cursor: pointer; color: var(--ink); white-space: nowrap; }
 .pop-item:hover, .pop-item:focus-visible { background: var(--hover); outline: none; }
 .pop-item.on { color: var(--accent-text); font-weight: 560; }
@@ -304,6 +307,7 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
   position: absolute; top: calc(100% + 6px); right: 0; z-index: 20; width: 286px;
   padding: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0,0,0,.14);
+  transform-origin: top right; animation: pop-in var(--dur-fast) var(--ease-out) backwards;
 }
 .calendar-head { display: grid; grid-template-columns: 28px 1fr 28px; align-items: center; margin-bottom: 7px; }
 .calendar-head strong { text-align: center; font-size: var(--fs-body); font-weight: var(--fw-subhead); }
