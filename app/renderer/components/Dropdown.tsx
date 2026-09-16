@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
+import { useEscape } from '../hooks/useEscape'
 import { Icon } from './icons'
 
 export type DropdownOption = { value: string; label: string }
@@ -47,6 +48,8 @@ export function Dropdown({
     if (open) optionRefs.current[activeIndex]?.focus()
   }, [activeIndex, open])
 
+  useEscape(open, () => close(true))
+
   const show = (index = selectedIndex) => {
     setActiveIndex(index)
     setOpen(true)
@@ -86,9 +89,6 @@ export function Dropdown({
           } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
             event.preventDefault()
             show(event.key === 'ArrowDown' ? selectedIndex : Math.max(0, options.length - 1))
-          } else if (event.key === 'Escape' && open) {
-            event.preventDefault()
-            close()
           }
         }}
       >
@@ -119,9 +119,6 @@ export function Dropdown({
                 } else if (event.key === 'Enter' || event.key === ' ') {
                   event.preventDefault()
                   choose(index)
-                } else if (event.key === 'Escape') {
-                  event.preventDefault()
-                  close(true)
                 } else if (event.key === 'Tab') {
                   close()
                 }

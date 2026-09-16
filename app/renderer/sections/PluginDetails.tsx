@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useEscape } from '../hooks/useEscape'
 import { codeburn } from '../lib/ipc'
 import styles from './Plugins.module.css'
 import { Icon } from '../components/icons'
@@ -41,20 +42,14 @@ export function PluginDetailsModal({ pluginName, onClose }: PluginDetailsProps) 
     }
   }
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
+  useEscape(true, onClose)
 
   if (loading) {
     return (
       <div className={styles.modalBackdrop} onClick={onClose}>
         <div className={styles.modal} onClick={e => e.stopPropagation()}>
           <button className={styles.modalClose} onClick={onClose}><Icon name="x" /></button>
-          <div className={styles.modalContent}>Loading plugin details...</div>
+          <div className={styles.modalContent}>Loading plugin details…</div>
         </div>
       </div>
     )

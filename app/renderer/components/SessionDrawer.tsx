@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 
 import { Stat } from './Stat'
+import { useEscape } from '../hooks/useEscape'
 import { formatCompact, formatDayLong, formatDuration, formatUsd, shortenProjectPath } from '../lib/format'
 import { codeburn } from '../lib/ipc'
 import type { InvestigationFilters } from '../lib/investigation'
@@ -31,15 +32,12 @@ export function SessionDrawer({ row, filters, medianCost, onClose }: {
 }) {
   const panelRef = useRef<HTMLDivElement>(null)
 
+  useEscape(true, onClose)
+
   useEffect(() => {
     const panel = panelRef.current
     panel?.focus()
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.stopPropagation()
-        onClose()
-        return
-      }
       if (event.key !== 'Tab' || !panel) return
       // Keep Tab cycling inside the drawer while it is open.
       const focusable = panel.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
@@ -56,7 +54,7 @@ export function SessionDrawer({ row, filters, medianCost, onClose }: {
     }
     window.addEventListener('keydown', onKeyDown, true)
     return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [onClose])
+  }, [])
 
   const contribution = useMemo(() => contributeRow(row, filters), [row, filters])
   const breakdown = useMemo(() => buildBreakdowns(row), [row])

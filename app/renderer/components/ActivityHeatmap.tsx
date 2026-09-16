@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { ChartTip } from './ChartTip'
-import { formatUsd } from '../lib/format'
+import { formatCount, formatUsd } from '../lib/format'
 import { dataStartKey, localDateKey } from '../lib/period'
 import type { DailyHistoryEntry } from '../lib/types'
 
@@ -171,7 +171,7 @@ export function ActivityHeatmap({ daily, bare = false }: { daily: DailyHistoryEn
                 role="gridcell"
                 key={day.date}
                 className={`ov-heat-cell heat-level-${day.level}${day.isFuture ? ' future' : ''}${day.noData ? ' nodata' : ''}`}
-                aria-label={`${formatDate(day.date)}: ${day.noData ? 'no data recorded' : day.isFuture ? 'future day' : `${formatUsd(day.cost)}, ${day.calls} calls`}`}
+                aria-label={`${formatDate(day.date)}: ${day.noData ? 'no data recorded' : day.isFuture ? 'future day' : `${formatUsd(day.cost)}, ${formatCount(day.calls, 'call')}`}`}
                 data-date={day.date}
                 data-cost={day.cost}
                 data-active={!day.isFuture && !day.noData && day.cost > 0 ? 'true' : 'false'}

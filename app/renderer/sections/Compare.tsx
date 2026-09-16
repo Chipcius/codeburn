@@ -13,7 +13,7 @@ import {
   type VolumeBand,
   type VolumeMeasure,
 } from '../lib/cohortStats'
-import { formatCompact, formatUsd, shortenProjectPath } from '../lib/format'
+import { formatCompact, formatCount, formatUsd, shortenProjectPath } from '../lib/format'
 import { codeburn } from '../lib/ipc'
 import { reportMemoKey } from '../lib/reportMemoKey'
 import { sessionFilters } from '../lib/investigation'
@@ -173,7 +173,7 @@ function ClassicCompare({
           id="compare-first-model"
           ariaLabel="First model"
           value={modelA ?? ''}
-          options={modelRows.map(model => ({ value: model.model, label: `${model.model} · ${model.calls.toLocaleString()} calls` }))}
+          options={modelRows.map(model => ({ value: model.model, label: `${model.model} · ${formatCount(model.calls, 'call')}` }))}
           onChange={next => {
             setModelA(next)
             if (next === modelB) setModelB(nudgeDistinct(next))
@@ -184,7 +184,7 @@ function ClassicCompare({
           id="compare-second-model"
           ariaLabel="Second model"
           value={modelB ?? ''}
-          options={modelRows.map(model => ({ value: model.model, label: `${model.model} · ${model.calls.toLocaleString()} calls` }))}
+          options={modelRows.map(model => ({ value: model.model, label: `${model.model} · ${formatCount(model.calls, 'call')}` }))}
           onChange={next => {
             setModelB(next)
             if (next === modelA) setModelA(nudgeDistinct(next))
@@ -445,7 +445,7 @@ function CohortCompare({
           id="cohort-first-model"
           ariaLabel="Cohort first model"
           value={modelA ?? ''}
-          options={modelRows.map(model => ({ value: model.model, label: `${model.model} · ${model.calls.toLocaleString()} calls` }))}
+          options={modelRows.map(model => ({ value: model.model, label: `${model.model} · ${formatCount(model.calls, 'call')}` }))}
           onChange={next => {
             setModelA(next)
             if (next === modelB) setModelB(nudgeDistinct(next))
@@ -456,7 +456,7 @@ function CohortCompare({
           id="cohort-second-model"
           ariaLabel="Cohort second model"
           value={modelB ?? ''}
-          options={modelRows.map(model => ({ value: model.model, label: `${model.model} · ${model.calls.toLocaleString()} calls` }))}
+          options={modelRows.map(model => ({ value: model.model, label: `${model.model} · ${formatCount(model.calls, 'call')}` }))}
           onChange={next => {
             setModelB(next)
             if (next === modelA) setModelA(nudgeDistinct(next))
@@ -572,7 +572,7 @@ function PopulationCard({ data, sideA, sideB, band, onBandChange }: {
           <span className="cmp-value">{data.modelB.exclusions.multiModelTurnCount.toLocaleString()} ({formatUsd(data.modelB.exclusions.combinedMultiModelCostUSD)})</span>
         </div>
         <div className="cmp-metric">
-          <span className="cmp-label" title="Edit turns with no behavioral model call — no model can own them">Excluded turns without a model</span>
+          <span className="cmp-label" title="Edit turns with no behavioral model call, so no model can own them">Excluded turns without a model</span>
           <span className="cmp-value">{data.modelA.exclusions.noBehavioralModelTurns.toLocaleString()}</span>
           <span className="cmp-value">{data.modelB.exclusions.noBehavioralModelTurns.toLocaleString()}</span>
         </div>
@@ -597,7 +597,7 @@ function PopulationCard({ data, sideA, sideB, band, onBandChange }: {
       <div className="cmp-foot">
         Context proxy = input + cache-read tokens (a proxy, not a measured context window).
         Percentiles use linear interpolation at position (N-1)·p. Outliers are never removed;
-        no winner is picked — this is a descriptive comparison.
+        no winner is picked. This is a descriptive comparison.
       </div>
     </div>
   )
@@ -776,7 +776,7 @@ function SampleInspector({ side, onInvestigate }: {
           ))}
           {observations.length > SAMPLES_INITIAL_COUNT && (
             <button type="button" className="cmp-samples-more" onClick={() => setShowAll(current => !current)}>
-              {showAll ? 'Show fewer' : `Show all ${observations.length.toLocaleString()} observations`}
+              {showAll ? 'Show fewer' : `Show all ${formatCount(observations.length, 'observation')}`}
             </button>
           )}
         </div>
@@ -803,7 +803,7 @@ function SampleRow({ observation, onInvestigate }: {
       <span className="cmp-sample-project" title={observation.project}>{shortenProjectPath(observation.project)}</span>
       <span className="cmp-sample-session" title={observation.sessionId}>{observation.sessionId.slice(0, 10)}</span>
       <span className="cmp-sample-cat">{observation.category}</span>
-      <span className="cmp-sample-cost" title={observation.costKnown ? undefined : 'Unknown cost: this model has no pricing and no free-rate rule — not counted as $0'}>
+      <span className="cmp-sample-cost" title={observation.costKnown ? undefined : 'Unknown cost: this model has no pricing and no free-rate rule, so it is not counted as $0'}>
         {observation.costKnown ? formatUsd(observation.costUSD) : 'unknown'}
       </span>
       <span className="cmp-sample-tokens" title="input / output / context proxy tokens">

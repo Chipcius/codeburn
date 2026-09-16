@@ -12,7 +12,7 @@ const LOGIN: Record<QuotaProvider['provider'], { command?: string; hint?: string
   codex: { command: 'codex login' },
   gemini: { command: 'gemini', hint: 'then sign in when prompted' },
   copilot: { note: 'Sign in to GitHub Copilot in your editor (VS Code or JetBrains), then Refresh.' },
-  antigravity: { note: 'Open Antigravity and sign in, then Refresh — quota comes from its local server only.' },
+  antigravity: { note: 'Open Antigravity and sign in, then Refresh. Quota comes from its local server only.' },
   kimi: { command: 'kimi', hint: 'then sign in when prompted' },
 }
 

@@ -181,7 +181,7 @@ function QuotaContent({ quota, onReconnect }: { quota: QuotaProvider; onReconnec
   if (quota.connection === 'loading') return <p className="quota-connection-note">Loading quota…</p>
   if (quota.connection === 'stale' || quota.connection === 'transientFailure') {
     if (quota.rateLimited) return <p className="quota-connection-note">{rateLimitedNote(quota.provider)}</p>
-    return <p className="quota-connection-note">waiting on the CLI…</p>
+    return <p className="quota-connection-note">Waiting on the CLI…</p>
   }
   if (quota.connection === 'terminalFailure') {
     // A provider that knows why (an expired Kimi login, a retired Gemini tier)

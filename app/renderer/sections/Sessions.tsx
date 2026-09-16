@@ -10,7 +10,7 @@ import { SegTabs } from '../components/SegTabs'
 import { SessionDrawer } from '../components/SessionDrawer'
 import { StaleBanner } from '../components/StaleBanner'
 import { usePolled } from '../hooks/usePolled'
-import { formatCompact, formatDayShort, formatUsd, shortenProjectPath } from '../lib/format'
+import { formatCompact, formatCount, formatDayShort, formatUsd, shortenProjectPath } from '../lib/format'
 import { codeburn } from '../lib/ipc'
 import {
   applyInvestigation,
@@ -42,7 +42,11 @@ export function sessionRowKey(row: Pick<SessionRow, 'provider' | 'project' | 'se
   return `${row.provider}\u0000${row.project}\u0000${row.sessionId}`
 }
 
-function providerName(provider: string): string {
+/** The CLI's own display name for a provider id ("kimicode" -> "Kimi Code"),
+ *  falling back to a title-cased id when the catalog has not loaded. */
+function providerName(provider: string, detected: Array<{ id: string; label: string }>): string {
+  const known = detected.find(entry => entry.id === provider)
+  if (known) return known.label
   return provider
     .split(/[-\s]+/)
     .filter(Boolean)
@@ -394,17 +398,17 @@ export function Sessions({
         {investigating
           ? (
               <>
-                {included.length.toLocaleString('en-US')} sessions in selection · <strong>{formatUsd(selectionCost)}</strong> in selection
+                {formatCount(included.length, 'session')} in selection · <strong>{formatUsd(selectionCost)}</strong> in selection
                 {summary.fullCost > selectionCost + 1e-9 && <> · full cost of these sessions {formatUsd(summary.fullCost)}</>}
                 {summary.tokens > 0 && <> · {formatCompact(summary.tokens)} tokens in selection</>}
                 {summary.unattributable > 0 && (
-                  <span className="sessions-unattributed"> · {summary.unattributable.toLocaleString('en-US')} {summary.unattributable === 1 ? 'session' : 'sessions'} could not be attributed to this selection</span>
+                  <span className="sessions-unattributed"> · {formatCount(summary.unattributable, 'session')} could not be attributed to this selection</span>
                 )}
               </>
             )
           : (
               <>
-                {included.length} sessions · {formatUsd(selectionCost)} · {formatCompact(summary.tokens)} tokens
+                {formatCount(included.length, 'session')} · {formatUsd(selectionCost)} · {formatCompact(summary.tokens)} tokens
               </>
             )}
       </div>
@@ -429,8 +433,8 @@ export function Sessions({
           <div className="session-list">
             {renderedSequence.map(entry => entry.type === 'header' ? (
               <div className="provider-h" key={`provider-${entry.provider}`}>
-                <span>{providerName(entry.provider)}</span>
-                <span className="provider-count">{entry.count.toLocaleString('en-US')} sessions</span>
+                <span>{providerName(entry.provider, detectedProviders)}</span>
+                <span className="provider-count">{formatCount(entry.count, 'session')}</span>
                 <span className="provider-cost">{formatUsd(entry.cost)}</span>
               </div>
             ) : (
@@ -470,10 +474,10 @@ export function Sessions({
               </Fragment>
             ))}
           </div>
-          <div className="sessions-more-caption">Showing {renderedRows} of {included.length}</div>
+          <div className="sessions-more-caption">Showing {renderedRows.toLocaleString('en-US')} of {included.length.toLocaleString('en-US')}</div>
           {remaining > 0 && (
             <button className="sessions-more" type="button" onClick={() => setVisibleCount(visibleCount + STEP)}>
-              Show {Math.min(STEP, remaining)} more · {remaining} remaining
+              Show {Math.min(STEP, remaining).toLocaleString('en-US')} more · {remaining.toLocaleString('en-US')} remaining
             </button>
           )}
         </>

@@ -12,7 +12,7 @@ import { clearPolledMemo, usePolled } from '../hooks/usePolled'
 import { updateDownloadUrl, useUpdateStatus } from '../hooks/useUpdateStatus'
 import { version as appVersion } from '../../package.json'
 import { readDailyBudget } from '../lib/budget'
-import { formatConverted, formatUsd, shortenProjectPath } from '../lib/format'
+import { formatConverted, formatCount, formatUsd, shortenProjectPath } from '../lib/format'
 import { codeburn } from '../lib/ipc'
 import { projectMatches, projectPattern } from '../lib/projectMatch'
 import { shortcutLabel } from '../lib/platform'
@@ -71,7 +71,7 @@ const RAIL_ITEMS: Array<{ id: Pane; label: string; icon: React.ReactNode }> = [
   { id: 'plans', label: 'Plans', icon: <Icon name="credit-card" /> },
   { id: 'devices', label: 'Devices', icon: <Icon name="monitor-smartphone" /> },
   { id: 'export', label: 'Export', icon: <Icon name="download" /> },
-  { id: 'sharing', label: 'Automatic Sync', icon: <Icon name="refresh-cw" /> },
+  { id: 'sharing', label: 'Automatic sync', icon: <Icon name="refresh-cw" /> },
   { id: 'privacy', label: 'Privacy & data', icon: <Icon name="shield" /> },
 ]
 
@@ -174,7 +174,7 @@ export function Settings({ period, refreshToken = 0, onNavigate, initialPane, cl
           {pane === 'dock' && <CapacityDockPane refreshToken={refreshToken} />}
         </main>
       </div>
-      <Hint items={[{ k: shortcutLabel('1-8'), label: 'Navigate' }, { k: shortcutLabel('R'), label: 'Refresh' }]} right="pairing uses mutual TLS · approve-style, no PIN" />
+      <Hint items={[{ k: shortcutLabel('1-9'), label: 'Navigate' }, { k: shortcutLabel(','), label: 'Settings' }, { k: shortcutLabel('R'), label: 'Refresh' }]} right="pairing uses mutual TLS · approve-style, no PIN" />
     </>
   )
 }
@@ -362,7 +362,7 @@ function ProjectsPane({ refreshToken, onConfigMutated }: { refreshToken: number;
     </div></div>}
     <div className="card"><div className="about-sec set-last-sec">
       {projects.length > 0 && <div className="set-filter-form set-search-form">
-        <input aria-label="Search projects" className="set-input set-mono" placeholder="search projects…" value={search} onChange={event => setSearch(event.target.value)} />
+        <input aria-label="Search projects" className="set-input set-mono" placeholder="Search projects…" value={search} onChange={event => setSearch(event.target.value)} />
         {needle && <span className="set-cap">{shown.length.toLocaleString()} of {projects.length.toLocaleString()}</span>}
       </div>}
       {report.error ? <SettingsErrorText error={report.error} />
@@ -375,7 +375,7 @@ function ProjectsPane({ refreshToken, onConfigMutated }: { refreshToken: number;
           const pattern_ = projectPattern(project)
           return <div className="about-row" key={pattern_}>
             <span className="tx set-mono">{shortenProjectPath(project.path || project.name, 2)}<small>{pattern_}</small></span>
-            <span className="r set-status"><span className="set-cap">{formatConverted(project.cost)} · {project.sessions} sessions</span></span>
+            <span className="r set-status"><span className="set-cap">{formatConverted(project.cost)} · {formatCount(project.sessions, 'session')}</span></span>
             <button type="button" role="switch" aria-checked={visible} aria-label={`Show ${pattern_}`} className={visible ? 'switch on' : 'switch'} disabled={busy} onClick={() => toggle(project, !visible)}><span className="switch-knob" /></button>
           </div>
         })}
@@ -385,7 +385,7 @@ function ProjectsPane({ refreshToken, onConfigMutated }: { refreshToken: number;
         <button className="btnp" disabled={busy} onClick={() => apply({ ...filter, exclude: filter.exclude.filter(value => value !== entry) })}>Remove</button>
       </div>)}
       <div className="set-filter-form">
-        <input aria-label="Hide projects matching" className="set-input set-mono" placeholder="hide projects matching…" value={pattern} onChange={event => setPattern(event.target.value)} />
+        <input aria-label="Hide projects matching" className="set-input set-mono" placeholder="Hide projects matching…" value={pattern} onChange={event => setPattern(event.target.value)} />
         <button className="btnp btnp-primary" disabled={busy || !pattern.trim() || filter.exclude.includes(pattern.trim())} onClick={() => apply({ ...filter, exclude: [...filter.exclude, pattern.trim()] }, true)}>Hide</button>
       </div>
       {error && <p className="set-action-msg error">{error}</p>}
@@ -681,7 +681,7 @@ function ThisDevicePanel({ identity, shareStatus }: { identity: ReturnType<typeo
 
 function DiscoveredPanel({ scan }: { scan: ReturnType<typeof usePolled<DeviceScanResult>> }) {
   const found = scan.data?.found.filter(device => !device.paired) ?? []
-  return <Panel title="Discovered nearby" right={scan.loading ? 'listening…' : undefined}>{!scan.data && scan.error ? <SettingsErrorText error={scan.error} /> : !scan.data ? <p className="set-cap">listening…</p> : found.length === 0 ? <p className="set-cap">No nearby devices found.</p> : found.map(device => <div className="li" key={`${device.host}:${device.port}:${device.fingerprint}`}><div className="lx"><b>{device.name}</b><span>fingerprint {shortFingerprint(device.fingerprint)}</span></div></div>)}<p className="set-cap set-device-caption">To pair a device, run <code>codeburn devices add</code> in a terminal. Pairing is interactive (approve on the other device).</p></Panel>
+  return <Panel title="Discovered nearby" right={scan.loading ? 'Listening…' : undefined}>{!scan.data && scan.error ? <SettingsErrorText error={scan.error} /> : !scan.data ? <p className="set-cap">Listening…</p> : found.length === 0 ? <p className="set-cap">No nearby devices found.</p> : found.map(device => <div className="li" key={`${device.host}:${device.port}:${device.fingerprint}`}><div className="lx"><b>{device.name}</b><span>fingerprint {shortFingerprint(device.fingerprint)}</span></div></div>)}<p className="set-cap set-device-caption">To pair a device, run <code>codeburn devices add</code> in a terminal. Pairing is interactive (approve on the other device).</p></Panel>
 }
 
 function PairedPanel({ devices, period, onRefresh }: { devices: ReturnType<typeof usePolled<CombinedUsage>>; period: Period; onRefresh: () => void }) {
@@ -694,7 +694,7 @@ function PairedPanel({ devices, period, onRefresh }: { devices: ReturnType<typeo
       onRefresh()
     })
   }
-  return <Panel title="Paired devices" right={<button className="set-text-button" onClick={onRefresh}>Refresh</button>}>{!devices.data && devices.error ? <SettingsErrorText error={devices.error} /> : !devices.data ? <p className="set-cap">Loading paired devices…</p> : paired.length === 0 ? <p className="set-cap">No paired devices yet.</p> : paired.map(device => <div className="li" key={device.id}><div className="lx"><b>{device.name}</b><span>{device.sessions.toLocaleString('en-US')} sessions · {formatUsd(device.cost)} {periodLabel(period)}</span></div><ConfirmButton label="Remove" prompt="Remove?" onConfirm={() => remove(device.name)} /></div>)}{devices.data && devices.data.combined.deviceCount > 1 && <div className="li"><div className="lx"><b>Combined view active · {devices.data.combined.deviceCount} devices</b></div></div>}{error && <p className="set-action-msg error">{error}</p>}</Panel>
+  return <Panel title="Paired devices" right={<button className="set-text-button" onClick={onRefresh}>Refresh</button>}>{!devices.data && devices.error ? <SettingsErrorText error={devices.error} /> : !devices.data ? <p className="set-cap">Loading paired devices…</p> : paired.length === 0 ? <p className="set-cap">No paired devices yet.</p> : paired.map(device => <div className="li" key={device.id}><div className="lx"><b>{device.name}</b><span>{formatCount(device.sessions, 'session')} · {formatUsd(device.cost)} {periodLabel(period)}</span></div><ConfirmButton label="Remove" prompt="Remove?" onConfirm={() => remove(device.name)} /></div>)}{devices.data && devices.data.combined.deviceCount > 1 && <div className="li"><div className="lx"><b>Combined view active · {formatCount(devices.data.combined.deviceCount, 'device')}</b></div></div>}{error && <p className="set-action-msg error">{error}</p>}</Panel>
 }
 
 function SettingsErrorText({ error }: { error: CliError }) {

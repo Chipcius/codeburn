@@ -7,7 +7,7 @@ import { Panel } from '../components/Panel'
 import { SectionSkeleton } from '../components/Skeleton'
 import { StaleBanner } from '../components/StaleBanner'
 import { type Polled, usePolled } from '../hooks/usePolled'
-import { formatDayShort, formatUsd } from '../lib/format'
+import { formatCount, formatDayShort, formatUsd } from '../lib/format'
 import { codeburn } from '../lib/ipc'
 import { PERIOD_LABELS } from '../lib/period'
 import type { CliError, DateRange, MenubarPayload, Period } from '../lib/types'
@@ -241,7 +241,7 @@ function PrRowView({ pr, expanded, onToggle, onInvestigate }: { pr: PrRow; expan
             <div className="pr-card-meta">
               <span>{spanLabel(pr.firstStarted, pr.lastEnded)}</span>
               <span>{pr.sessions.toLocaleString('en-US')} {sessionWord(pr.sessions)}</span>
-              <span>{pr.calls.toLocaleString('en-US')} calls</span>
+              <span>{formatCount(pr.calls, 'call')}</span>
             </div>
           </div>
         </div>

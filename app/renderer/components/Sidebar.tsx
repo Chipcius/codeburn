@@ -17,8 +17,8 @@ export const NAV_ITEMS: Array<{ id: Section; label: string; key: string; icon: R
   { id: 'optimize', label: 'Optimize', key: '5', icon: <Icon name="sparkles" /> },
   { id: 'models', label: 'Models', key: '6', icon: <Icon name="box" /> },
   { id: 'compare', label: 'Compare', key: '7', icon: <Icon name="scale" /> },
-  { id: 'periods', label: 'Compare periods', key: '9', icon: <Icon name="calendar-range" /> },
   { id: 'plans', label: 'Plans', key: '8', icon: <Icon name="credit-card" /> },
+  { id: 'periods', label: 'Compare periods', key: '9', icon: <Icon name="calendar-range" /> },
   { id: 'settings', label: 'Settings', key: ',', icon: <Icon name="settings" /> },
   { id: 'plugins', label: 'Plugins', key: '.', icon: <Icon name="puzzle" /> },
 ]

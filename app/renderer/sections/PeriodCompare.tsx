@@ -4,6 +4,7 @@ import { EmptyNote } from '../components/EmptyState'
 import { SectionSkeleton } from '../components/Skeleton'
 import { SegTabs } from '../components/SegTabs'
 import { RangeCalendar } from '../components/RangeCalendar'
+import { useEscape } from '../hooks/useEscape'
 import { usePolled } from '../hooks/usePolled'
 import { ChartTip } from '../components/ChartTip'
 import { formatCompact, formatUsd, shortenProjectPath } from '../lib/format'
@@ -306,16 +307,11 @@ function RangeField({ label, value, onChange }: { label: string; value: DateRang
     const onPointerDown = (event: MouseEvent) => {
       if (!wrapRef.current?.contains(event.target as Node)) setOpen(false)
     }
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false)
-    }
     document.addEventListener('mousedown', onPointerDown)
-    document.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.removeEventListener('mousedown', onPointerDown)
-      document.removeEventListener('keydown', onKeyDown)
-    }
+    return () => document.removeEventListener('mousedown', onPointerDown)
   }, [open])
+
+  useEscape(open, () => setOpen(false))
 
   return (
     <div className="pcmp-range" ref={wrapRef}>
