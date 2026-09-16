@@ -5,18 +5,18 @@ import { paceDirection, sparkArea, sparkPath, sparkPoints } from './spark'
 describe('sparkPoints', () => {
   it('spreads the series across the width and puts the peak at the top inset', () => {
     expect(sparkPoints([0, 5, 10], 100, 40, 3)).toEqual([
-      [0, 37],
+      [3, 37],
       [50, 20],
-      [100, 3],
+      [97, 3],
     ])
   })
 
   it('draws a flat all-zero series on the baseline instead of dividing by zero', () => {
-    expect(sparkPoints([0, 0, 0], 100, 40, 3)).toEqual([[0, 37], [50, 37], [100, 37]])
+    expect(sparkPoints([0, 0, 0], 100, 40, 3)).toEqual([[3, 37], [50, 37], [97, 37]])
   })
 
-  it('places a single point at the left edge', () => {
-    expect(sparkPoints([7], 100, 40, 3)).toEqual([[0, 3]])
+  it('places a single point on the left inset', () => {
+    expect(sparkPoints([7], 100, 40, 3)).toEqual([[3, 3]])
   })
 
   it('returns nothing for an empty series', () => {

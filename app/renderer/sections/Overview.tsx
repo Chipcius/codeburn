@@ -497,7 +497,7 @@ function SpendTrend({ values, tone, dashFrom }: { values: number[]; tone: 'good'
         <defs>
           <linearGradient id={`${id}-fill`} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="currentColor" stopOpacity="0.22" />
-            <stop offset="55%" stopColor="currentColor" stopOpacity="0" />
+            <stop offset="70%" stopColor="currentColor" stopOpacity="0" />
           </linearGradient>
           <radialGradient id={`${id}-glow`}>
             <stop offset="0%" stopColor="currentColor" stopOpacity="0.06" />
@@ -505,7 +505,7 @@ function SpendTrend({ values, tone, dashFrom }: { values: number[]; tone: 'good'
             <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
           </radialGradient>
         </defs>
-        <ellipse cx={last[0]} cy={last[1]} rx={TREND_WIDTH * 0.55} ry={TREND_HEIGHT * 0.7} fill={`url(#${id}-glow)`} />
+        <ellipse cx={last[0]} cy={last[1]} rx={TREND_WIDTH * 0.7} ry={TREND_HEIGHT * 0.8} fill={`url(#${id}-glow)`} />
         <path d={sparkArea(solid, TREND_HEIGHT)} fill={`url(#${id}-fill)`} />
         <path className="ov-trend-line" d={sparkPath(solid)} vectorEffect="non-scaling-stroke" />
         {dashed.length > 1 && <path className="ov-trend-line dashed" d={sparkPath(dashed)} vectorEffect="non-scaling-stroke" />}

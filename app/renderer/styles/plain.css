@@ -732,11 +732,11 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .ov-stat-foot .icon { width: 12px; height: 12px; }
 /* Corner curve: the dotted ground fades out toward the figures so it never competes with them. */
 /* The curve lives in the card's bottom-right corner and the figures read over its faded left. */
-.ov-trend { position: absolute; right: 6px; bottom: 5px; z-index: 0; width: 55%; height: 70%; }
+.ov-trend { position: absolute; right: 0; bottom: 0; z-index: 0; width: 38%; height: 60%; }
 .ov-trend.tone-good { color: var(--ok); }
 .ov-trend.tone-bad { color: var(--bad); }
 .ov-trend.tone-flat { color: var(--mut2); }
-.ov-trend::before { content: ""; position: absolute; inset: 0; background-image: radial-gradient(var(--mut2) 1px, transparent 1px); background-size: 8px 8px; opacity: .07; -webkit-mask-image: radial-gradient(130% 140% at 100% 100%, #000 15%, transparent 72%); mask-image: radial-gradient(130% 140% at 100% 100%, #000 15%, transparent 72%); }
+.ov-trend::before { content: ""; position: absolute; inset: 0; background-image: radial-gradient(var(--mut2) 1px, transparent 1px); background-size: 8px 8px; -webkit-mask-image: radial-gradient(130% 140% at 100% 100%, #000 15%, transparent 72%); mask-image: radial-gradient(130% 140% at 100% 100%, #000 15%, transparent 72%); opacity: .06; }
 .ov-trend svg { position: relative; display: block; width: 100%; height: 100%; }
 .ov-trend-line { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .ov-trend-line.dashed { stroke-dasharray: 3 3; }
