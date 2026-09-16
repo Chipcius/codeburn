@@ -270,6 +270,7 @@ function MetricCard({
   return (
     <div className="panel cmp-card">
       <div className="cmp-head"><h3>{title}</h3></div>
+      <div className="pbody">
       <div className="cmp-metrics">
         <MetricHeader modelA={modelA} modelB={modelB} />
         {rows.map(row => {
@@ -284,6 +285,7 @@ function MetricCard({
         })}
       </div>
       {showWinners && <div className="cmp-foot">Green = better on that metric.</div>}
+      </div>
     </div>
   )
 }
@@ -305,6 +307,7 @@ function CategoryCard({ report }: { report: CompareJsonReport }) {
   return (
     <div className="panel cmp-card">
       <div className="cmp-head"><h3>Category head-to-head</h3><span className="cmp-head-note">One-shot rate · edit turns</span></div>
+      <div className="pbody">
       <div className="cmp-category-body">
         {!comparable ? <EmptyNote>No categories with usage in this range to compare.</EmptyNote> : <>
         <div className="cmp-legend">
@@ -329,6 +332,7 @@ function CategoryCard({ report }: { report: CompareJsonReport }) {
           ))}
         </div>
         </>}
+      </div>
       </div>
     </div>
   )
@@ -359,6 +363,7 @@ function ContextCard({ modelA, modelB }: { modelA: ModelStats; modelB: ModelStat
   return (
     <div className="panel cmp-card">
       <div className="cmp-head"><h3>Context</h3></div>
+      <div className="pbody">
       <div className="cmp-metrics">
         <MetricHeader modelA={modelA.model} modelB={modelB.model} />
         {rows.map(([label, valueA, valueB]) => (
@@ -366,6 +371,7 @@ function ContextCard({ modelA, modelB }: { modelA: ModelStats; modelB: ModelStat
             <span className="cmp-label">{label}</span><span className="cmp-value">{valueA}</span><span className="cmp-value">{valueB}</span>
           </div>
         ))}
+      </div>
       </div>
     </div>
   )
