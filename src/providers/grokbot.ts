@@ -165,6 +165,14 @@ function groupRequests(entries: unknown[]): GrokbotRequest[] {
     }
 
     const content = textOf(entry['content'])
+    // Direction comes from `role`, not from the entry kind: a `message` with
+    // role assistant is this bot's own text on its way out, usually addressed
+    // to another bot via `toAgent`. Role user is what arrived here — from the
+    // person, or from another bot via `fromAgent`.
+    if (entry['role'] === 'assistant') {
+      request.outputChars += content.length
+      continue
+    }
     request.inputChars += content.length
     // A `message` carrying `fromAgent` was sent by another bot, so only a bare
     // user message makes this a human turn. Routine and background-revival runs

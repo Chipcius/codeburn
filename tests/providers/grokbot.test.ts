@@ -189,6 +189,27 @@ describe('grokbot provider', () => {
     expect(calls[1]!.inputTokens).toBeGreaterThan(0)
   })
 
+  it('counts the bot\'s own outbound message to another bot as output, not input', async () => {
+    await writeTranscript(BOT_A, [
+      userMessage('t0u', 'r1', 'x'.repeat(40), T0),
+      {
+        kind: 'message',
+        id: 'agent-outbound-abc',
+        role: 'assistant',
+        content: 'y'.repeat(80),
+        requestId: 'r1',
+        timestampMs: T0 + 1_000,
+        toAgent: { id: BOT_B, name: 'Reddit Reviewer', kind: 'agent' },
+      },
+    ])
+
+    const calls = await parseAll()
+    expect(calls).toHaveLength(1)
+    expect(calls[0]!.inputTokens).toBe(10)
+    expect(calls[0]!.outputTokens).toBe(20)
+    expect(calls[0]!.userMessage).toBe('x'.repeat(40))
+  })
+
   it('reports no tool calls or bash commands, because the mirror has none', async () => {
     await writeTranscript(BOT_A, [
       userMessage('t0u', 'r1', 'open x and check the profile', T0),
