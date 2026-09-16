@@ -451,9 +451,9 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
 .ni { font-size: var(--fs-body); }
 .ni .k { font-size: var(--fs-label); }
 .sb .status { font-size: var(--fs-meta); }
-.bar .t { margin: 0; font-size: var(--fs-title); font-weight: var(--fw-subhead); }
-.bar .scope { font-size: var(--fs-meta); }
-.seg span { font-size: var(--fs-meta); }
+.bar .t { flex: 0 0 auto; margin: 0; font-size: var(--fs-title); font-weight: var(--fw-subhead); white-space: nowrap; }
+.bar .scope { min-width: 0; overflow: hidden; font-size: var(--fs-meta); text-overflow: ellipsis; white-space: nowrap; }
+.seg span { padding: 2.5px 6px; font-size: var(--fs-meta); }
 .pop { font-size: var(--fs-meta); }
 .phead .r { font-size: var(--fs-meta); }
 .legend { font-size: var(--fs-label); }
@@ -1221,11 +1221,20 @@ html.page-hidden *::after {
 /* ————— Drill-through: history navigation, selection chips, session drawer ————— */
 
 /* The top bar wraps rather than pushing its right-hand filters off screen. */
-.bar { flex-wrap: wrap; row-gap: var(--sp-2); box-sizing: border-box; min-height: 52px; padding: var(--sp-2) var(--sp-5); }
+.bar { flex-wrap: nowrap; row-gap: var(--sp-2); box-sizing: border-box; min-height: 52px; padding: var(--sp-2) var(--sp-5); }
 @media (max-width: 1199px) {
-  .bar { flex-wrap: nowrap; gap: var(--sp-2); }
+  .bar { gap: var(--sp-2); }
   .bar .scope { display: none; }
   .bar .dropdown { width: auto; min-width: 110px; }
+}
+/* Below 1100 the period pills and the bar's own chrome give their slack to the
+   two pickers, so neither provider nor config label ever ellipsizes. */
+@media (max-width: 1099px) {
+  .bar { gap: var(--sp-1); padding: var(--sp-2) var(--sp-3); }
+  .bar-nav { margin-right: 0; }
+  .bar .seg span { padding: 2.5px 3px; font-size: var(--fs-label); }
+  .bar .dropdown { min-width: fit-content; }
+  .bar .dropdown-trigger { gap: 4px; padding: 2.5px 7px; }
 }
 
 /* Back/Forward in the top bar. */
