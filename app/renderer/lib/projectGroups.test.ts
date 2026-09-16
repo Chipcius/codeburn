@@ -80,7 +80,17 @@ describe('groupProjects', () => {
       project('/b/scratch', null, [row('main', 1)]),
     ])
     expect(groups.map(g => g.id)).toEqual(['a/scratch', 'b/scratch'])
+    expect(groups.map(g => g.label)).toEqual(['a/scratch', 'b/scratch'])
     expect(groups.every(g => g.note === '')).toBe(true)
+  })
+
+  it('leaves out identities that are session titles rather than directories', () => {
+    const groups = groupProjects([
+      project('/Users/me/Projects/real', null, [row('main', 1)]),
+      project('Search for Postgres MCP servers', null, [row('main', 9)]),
+      project('codeburn-teams', null, [row('main', 4)]),
+    ])
+    expect(groups.map(g => g.label)).toEqual(['Projects/real'])
   })
 
   it('collects throwaway checkouts with no origin into one bucket at the bottom', () => {
@@ -90,6 +100,7 @@ describe('groupProjects', () => {
       project('/Users/me/Projects/real', null, [row('main', 1)]),
     ])
     expect(groups.map(g => g.id)).toEqual(['Projects/real', '__temporary__'])
+    expect(groups[0].label).toBe('Projects/real')
     expect(groups.at(-1)!.label).toBe('Temporary checkouts')
     expect(groups.at(-1)!.note).toBe('2 projects')
   })
@@ -99,6 +110,6 @@ describe('groupProjects', () => {
       project('/Users/me/Projects/real', null, [row('main', 1)]),
       project('/Users/me/Projects/bots', null, []),
     ])
-    expect(groups.map(g => g.label)).toEqual(['real'])
+    expect(groups.map(g => g.label)).toEqual(['Projects/real'])
   })
 })
