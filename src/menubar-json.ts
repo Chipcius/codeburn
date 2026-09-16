@@ -221,6 +221,11 @@ export type HydrationState = {
 
 export type MenubarPayload = {
   generated: string
+  /// Consecutive days with any activity, ending today or yesterday. One value
+  /// for the machine: computed across every provider and independent of the
+  /// selected period and provider filter, so every surface shows the same
+  /// number. Omitted by producers that predate the field.
+  streak?: number
   /// Optional. Present and `true` only when this payload was assembled from a
   /// read-only stale serve (see `isSessionHydrationComplete` in `parser.ts`).
   /// Omitted — never `false` — on a fresh/complete payload, so absence always

@@ -138,6 +138,9 @@ export type HydrationState = {
 
 export type MenubarPayload = {
   generated: string
+  /** Consecutive active days across every provider, independent of the selected
+   *  period and provider filter. Omitted by CLIs that predate the field. */
+  streak?: number
   // Optional: older CLIs omit it. Present and true only on a stale read-only
   // serve; absent otherwise. Absence must always be read as "assume fresh."
   stale?: boolean

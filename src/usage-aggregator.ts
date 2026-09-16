@@ -20,6 +20,7 @@ import { scanUserCorrections, medianTimeToFirstEditMs, aggregateFileChurn, compu
 import { buildPrAttribution, aggregateByBranch } from './sessions-report.js'
 import { scanAndDetect } from './optimize.js'
 import { callBillableOutputTokens, sessionBillableOutputTokens, inferSessionProvider } from './session-output.js'
+import { activityStreak } from './streak.js'
 import { getDaysInRange, ensureCacheHydrated, loadDailyCache, cachedProjectIdentities, emptyCache, mergeDayEntries, BACKFILL_DAYS, toDateString, type DailyCache, type DailyEntry, type ProjectDayStats, type ProviderDaySlice } from './daily-cache.js'
 import { buildGranularHistory } from './granular-history.js'
 import { spendProjectIdentity } from './spend-flow.js'
@@ -1798,6 +1799,18 @@ export async function buildMenubarPayloadForRange(periodInfo: PeriodInfo, opts: 
   const partialFirstPaint = hydration?.deferredForFirstPaint === true
   const stale = hydration?.complete === false && !partialFirstPaint ? true : undefined
   const payload = buildMenubarPayload(currentData, providers, optimize, dailyHistory, retryTax, routingWaste, breakdowns, claudeConfigs, granularHistory, stale, hydrationStateFor(hydration))
+  // Deliberately NOT derived from this payload's own history: that is narrowed
+  // by the period, which made the same pill read a different number on every
+  // tab. Emitted only from the all-provider path, whose cache and today set are
+  // already the whole machine's: a provider-scoped render must not scan
+  // unrelated providers just to count days, so it omits the field and consumers
+  // keep the last one they were given.
+  if (isAllProviders) {
+    payload.streak = activityStreak(
+      [...getDaysInRange(cache, historyStartStr, yesterdayStr), ...(await getTodayAllDays()).filter(d => d.date === todayStr)],
+      now,
+    )
+  }
   // Plugin socket: add-only sections from loaded plugins (empty socket by
   // default, so the payload is byte-identical without plugins installed).
   const pluginSections = await pluginPayloadSections(await loadPlugins())

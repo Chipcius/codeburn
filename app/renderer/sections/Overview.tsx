@@ -22,6 +22,7 @@ import {
 import { contiguousDailyWindow, dataStartKey, formatChartDate, localDateKey, sliceDailyToPeriod, sliceDailyToRange } from '../lib/period'
 import { reportMemoKey } from '../lib/reportMemoKey'
 import { barBucketDays, barLayout, formatAxisMoney, niceTicks, ticksClearOfPeak } from '../lib/chartAxis'
+import { rememberStreak } from '../lib/streak'
 import { paceDirection, sparkArea, sparkPath, sparkPoints } from '../lib/spark'
 import type {
   ActReportJson,
@@ -306,7 +307,7 @@ export function deriveSignals(data: MenubarPayload, now: Date, rangeActive: bool
   const improvements: Signal[] = []
   const risks: Signal[] = []
 
-  const streak = streakDays(daily, now)
+  const streak = rememberStreak(data.streak) ?? streakDays(daily, now)
 
   // Week-over-week: mean of the last 7 active entries vs the prior 7 (matches the
   // coach's pacing line). Needs >= 14 entries for both windows to exist.
@@ -1051,7 +1052,7 @@ export function OverviewContent({
         <div className="ov-panel-head">
           <Icon name="circle-dollar-sign" />
           <h3>{combined ? `Combined · ${data.current.label}` : data.current.label}</h3>
-          <span className="r"><span className="ov-streak"><b>{streakDays(data.history.daily, now)}</b>-day streak</span></span>
+          <span className="r"><span className="ov-streak"><b>{rememberStreak(data.streak) ?? streakDays(data.history.daily, now)}</b>-day streak</span></span>
         </div>
         <div className="ov-card-inner ov-hero-split" aria-label="Key performance indicators">
           <div className="ov-hero-main">
