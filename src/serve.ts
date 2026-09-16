@@ -1,5 +1,6 @@
-import { watch, type FSWatcher } from 'fs'
+import { statSync, watch, type FSWatcher } from 'fs'
 import { readFile, stat } from 'fs/promises'
+import { join } from 'path'
 import { createHash } from 'crypto'
 import { createInterface } from 'readline'
 
@@ -323,18 +324,81 @@ async function getConfigFingerprint(): Promise<string | null> {
 type RootWatcherState = {
   startedAt: number
   lastEventAt: () => number
+  changedSince: (sinceTs: number) => string[] | null
   healthy: () => boolean
   close: () => void
 }
 
+// Past this many distinct changed paths the watcher stops naming them and every
+// event becomes unscoped, so a burst of churn costs one verdict instead of an
+// unbounded map and a stat storm.
+const MAX_TRACKED_PATHS = 512
+const MS_PER_DAY = 24 * 60 * 60 * 1000
+// Changed paths are only useful while some memo could still be reused; past the
+// parser's validated-reuse cap they are dead weight.
+const WATCHER_PATH_RETENTION_MS = 5 * 60 * 1000
+
+/// The days a changed file can possibly contribute turns to, as a timestamp
+/// span. A session transcript is opened when its session starts and appended to
+/// until it ends, so the days it can hold are the ones between its creation and
+/// its last write. One day of slack below covers a file created just after local
+/// midnight whose first turns are stamped on the previous day, and the same
+/// conservative widening a provider with a coarse clock would need.
+///
+/// This is a stat-only rule: a file rewritten with BACKDATED content that its
+/// birth time does not cover is outside it. The five-minute reuse cap in
+/// parser.ts remains the backstop for that, exactly as it is for a missed
+/// filesystem event.
+export function fileDaySpan(
+  info: { birthtimeMs: number; mtimeMs: number },
+  startOfDay: (ms: number) => number = ms => {
+    const d = new Date(ms)
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  },
+): { startMs: number; endMs: number } {
+  const first = Math.min(info.birthtimeMs, info.mtimeMs)
+  return { startMs: startOfDay(first) - MS_PER_DAY, endMs: startOfDay(info.mtimeMs) + MS_PER_DAY - 1 }
+}
+
+const daySpanMemo = new Map<string, { mtimeMs: number; span: { startMs: number; endMs: number } }>()
+
+function statDaySpan(path: string): { startMs: number; endMs: number } | null {
+  let info: ReturnType<typeof statSync>
+  try {
+    info = statSync(path)
+  } catch {
+    // Deleted or unreadable: nothing proves which days it held.
+    return null
+  }
+  const hit = daySpanMemo.get(path)
+  if (hit && hit.mtimeMs === info.mtimeMs) return hit.span
+  const span = fileDaySpan(info)
+  if (daySpanMemo.size > MAX_TRACKED_PATHS) daySpanMemo.clear()
+  daySpanMemo.set(path, { mtimeMs: info.mtimeMs, span })
+  return span
+}
+
 export function classifyRootReuse(
   sinceTs: number,
-  state: { startedAt: number; lastEventAt: number; healthy: boolean },
+  state: { startedAt: number; lastEventAt: number; healthy: boolean; changedSince?: (sinceTs: number) => string[] | null },
+  // The span the reusable result covers. Given, an event is only disqualifying
+  // when the changed file's own days reach into it: a finalized past range is
+  // not re-derived because an agent wrote a session file today.
+  range?: { startMs: number; endMs: number },
+  daySpanOf: (path: string) => { startMs: number; endMs: number } | null = statDaySpan,
 ): ParseReuseValidation {
   // A known event is conclusive even if watcher coverage degraded afterward.
   // Unknown means only that no dirty evidence exists and cleanliness cannot be
   // established for the whole interval.
-  if (state.lastEventAt >= sinceTs) return 'dirty'
+  if (state.lastEventAt >= sinceTs) {
+    if (!range) return 'dirty'
+    const changed = state.changedSince?.(sinceTs)
+    if (!changed) return 'dirty'
+    for (const path of changed) {
+      const span = daySpanOf(path)
+      if (!span || (span.startMs <= range.endMs && span.endMs >= range.startMs)) return 'dirty'
+    }
+  }
   if (!state.healthy || sinceTs < state.startedAt) return 'unknown'
   return 'clean'
 }
@@ -344,6 +408,36 @@ async function startRootWatchers(): Promise<RootWatcherState | null> {
   let healthy = true
   let closed = false
   const watchers: FSWatcher[] = []
+  // Changed paths, newest write per path, for day-scoped invalidation. An event
+  // that arrives without a filename, or one past the tracking bound, leaves
+  // `unscopedAt` behind: from then on nothing older than it can be day-scoped.
+  const changed = new Map<string, number>()
+  let unscopedAt = 0
+  const note = (root: string, filename: string | Buffer | null): void => {
+    const name = typeof filename === 'string' ? filename : null
+    // SQLite rewrites the shared-memory index when a database is READ, so a
+    // provider DB under a watched root reported a change every time codeburn
+    // itself opened it - this process invalidating the memo it had just
+    // produced, on every request, forever. Real writes still land in the
+    // database or its WAL, both of which stay watched.
+    if (name?.endsWith('-shm')) return
+    lastEventAt = Date.now()
+    if (!name) { unscopedAt = lastEventAt; return }
+    const path = join(root, name)
+    if (!changed.has(path) && changed.size >= MAX_TRACKED_PATHS) { unscopedAt = lastEventAt; return }
+    changed.set(path, lastEventAt)
+  }
+  const changedSince = (sinceTs: number): string[] | null => {
+    if (unscopedAt >= sinceTs) return null
+    const paths: string[] = []
+    for (const [path, at] of changed) {
+      // Older than any reuse this validator can bless; drop it rather than
+      // letting the map grow for the life of the process.
+      if (at < Date.now() - WATCHER_PATH_RETENTION_MS) { changed.delete(path); continue }
+      if (at >= sinceTs) paths.push(path)
+    }
+    return paths
+  }
   try {
     const { getAllProviders } = await import('./providers/index.js')
     const providers = await getAllProviders()
@@ -371,7 +465,7 @@ async function startRootWatchers(): Promise<RootWatcherState | null> {
         continue
       }
       try {
-        const watcher = watch(root, { recursive: info.isDirectory() }, () => { lastEventAt = Date.now() })
+        const watcher = watch(root, { recursive: info.isDirectory() }, (_event, filename) => { note(root, filename) })
         watcher.on('error', () => { healthy = false })
         watchers.push(watcher)
       } catch {
@@ -394,6 +488,7 @@ async function startRootWatchers(): Promise<RootWatcherState | null> {
   return {
     startedAt,
     lastEventAt: () => lastEventAt,
+    changedSince,
     healthy: () => healthy && !closed,
     close: () => {
       if (closed) return
@@ -436,11 +531,12 @@ export async function runStdioServe(buildProgram: () => Command): Promise<void> 
     // Clean means: the watchers were already armed when the parse happened,
     // and no filesystem event has landed since. lastEventAt of 0 is a quiet
     // system (clean for anything parsed after arming), not an unknown.
-    const validate = (sinceTs: number): ParseReuseValidation => classifyRootReuse(sinceTs, {
+    const validate = (sinceTs: number, range?: { startMs: number; endMs: number }): ParseReuseValidation => classifyRootReuse(sinceTs, {
       startedAt: w.startedAt,
       lastEventAt: w.lastEventAt(),
       healthy: w.healthy(),
-    })
+      changedSince: w.changedSince,
+    }, range)
     rootReuseValidation = validate
     setParseReuseValidator(validate)
     watcherLifecycle.resetValidator = () => setParseReuseValidator(null)

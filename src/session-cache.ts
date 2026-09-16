@@ -924,6 +924,7 @@ let cacheMemo: { dir: string; nonce: string; scope: string; cache: SessionCache 
 
 export function clearLoadCacheMemo(): void {
   cacheMemo = null
+  clearShardMemo()
 }
 
 /** Months (UTC `YYYY-MM`, inclusive) a query can possibly report on. The load
@@ -1000,6 +1001,73 @@ async function loadShard(path: string): Promise<Record<string, CachedFile> | nul
   }
 }
 
+// Shards a resident process (codeburn serve) keeps parsed between requests,
+// keyed by shard FILE NAME. A name carries a fresh nonce on every write
+// (shardFileName), so a name that is still published names the same bytes and
+// the memo needs no revalidation: a rewritten month arrives under a new name
+// and the retired one ages out below. This is what makes a period switch stop
+// re-parsing the months it already read - the whole-cache memo above is keyed
+// by scope and misses the moment the range widens.
+const SHARD_MEMO_MAX_BYTES = 192 * 1024 * 1024
+const SHARD_MEMO_MAX_AGE_MS = 10 * 60 * 1000
+type ShardMemoEntry = { files: Record<string, CachedFile>; bytes: number; usedAt: number }
+const shardMemo = new Map<string, ShardMemoEntry>()
+let shardMemoBytes = 0
+
+export function clearShardMemo(): void {
+  shardMemo.clear()
+  shardMemoBytes = 0
+}
+
+export function shardMemoStats(): { entries: number; bytes: number } {
+  return { entries: shardMemo.size, bytes: shardMemoBytes }
+}
+
+/// Drop entries unused past the age bound, then least-recently-used entries
+/// until the byte budget holds. `now` is injected so the rule is testable.
+export function evictShardMemo(now: number, maxBytes: number = SHARD_MEMO_MAX_BYTES): void {
+  for (const [name, entry] of shardMemo) {
+    if (now - entry.usedAt <= SHARD_MEMO_MAX_AGE_MS) continue
+    shardMemo.delete(name)
+    shardMemoBytes -= entry.bytes
+  }
+  if (shardMemoBytes <= maxBytes) return
+  for (const [name, entry] of [...shardMemo].sort((a, b) => a[1].usedAt - b[1].usedAt)) {
+    if (shardMemoBytes <= maxBytes) break
+    shardMemo.delete(name)
+    shardMemoBytes -= entry.bytes
+  }
+}
+
+export async function loadShardMemoized(dir: string, name: string): Promise<Record<string, CachedFile> | null> {
+  const key = `${dir}\0${name}`
+  const now = Date.now()
+  const hit = shardMemo.get(key)
+  if (hit) {
+    hit.usedAt = now
+    return hit.files
+  }
+  let raw: string
+  try {
+    raw = await readFile(join(dir, name), 'utf-8')
+  } catch {
+    return null
+  }
+  let files: Record<string, CachedFile>
+  try {
+    const parsed = JSON.parse(raw)
+    if (!validateFiles(parsed)) return null
+    files = parsed
+  } catch {
+    return null
+  }
+  const bytes = Buffer.byteLength(raw)
+  shardMemo.set(key, { files, bytes, usedAt: now })
+  shardMemoBytes += bytes
+  evictShardMemo(now)
+  return files
+}
+
 /**
  * Read the cache. With a `scope`, only the shards whose months can contribute a
  * turn to that range are read — everything else stays on disk and is carried
@@ -1055,7 +1123,7 @@ export async function loadCache(scope?: CacheLoadScope): Promise<SessionCache> {
     for (const [bucket, ref] of Object.entries(meta.shards)) {
       if (loaded && !shardInScope(bucket, ref.until, scope!)) continue
       loaded?.add(bucket)
-      pending.push({ bucket, files: loadShard(join(dir, ref.name)) })
+      pending.push({ bucket, files: loadShardMemoized(dir, ref.name) })
     }
     reads.push((async () => {
       for (const { bucket, files: read } of pending) {
