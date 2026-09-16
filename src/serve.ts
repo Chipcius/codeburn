@@ -5,7 +5,7 @@ import { createHash } from 'crypto'
 import { createInterface } from 'readline'
 
 import type { Command } from 'commander'
-import { getDateRange } from './cli-date.js'
+import { getDateRange, parseDayFlag, periodInfoFromQuery } from './cli-date.js'
 import { getConfigFilePath } from './config.js'
 import type { ParseReuseValidation } from './parser.js'
 import { SERVE_HYDRATION_ENV } from './usage-aggregator.js'
@@ -57,7 +57,15 @@ type OutputMemoEntry = {
   validatedFrom: number
   output: string
   configFingerprint: string
+  generation: ServeGeneration
 }
+
+/// Which derivation a response came from: a counter that advances once per
+/// answer this process actually derived, plus the day range that answer covers.
+/// A memoized answer carries the stamp of the derivation it came from, so a
+/// client holding several panels can tell which of them share one reading of
+/// the corpus and show a single clock for it.
+export type ServeGeneration = { n: number; from: string | null; to: string | null }
 
 // Kept as a small seam so the ordering contract can be tested without relying
 // on filesystem watcher scheduling: an event arriving while a parse is in
@@ -67,8 +75,28 @@ export function createOutputMemoEntry(
   parseCompletedAt: number,
   output: string,
   configFingerprint: string,
+  generation: ServeGeneration = { n: 0, from: null, to: null },
 ): OutputMemoEntry {
-  return { createdAt: parseCompletedAt, validatedFrom: parseStartedAt, output, configFingerprint }
+  return { createdAt: parseCompletedAt, validatedFrom: parseStartedAt, output, configFingerprint, generation }
+}
+
+/// The day range a served request answers for, as `YYYY-MM-DD` bounds. Only the
+/// explicit forms are read: a command's own default period lives in main.ts, and
+/// guessing it here would stamp a range the answer may not have used.
+export function servedDayRange(args: string[]): { from: string; to: string } | null {
+  const asDay = (d: Date): string => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  try {
+    const day = parseDayFlag(readServeOption(args, '--day'))
+    if (day) return { from: day.day, to: day.day }
+    const period = readServeOption(args, '--period') ?? readServeOption(args, '-p')
+    const from = readServeOption(args, '--from')
+    const to = readServeOption(args, '--to')
+    if (period === undefined && from === undefined && to === undefined) return null
+    const info = periodInfoFromQuery({ period, from, to }, period ?? 'today')
+    return { from: asDay(info.range.start), to: asDay(info.range.end) }
+  } catch {
+    return null
+  }
 }
 
 type ServeOptionKind = 'flag' | 'value'
@@ -552,6 +580,9 @@ export async function runStdioServe(buildProgram: () => Command): Promise<void> 
   // change rendering without touching a provider root.
   const OUTPUT_MEMO_CAP_MS = 5 * 60 * 1000
   const outputMemo = new Map<string, OutputMemoEntry>()
+  // Advances once per answer this process derives; a memo hit re-serves the
+  // stamp its output was derived under.
+  let generationCounter = 0
   let observedConfigFingerprint: string | null | undefined
   if (process.stdin.isTTY) {
     process.stderr.write('codeburn serve speaks JSON over stdio and exists for the desktop app to hold warm.\nNothing interactive happens here; press Ctrl+C to exit.\n')
@@ -601,7 +632,8 @@ export async function runStdioServe(buildProgram: () => Command): Promise<void> 
           // Memoized so the poll that follows the fill answers instantly with
           // the converged payload instead of re-deriving it.
           if (code === 0 && fingerprint !== null) {
-            outputMemo.set(args.join('\u0000'), createOutputMemoEntry(startedAt, Date.now(), output, fingerprint))
+            const dayRange = servedDayRange(args)
+            outputMemo.set(args.join('\u0000'), createOutputMemoEntry(startedAt, Date.now(), output, fingerprint, { n: ++generationCounter, from: dayRange?.from ?? null, to: dayRange?.to ?? null }))
           }
         } catch {
           // Best effort. A failed fill leaves the cache incomplete, which is
@@ -656,7 +688,7 @@ export async function runStdioServe(buildProgram: () => Command): Promise<void> 
         && Date.now() - memoHit.createdAt < OUTPUT_MEMO_CAP_MS
         && rootReuseValidation?.(memoHit.validatedFrom) === 'clean'
       ) {
-        write({ id: request.id, ok: true, output: memoHit.output })
+        write({ id: request.id, ok: true, output: memoHit.output, generation: memoHit.generation })
         return
       }
       // Progressive cold start (#1110): on a cold cache the menubar payload is
@@ -695,18 +727,20 @@ export async function runStdioServe(buildProgram: () => Command): Promise<void> 
           result = await run()
         }
         const { output, code } = result
+        const dayRange = servedDayRange(request.args)
+        const generation: ServeGeneration = { n: ++generationCounter, from: dayRange?.from ?? null, to: dayRange?.to ?? null }
         if (code === 0) {
           // A partial answer is never memoized. The roots stay quiet while the
           // fill converges, so a memo hit would pin the client to the first
           // paint for the whole memo cap.
           if (configFingerprint !== null && deferredFiles === 0) {
-            outputMemo.set(memoKey, createOutputMemoEntry(parseStartedAt, Date.now(), output, configFingerprint))
+            outputMemo.set(memoKey, createOutputMemoEntry(parseStartedAt, Date.now(), output, configFingerprint, generation))
           }
           if (outputMemo.size > 32) {
             const oldest = [...outputMemo.entries()].sort((a, b) => a[1].createdAt - b[1].createdAt)[0]
             if (oldest) outputMemo.delete(oldest[0])
           }
-          write({ id: request.id, ok: true, output })
+          write({ id: request.id, ok: true, output, generation })
           if (deferredFiles > 0) scheduleBackgroundFill(request.args)
         }
         else write({ id: request.id, ok: false, error: `exit ${code}`, output })
@@ -726,10 +760,12 @@ export async function runStdioServe(buildProgram: () => Command): Promise<void> 
         const { clearLoadCacheMemo } = await import('./session-cache.js')
         const { clearCodexMemCaches } = await import('./codex-cache.js')
         const { clearAntigravityCacheStates } = await import('./providers/antigravity.js')
+        const { clearScanFileMemo } = await import('./optimize.js')
         clearSessionCache()
         clearLoadCacheMemo()
         clearCodexMemCaches()
         clearAntigravityCacheStates()
+        clearScanFileMemo()
         if (typeof globalThis.gc === 'function') globalThis.gc()
       }
     }).finally(() => {

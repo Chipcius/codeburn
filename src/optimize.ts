@@ -625,6 +625,9 @@ export type ToolCall = {
   input: Record<string, unknown>
   sessionId: string
   project: string
+  /// When the call happened. `recent` is derived from it against the scan's
+  /// cutoff, so a scanned file can be reused across scans whose cutoffs differ.
+  tsMs?: number
   recent?: boolean
   isSidechain?: boolean
 }
@@ -632,6 +635,7 @@ export type ToolCall = {
 export type ApiCallMeta = {
   cacheCreationTokens: number
   version: string
+  tsMs?: number
   recent?: boolean
 }
 
@@ -709,12 +713,13 @@ async function collectJsonlFiles(dirPath: string): Promise<string[]> {
   return result
 }
 
-async function isFileStaleForRange(filePath: string, range: DateRange | undefined): Promise<boolean> {
-  if (!range) return false
+/// Size and last write, the pair a scan memo keys on. Null when the file cannot
+/// be stat'd, which is how the scan already treats a file it cannot read.
+async function fileIdentity(filePath: string): Promise<{ size: number; mtimeMs: number } | null> {
   try {
     const s = await stat(filePath)
-    return s.mtimeMs < range.start.getTime()
-  } catch { return false }
+    return { size: s.size, mtimeMs: s.mtimeMs }
+  } catch { return null }
 }
 
 async function runWithConcurrency<T>(
@@ -788,11 +793,36 @@ function isRecent(timestamp: string | undefined, cutoff: number): boolean {
   return new Date(timestamp).getTime() >= cutoff
 }
 
+// Same verdict from the already-parsed instant: an absent or unparseable
+// timestamp is not recent, exactly as NaN >= cutoff is false above.
+function isRecentAt(tsMs: number | undefined, cutoff: number): boolean {
+  return tsMs !== undefined && tsMs >= cutoff
+}
+
 export async function scanJsonlFile(
   filePath: string,
   project: string,
   dateRange: DateRange | undefined,
   recentCutoffMs = Date.now() - RECENT_WINDOW_MS,
+): Promise<ScanFileResult> {
+  return applyRecency(await scanJsonlFileUncut(filePath, project, dateRange), recentCutoffMs)
+}
+
+/// Stamp the recency flag every detector reads. Separated from the scan so the
+/// scan's result depends only on the file and the range, never on the clock:
+/// that is what lets a resident process keep it and re-stamp it per request.
+/// Written in place: the scanned result is owned by one serialized request at a
+/// time and every reader is downstream of this call.
+function applyRecency(raw: ScanFileResult, recentCutoffMs: number): ScanFileResult {
+  for (const call of raw.calls) call.recent = isRecentAt(call.tsMs, recentCutoffMs)
+  for (const call of raw.apiCalls) call.recent = isRecentAt(call.tsMs, recentCutoffMs)
+  return raw
+}
+
+async function scanJsonlFileUncut(
+  filePath: string,
+  project: string,
+  dateRange: DateRange | undefined,
 ): Promise<ScanFileResult> {
   const calls: ToolCall[] = []
   const cwds: string[] = []
@@ -829,7 +859,7 @@ export async function scanJsonlFile(
 
     const ts = typeof entry.timestamp === 'string' ? entry.timestamp : undefined
     const withinRange = inRange(ts, dateRange)
-    const recent = isRecent(ts, recentCutoffMs)
+    const tsMs = ts === undefined ? undefined : Date.parse(ts)
 
     if (entry.cwd && typeof entry.cwd === 'string' && withinRange) cwds.push(entry.cwd)
 
@@ -870,7 +900,7 @@ export async function scanJsonlFile(
     const usage = msg?.usage as Record<string, unknown> | undefined
     if (usage) {
       const cacheCreate = (usage.cache_creation_input_tokens as number) ?? 0
-      if (cacheCreate > 0) apiCalls.push({ cacheCreationTokens: cacheCreate, version: lastVersion, recent })
+      if (cacheCreate > 0) apiCalls.push({ cacheCreationTokens: cacheCreate, version: lastVersion, tsMs })
     }
 
     const blocks = msg?.content
@@ -884,7 +914,7 @@ export async function scanJsonlFile(
         input: compactOptimizeInput(name, block.input),
         sessionId,
         project,
-        recent,
+        tsMs,
         isSidechain: fileIsSidechain,
       })
     }
@@ -901,6 +931,80 @@ export function providerCoversClaude(provider?: string): boolean {
   return !provider || provider === 'all' || provider === 'claude'
 }
 
+// Session files a resident process (codeburn serve) has already scanned for the
+// optimize detectors, keyed by the file's identity and the range it was scanned
+// for. The scan re-read every Claude transcript overlapping the period on every
+// request - about six of the seven seconds a desktop period switch cost - while
+// all but the handful of files written since the last request produce exactly
+// the same result. Keyed by (path, size, mtime), so an appended or rewritten
+// file misses and is read again; the recency flag is stamped afterwards, so a
+// hit is not pinned to the cutoff it was first scanned under. Bounded by bytes
+// with age and least-recently-used eviction, like the shard memo.
+const SCAN_MEMO_MAX_BYTES = 192 * 1024 * 1024
+const SCAN_MEMO_MAX_AGE_MS = 10 * 60 * 1000
+type ScanMemoEntry = { result: ScanFileResult; bytes: number; usedAt: number }
+const scanFileMemo = new Map<string, ScanMemoEntry>()
+let scanFileMemoBytes = 0
+
+export function clearScanFileMemo(): void {
+  scanFileMemo.clear()
+  scanFileMemoBytes = 0
+}
+
+export function scanFileMemoStats(): { entries: number; bytes: number } {
+  return { entries: scanFileMemo.size, bytes: scanFileMemoBytes }
+}
+
+/// Drop entries unused past the age bound, then least-recently-used entries
+/// until the byte budget holds. `now` is injected so the rule is testable.
+export function evictScanFileMemo(now: number, maxBytes: number = SCAN_MEMO_MAX_BYTES): void {
+  for (const [key, entry] of scanFileMemo) {
+    if (now - entry.usedAt <= SCAN_MEMO_MAX_AGE_MS) continue
+    scanFileMemo.delete(key)
+    scanFileMemoBytes -= entry.bytes
+  }
+  if (scanFileMemoBytes <= maxBytes) return
+  for (const [key, entry] of [...scanFileMemo].sort((a, b) => a[1].usedAt - b[1].usedAt)) {
+    if (scanFileMemoBytes <= maxBytes) break
+    scanFileMemo.delete(key)
+    scanFileMemoBytes -= entry.bytes
+  }
+}
+
+/// What one scanned file costs to keep. Tool inputs are already compacted by
+/// the scanner and user messages are capped, so counting their text plus a flat
+/// per-record overhead tracks the real footprint closely enough to bound it.
+function scanResultBytes(result: ScanFileResult): number {
+  let bytes = result.apiCalls.length * 64 + result.cwds.length * 64
+  for (const call of result.calls) bytes += 128 + JSON.stringify(call.input).length
+  for (const message of result.userMessages) bytes += message.length
+  for (const opener of result.openers) bytes += opener.preview.length + 96
+  return bytes
+}
+
+export async function scanJsonlFileMemoized(
+  filePath: string,
+  project: string,
+  dateRange: DateRange | undefined,
+  identity: string | null,
+): Promise<ScanFileResult> {
+  if (identity === null) return scanJsonlFileUncut(filePath, project, dateRange)
+  const rangeKey = dateRange ? `${dateRange.start.getTime()}-${dateRange.end.getTime()}` : 'all'
+  const key = `${filePath}\0${identity}\0${project}\0${rangeKey}`
+  const now = Date.now()
+  const hit = scanFileMemo.get(key)
+  if (hit) {
+    hit.usedAt = now
+    return hit.result
+  }
+  const result = await scanJsonlFileUncut(filePath, project, dateRange)
+  const bytes = scanResultBytes(result)
+  scanFileMemo.set(key, { result, bytes, usedAt: now })
+  scanFileMemoBytes += bytes
+  evictScanFileMemo(now)
+  return result
+}
+
 async function scanSessions(dateRange?: DateRange, provider?: string): Promise<ScanData> {
   if (!providerCoversClaude(provider)) {
     return { toolCalls: [], projectCwds: new Set(), apiCalls: [], userMessages: [], openers: [] }
@@ -912,17 +1016,27 @@ async function scanSessions(dateRange?: DateRange, provider?: string): Promise<S
   const allUserMessages: string[] = []
   const allOpeners: SessionOpener[] = []
 
-  const tasks: Array<{ file: string; project: string }> = []
+  const tasks: Array<{ file: string; project: string; identity: string | null }> = []
   for (const source of sources) {
     const files = await collectJsonlFiles(source.path)
     for (const file of files) {
-      if (await isFileStaleForRange(file, dateRange)) continue
-      tasks.push({ file, project: source.project })
+      const identity = await fileIdentity(file)
+      // A file that cannot be stat'd is still scanned, as it always was; it
+      // just has no identity to memoize under.
+      if (identity && dateRange && identity.mtimeMs < dateRange.start.getTime()) continue
+      tasks.push({ file, project: source.project, identity: identity && `${identity.size}:${identity.mtimeMs}` })
     }
   }
 
-  await runWithConcurrency(tasks, FILE_READ_CONCURRENCY, async ({ file, project }) => {
-    const { calls, cwds, apiCalls, userMessages, openers } = await scanJsonlFile(file, project, dateRange)
+  // One cutoff for the whole scan rather than one per file, so every detector
+  // reads the same window and a memoized file is stamped with the same verdict
+  // a freshly read one would get.
+  const recentCutoffMs = Date.now() - RECENT_WINDOW_MS
+  await runWithConcurrency(tasks, FILE_READ_CONCURRENCY, async ({ file, project, identity }) => {
+    const { calls, cwds, apiCalls, userMessages, openers } = applyRecency(
+      await scanJsonlFileMemoized(file, project, dateRange, identity),
+      recentCutoffMs,
+    )
     allCalls.push(...calls)
     for (const cwd of cwds) allCwds.add(cwd)
     allApiCalls.push(...apiCalls)
