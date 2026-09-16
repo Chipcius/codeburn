@@ -1,7 +1,7 @@
 import chalk from 'chalk'
 import stripAnsi from 'strip-ansi'
 import { createHash } from 'crypto'
-import { readdir, stat } from 'fs/promises'
+import { open, readdir, stat, type FileHandle } from 'fs/promises'
 import { existsSync, statSync } from 'fs'
 import { basename, join } from 'path'
 import { homedir } from 'os'
@@ -805,7 +805,7 @@ export async function scanJsonlFile(
   dateRange: DateRange | undefined,
   recentCutoffMs = Date.now() - RECENT_WINDOW_MS,
 ): Promise<ScanFileResult> {
-  return applyRecency(await scanJsonlFileUncut(filePath, project, dateRange), recentCutoffMs)
+  return applyRecency((await scanJsonlFileUncut(filePath, project, dateRange)).result, recentCutoffMs)
 }
 
 /// Stamp the recency flag every detector reads. Separated from the scan so the
@@ -819,22 +819,32 @@ function applyRecency(raw: ScanFileResult, recentCutoffMs: number): ScanFileResu
   return raw
 }
 
+/// What the line loop carries across lines, and therefore what a resumed read
+/// has to be handed to continue where the last one stopped.
+type ScanCarry = { lastVersion: string; fileIsSidechain: boolean; sawUserText: boolean }
+type ScanPass = { result: ScanFileResult; carry: ScanCarry; offset: number }
+
 async function scanJsonlFileUncut(
   filePath: string,
   project: string,
   dateRange: DateRange | undefined,
-): Promise<ScanFileResult> {
-  const calls: ToolCall[] = []
-  const cwds: string[] = []
-  const apiCalls: ApiCallMeta[] = []
-  const userMessages: string[] = []
-  const openers: SessionOpener[] = []
+  // Continue an earlier read of this same file: start at the byte after the
+  // last complete line it consumed, append into the result it produced, and
+  // carry the state the loop had reached. The caller proves the bytes below
+  // that offset have not changed before passing this.
+  resume?: { fromOffset: number; carry: ScanCarry; into: ScanFileResult },
+): Promise<ScanPass> {
+  const calls: ToolCall[] = resume?.into.calls ?? []
+  const cwds: string[] = resume?.into.cwds ?? []
+  const apiCalls: ApiCallMeta[] = resume?.into.apiCalls ?? []
+  const userMessages: string[] = resume?.into.userMessages ?? []
+  const openers: SessionOpener[] = resume?.into.openers ?? []
   const sessionId = basename(filePath, '.jsonl')
-  let lastVersion = ''
-  let fileIsSidechain = false
+  let lastVersion = resume?.carry.lastVersion ?? ''
+  let fileIsSidechain = resume?.carry.fileIsSidechain ?? false
   // The opening block is the first user message carrying text; anything
   // later in the session is not what the user opens with.
-  let sawUserText = false
+  let sawUserText = resume?.carry.sawUserText ?? false
 
   const skipThreshold = dateRange
     ? new Date(dateRange.start.getTime() - 86_400_000).toISOString()
@@ -842,7 +852,14 @@ async function scanJsonlFileUncut(
   const skipFn = dateRange
     ? (head: string) => shouldSkipLine(head, skipThreshold!)
     : undefined
-  const lines = readSessionLines(filePath, skipFn, { largeLineAsBuffer: true })
+  // Tracks the byte after the last complete line, so a partial line left by a
+  // writer mid-append is never consumed and is re-read whole next time.
+  const tracker = { lastCompleteLineOffset: resume?.fromOffset ?? 0 }
+  const lines = readSessionLines(filePath, skipFn, {
+    largeLineAsBuffer: true,
+    byteOffsetTracker: tracker,
+    ...(resume ? { startByteOffset: resume.fromOffset } : {}),
+  })
   for await (const line of lines) {
     if (typeof line === 'string' && !line.trim()) continue
     if (Buffer.isBuffer(line) && line.length === 0) continue
@@ -920,7 +937,11 @@ async function scanJsonlFileUncut(
     }
   }
 
-  return { calls, cwds, apiCalls, userMessages, openers }
+  return {
+    result: { calls, cwds, apiCalls, userMessages, openers },
+    carry: { lastVersion, fileIsSidechain, sawUserText },
+    offset: tracker.lastCompleteLineOffset,
+  }
 }
 
 // The session scan reads Claude Code transcripts only, so a `--provider` that
@@ -936,13 +957,30 @@ export function providerCoversClaude(provider?: string): boolean {
 // for. The scan re-read every Claude transcript overlapping the period on every
 // request - about six of the seven seconds a desktop period switch cost - while
 // all but the handful of files written since the last request produce exactly
-// the same result. Keyed by (path, size, mtime), so an appended or rewritten
-// file misses and is read again; the recency flag is stamped afterwards, so a
-// hit is not pinned to the cutoff it was first scanned under. Bounded by bytes
-// with age and least-recently-used eviction, like the shard memo.
+// the same result. An unchanged file is served as it is; a file that only grew
+// is read from the byte after the last complete line the previous read consumed
+// and the new lines are merged in, which is what keeps a live transcript from
+// costing its whole length on every request. Anything else - a file that shrank,
+// or whose opening bytes changed - is read in full. The recency flag is stamped
+// afterwards, so a kept result is not pinned to the cutoff it was first scanned
+// under. Bounded by bytes with age and least-recently-used eviction, like the
+// shard memo.
 const SCAN_MEMO_MAX_BYTES = 192 * 1024 * 1024
 const SCAN_MEMO_MAX_AGE_MS = 10 * 60 * 1000
-type ScanMemoEntry = { result: ScanFileResult; bytes: number; usedAt: number }
+// `head` is the digest of the file's first bytes as of the stored offset: the
+// cheapest proof that the bytes already consumed are still the same bytes, and
+// the one an in-place rewrite that happens to grow the file cannot fake.
+const SCAN_HEAD_BYTES = 4096
+type ScanMemoEntry = {
+  result: ScanFileResult
+  carry: ScanCarry
+  offset: number
+  size: number
+  mtimeMs: number
+  head: string
+  bytes: number
+  usedAt: number
+}
 const scanFileMemo = new Map<string, ScanMemoEntry>()
 let scanFileMemoBytes = 0
 
@@ -982,27 +1020,74 @@ function scanResultBytes(result: ScanFileResult): number {
   return bytes
 }
 
+/// Digest of a file's opening bytes, or null when they cannot be read.
+async function headDigest(filePath: string): Promise<string | null> {
+  let handle: FileHandle
+  try {
+    handle = await open(filePath, 'r')
+  } catch { return null }
+  try {
+    const buffer = Buffer.allocUnsafe(SCAN_HEAD_BYTES)
+    const { bytesRead } = await handle.read(buffer, 0, SCAN_HEAD_BYTES, 0)
+    return createHash('sha256').update(buffer.subarray(0, bytesRead)).digest('hex')
+  } catch {
+    return null
+  } finally {
+    await handle.close()
+  }
+}
+
 export async function scanJsonlFileMemoized(
   filePath: string,
   project: string,
   dateRange: DateRange | undefined,
-  identity: string | null,
+  identity: { size: number; mtimeMs: number } | null,
 ): Promise<ScanFileResult> {
-  if (identity === null) return scanJsonlFileUncut(filePath, project, dateRange)
+  if (identity === null) return (await scanJsonlFileUncut(filePath, project, dateRange)).result
   const rangeKey = dateRange ? `${dateRange.start.getTime()}-${dateRange.end.getTime()}` : 'all'
-  const key = `${filePath}\0${identity}\0${project}\0${rangeKey}`
+  const key = `${filePath}\0${project}\0${rangeKey}`
   const now = Date.now()
   const hit = scanFileMemo.get(key)
-  if (hit) {
+  if (hit && hit.size === identity.size && hit.mtimeMs === identity.mtimeMs) {
     hit.usedAt = now
     return hit.result
   }
-  const result = await scanJsonlFileUncut(filePath, project, dateRange)
-  const bytes = scanResultBytes(result)
-  scanFileMemo.set(key, { result, bytes, usedAt: now })
+
+  // Only growth past a still-intact head can be read as an append. A file that
+  // shrank, or whose offset now sits past its end, is a different file as far
+  // as this scan is concerned and is read from the top.
+  let resume: { fromOffset: number; carry: ScanCarry; into: ScanFileResult } | undefined
+  if (hit && identity.size > hit.size && hit.offset <= identity.size) {
+    const head = await headDigest(filePath)
+    if (head !== null && head === hit.head) {
+      resume = { fromOffset: hit.offset, carry: hit.carry, into: hit.result }
+    }
+  }
+  if (hit) {
+    scanFileMemo.delete(key)
+    scanFileMemoBytes -= hit.bytes
+  }
+
+  const pass = await scanJsonlFileUncut(filePath, project, dateRange, resume)
+  // Taken after the read, so a file that grew while it was being read stores a
+  // size no larger than what was actually consumed and the rest arrives as the
+  // next append rather than being skipped.
+  const head = resume ? hit!.head : await headDigest(filePath)
+  if (head === null) return pass.result
+  const bytes = scanResultBytes(pass.result)
+  scanFileMemo.set(key, {
+    result: pass.result,
+    carry: pass.carry,
+    offset: pass.offset,
+    size: identity.size,
+    mtimeMs: identity.mtimeMs,
+    head,
+    bytes,
+    usedAt: now,
+  })
   scanFileMemoBytes += bytes
   evictScanFileMemo(now)
-  return result
+  return pass.result
 }
 
 async function scanSessions(dateRange?: DateRange, provider?: string): Promise<ScanData> {
@@ -1016,7 +1101,7 @@ async function scanSessions(dateRange?: DateRange, provider?: string): Promise<S
   const allUserMessages: string[] = []
   const allOpeners: SessionOpener[] = []
 
-  const tasks: Array<{ file: string; project: string; identity: string | null }> = []
+  const tasks: Array<{ file: string; project: string; identity: { size: number; mtimeMs: number } | null }> = []
   for (const source of sources) {
     const files = await collectJsonlFiles(source.path)
     for (const file of files) {
@@ -1024,7 +1109,7 @@ async function scanSessions(dateRange?: DateRange, provider?: string): Promise<S
       // A file that cannot be stat'd is still scanned, as it always was; it
       // just has no identity to memoize under.
       if (identity && dateRange && identity.mtimeMs < dateRange.start.getTime()) continue
-      tasks.push({ file, project: source.project, identity: identity && `${identity.size}:${identity.mtimeMs}` })
+      tasks.push({ file, project: source.project, identity })
     }
   }
 
