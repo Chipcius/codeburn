@@ -171,8 +171,11 @@ export async function fetchGrokbotQuota(
 
     // Never log the body - it carries account data.
     const decoded = decodeGrokbotUsage(await response.json())
-    if (decoded === 'pooled') return { quota: empty('disconnected', POOLED_FOOTER) }
-    if (decoded === 'noAllowance') return { quota: empty('disconnected', NO_ALLOWANCE_FOOTER) }
+    // Terminal, not disconnected: the account is signed in and answering, it
+    // simply has no per-account reading, so Plans shows the reason rather than
+    // the "sign in to Cursor" affordance.
+    if (decoded === 'pooled') return { quota: empty('terminalFailure', POOLED_FOOTER) }
+    if (decoded === 'noAllowance') return { quota: empty('terminalFailure', NO_ALLOWANCE_FOOTER) }
     if (decoded === null) return { quota: empty('transientFailure', PARSE_FOOTER) }
     return { quota: decoded }
   } catch (error) {

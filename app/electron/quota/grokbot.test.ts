@@ -73,6 +73,17 @@ describe('Grok Bot quota fetch', () => {
     expect(malformed.quota.connection).toBe('transientFailure')
   })
 
+  it('reports an account with no per-account reading as terminal, not signed out', async () => {
+    for (const [body, expected] of [
+      [{ ...liveBody, usesPooledEnterpriseAllowance: true }, 'pooled enterprise allowance'],
+      [{ ...liveBody, hasNonZeroIncludedLimit: false }, 'no included Grok Bot allowance'],
+    ] as const) {
+      const { quota } = await fetchGrokbotQuota(deps((async () => okJson(body)) as unknown as typeof fetch))
+      expect(quota.connection).toBe('terminalFailure')
+      expect(quota.footerLines[0]).toContain(expected)
+    }
+  })
+
   it('backs off on a 429 with the served Retry-After', async () => {
     const response = new Response('', { status: 429, headers: { 'Retry-After': '900' } })
     const result = await fetchGrokbotQuota(deps((async () => response) as unknown as typeof fetch))

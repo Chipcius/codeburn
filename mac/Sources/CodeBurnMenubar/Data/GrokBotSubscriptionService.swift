@@ -154,7 +154,7 @@ enum GrokBotSubscriptionService {
         }
 
         switch response.statusCode {
-        case 200:
+        case 200...299:
             break
         case 401, 403:
             throw FetchError.authenticationRejected

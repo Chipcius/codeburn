@@ -14,6 +14,10 @@
 // storage, which CodeBurn never decrypts (see src/quota/codex.ts), so this
 // reading is only the app's reading when the IDE is signed into the account
 // Grok Bot uses.
+import { existsSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import { cursorAccessTokenFromDatabase, cursorDatabasePath } from './cursor.js'
 import { quotaRequestSignal, sanitizeError } from './security.js'
 import type { QuotaProvider, QuotaWindow } from './types.js'
@@ -29,6 +33,21 @@ const UNAVAILABLE_FOOTER = ['Grok Bot quota is temporarily unavailable.']
 const PARSE_FOOTER = ['Cursor returned an unrecognized Grok Bot quota response.']
 const NO_ALLOWANCE_FOOTER = ['This account has no included Grok Bot allowance.']
 const POOLED_FOOTER = ['Grok Bot usage is drawn from a pooled enterprise allowance, which has no per-account reading.']
+
+/** The app is a normal drag-install, so either Applications folder counts;
+ *  `~/.grokbot` is its data root, which survives a moved bundle. Without the
+ *  app there is nothing to report: the Cursor session would still answer, but
+ *  that allowance is not Grok Bot's. */
+export function grokbotInstalled(
+  platform: string = process.platform,
+  home: string = os.homedir(),
+  systemApplications = '/Applications',
+): boolean {
+  const bundles = platform === 'darwin'
+    ? [path.join(systemApplications, 'Grok Bot.app'), path.join(home, 'Applications', 'Grok Bot.app')]
+    : []
+  return [...bundles, path.join(home, '.grokbot')].some(existsSync)
+}
 
 export type GrokbotQuotaDeps = {
   fetch: typeof fetch
@@ -130,8 +149,11 @@ export async function fetchGrokbotQuota(
 
     // Never log the body - it carries account data.
     const decoded = decodeGrokbotUsage(await response.json())
-    if (decoded === 'pooled') return { quota: empty('disconnected', POOLED_FOOTER) }
-    if (decoded === 'noAllowance') return { quota: empty('disconnected', NO_ALLOWANCE_FOOTER) }
+    // Terminal, not disconnected: the account is signed in and answering, it
+    // simply has no per-account reading, so the surfaces must show the reason
+    // rather than a "sign in to Cursor" affordance.
+    if (decoded === 'pooled') return { quota: empty('terminalFailure', POOLED_FOOTER) }
+    if (decoded === 'noAllowance') return { quota: empty('terminalFailure', NO_ALLOWANCE_FOOTER) }
     if (decoded === null) return { quota: empty('transientFailure', PARSE_FOOTER) }
     return { quota: decoded }
   } catch (error) {
