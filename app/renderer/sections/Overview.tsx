@@ -133,7 +133,7 @@ function CostPerOutcome({ outcome }: { outcome: Polled<YieldJsonReport> }) {
 
   return (
     <div className="ov-card ov-panel">
-      <div className="ov-panel-head"><h3>Cost per outcome</h3><span className="r">Yield</span></div>
+      <div className="ov-panel-head"><Icon name="scale" /><h3>Cost per outcome</h3><span className="r">Yield</span></div>
       <div className="ov-panel-body">
         {body}
         <p className="ov-widget-caption">Git-correlated. Reverted/abandoned = spend that didn't ship.</p>
@@ -197,6 +197,7 @@ function WorkflowCard({ current }: { current: MenubarPayload['current'] }) {
   return (
     <div className="ov-card ov-panel ov-workflow-widget">
       <div className="ov-panel-head">
+        <Icon name="sliders-horizontal" />
         <h3>Workflow</h3>
         {showCoverage && <span className="ov-priced-chip">{Math.min(99, Math.round(coverage * 100))}% priced</span>}
       </div>
@@ -347,22 +348,24 @@ function SignalsCard({ signals }: { signals: SignalGroups }) {
   if (!groups.length) return null
   return (
     <div className="ov-card ov-signals" aria-label="Coaching signals">
-      {groups.map(group => (
-        <div className={`ov-signal-group ${group.key}`} key={group.key}>
-          <div className="ov-signal-head">
-            {group.icon}
-            <span>{group.label}</span>
+      <div className="ov-card-inner ov-signal-grid">
+        {groups.map(group => (
+          <div className={`ov-signal-group ${group.key}`} key={group.key}>
+            <div className="ov-signal-head">
+              {group.icon}
+              <span>{group.label}</span>
+            </div>
+            <ul className="ov-signal-list">
+              {signals[group.key].map((signal, index) => (
+                <li className="ov-signal" key={`${signal.text}-${index}`}>
+                  <span title={signal.text}>{signal.text}</span>
+                  {signal.trailing && <span className="ov-signal-trailing">{signal.trailing}</span>}
+                </li>
+              ))}
+            </ul>
           </div>
-          <ul className="ov-signal-list">
-            {signals[group.key].map((signal, index) => (
-              <li className="ov-signal" key={`${signal.text}-${index}`}>
-                <span title={signal.text}>{signal.text}</span>
-                {signal.trailing && <span className="ov-signal-trailing">{signal.trailing}</span>}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   )
 }
@@ -374,8 +377,10 @@ function RoutingWhatIf({ routing, onNavigate }: {
   if (routing.totalSavingsUSD <= 0 || !routing.baselineModel) return null
   return (
     <div className="ov-card ov-routing">
-      <div><span className="ov-label">Routing what-if</span><p>Routing to <strong>{routing.baselineModel}</strong> could save ~<strong>{formatUsd(routing.totalSavingsUSD)}</strong> this period.</p></div>
-      <button className="ov-link" type="button" onClick={() => onNavigate?.('optimize')}>Optimize →</button>
+      <div className="ov-card-inner ov-routing-body">
+        <div><span className="ov-label">Routing what-if</span><p>Routing to <strong>{routing.baselineModel}</strong> could save ~<strong>{formatUsd(routing.totalSavingsUSD)}</strong> this period.</p></div>
+        <button className="ov-link" type="button" onClick={() => onNavigate?.('optimize')}>Optimize →</button>
+      </div>
     </div>
   )
 }
@@ -765,11 +770,13 @@ export function OverviewContent({
         : formatUsd(headlineSnapshot.cost)
       return (
         <div className="ov-dashboard" aria-label="Cached usage summary">
-          <div className="ov-card ov-hero-split snapshot-hero">
-            <div className="ov-hero-main">
-              <div className="ov-hero-top"><span className="ov-label">{headlineSnapshot.label}</span><span className="ov-streak">exact {capturedLabel}</span></div>
-              <div className="ov-hero-num" data-countup={headlineSnapshot.cost}>{headlineCost}</div>
-              <div className="ov-hero-sub">{formatCount(headlineSnapshot.calls, 'call')} · sessions updating</div>
+          <div className="ov-card">
+            <div className="ov-panel-head"><Icon name="circle-dollar-sign" /><h3>{headlineSnapshot.label}</h3><span className="r"><span className="ov-streak">exact {capturedLabel}</span></span></div>
+            <div className="ov-card-inner ov-hero-split snapshot-hero">
+              <div className="ov-hero-main">
+                <div className="ov-hero-num" data-countup={headlineSnapshot.cost}>{headlineCost}</div>
+                <div className="ov-hero-sub">{formatCount(headlineSnapshot.calls, 'call')} · sessions updating</div>
+              </div>
             </div>
           </div>
           <SectionSkeleton label="Updating detailed drill-downs…" rows={3} chart />
@@ -843,40 +850,46 @@ export function OverviewContent({
   return (
     <div className="ov-dashboard">
       {error && <StaleBanner error={error} />}
-      <div className="ov-card ov-hero-split" aria-label="Key performance indicators">
-        <div className="ov-hero-main">
-          <div className="ov-hero-top"><span className="ov-label">{combined ? `Combined · ${data.current.label}` : data.current.label}</span><span className="ov-streak"><b>{streakDays(data.history.daily, now)}</b>-day streak</span></div>
-          {/* A returning launch already showed a truthful persisted headline.
-              Replaying the live hero from $0 on handoff makes that exact value
-              appear to collapse and recover; snap to the revalidated total. */}
-          <CountUp value={heroCost} animateKey={animateKey} animate={!suppressHeroReplay} />
-          <div className="ov-hero-sub" title={heroSessionHelp}>{formatCount(heroCalls, 'call')} · {heroSessionLabel}</div>
-          {combined
-            ? <CombinedDevices usage={combined} />
-            : (
-              <>
-                {saved > 0 && (
-                  <div className="ov-saved-line"><span>Saved by applied fixes</span><strong>{formatUsd(saved)}</strong><small>across {applied} {applied === 1 ? 'fix' : 'fixes'}</small></div>
-                )}
-                {localSaved > 0 && (
-                  <div className="ov-saved-line"><span>Saved via local models</span><strong>{formatUsd(localSaved)}</strong><small>local-model routing</small></div>
-                )}
-              </>
-            )}
+      <div className="ov-card">
+        <div className="ov-panel-head">
+          <Icon name="circle-dollar-sign" />
+          <h3>{combined ? `Combined · ${data.current.label}` : data.current.label}</h3>
+          <span className="r"><span className="ov-streak"><b>{streakDays(data.history.daily, now)}</b>-day streak</span></span>
         </div>
-        <ActivityHeatmap daily={data.history.daily} bare />
-        <EfficiencyScorecard current={data.current} bare />
+        <div className="ov-card-inner ov-hero-split" aria-label="Key performance indicators">
+          <div className="ov-hero-main">
+            {/* A returning launch already showed a truthful persisted headline.
+                Replaying the live hero from $0 on handoff makes that exact value
+                appear to collapse and recover; snap to the revalidated total. */}
+            <CountUp value={heroCost} animateKey={animateKey} animate={!suppressHeroReplay} />
+            <div className="ov-hero-sub" title={heroSessionHelp}>{formatCount(heroCalls, 'call')} · {heroSessionLabel}</div>
+            {combined
+              ? <CombinedDevices usage={combined} />
+              : (
+                <>
+                  {saved > 0 && (
+                    <div className="ov-saved-line"><span>Saved by applied fixes</span><strong>{formatUsd(saved)}</strong><small>across {applied} {applied === 1 ? 'fix' : 'fixes'}</small></div>
+                  )}
+                  {localSaved > 0 && (
+                    <div className="ov-saved-line"><span>Saved via local models</span><strong>{formatUsd(localSaved)}</strong><small>local-model routing</small></div>
+                  )}
+                </>
+              )}
+          </div>
+          <ActivityHeatmap daily={data.history.daily} bare />
+          <EfficiencyScorecard current={data.current} bare />
+        </div>
       </div>
 
       {!rangeActive && (
         <div className="ov-card ov-stats3">
-          <div className="ov-stat"><div className="ov-label">Month to date</div><div className="v">{formatUsd(stats.mtd)}</div><div className="d">{stats.pacePct === null ? `No ${stats.prevMonthName} pace yet` : `${stats.pacePct >= 0 ? '+' : ''}${Math.round(stats.pacePct)}% vs ${stats.prevMonthName} pace`}</div></div>
-          <div className="ov-stat"><div className="ov-label">Projected month</div><div className="v">{formatUsd(stats.projected)} <small>est</small></div><div className="d warn">{formatUsd(Math.max(0, stats.projected - stats.mtd))} to go</div></div>
+          <div className="ov-stat ov-card-inner"><div className="ov-label">Month to date</div><div className="v">{formatUsd(stats.mtd)}</div><div className="d">{stats.pacePct === null ? `No ${stats.prevMonthName} pace yet` : `${stats.pacePct >= 0 ? '+' : ''}${Math.round(stats.pacePct)}% vs ${stats.prevMonthName} pace`}</div></div>
+          <div className="ov-stat ov-card-inner"><div className="ov-label">Projected month</div><div className="v">{formatUsd(stats.projected)} <small>est</small></div><div className="d warn">{formatUsd(Math.max(0, stats.projected - stats.mtd))} to go</div></div>
         </div>
       )}
 
       <div className="ov-card ov-panel ov-chart-widget">
-        <div className="ov-panel-head"><h3>Daily spend</h3></div>
+        <div className="ov-panel-head"><Icon name="chart-column" /><h3>Daily spend</h3></div>
         <div className="ov-panel-body">{data.history.daily.length ? <DailyChart daily={chartDaily} dataStart={dataStartKey(data.history.daily)} animateKey={animateKey} onSelectDay={date => onInvestigate?.({ filters: dayFilters(date) })} /> : <EmptyNote>No spend yet.</EmptyNote>}</div>
       </div>
 
@@ -884,21 +897,25 @@ export function OverviewContent({
 
       <div className="ov-insight-band">
         <div className="ov-coach">
-          <Icon name="trending-up" />
-          <div className="ov-coach-tx">
-            {rangeActive
-              ? <>{topModel ? <><span className="num">{topModel.name}</span> is the biggest driver in this range</> : 'No single model dominates this range'}. <span className="num">{formatUsd(data.optimize.savingsUSD)}</span> is recoverable.</>
-              : <>{weeklyPct === null ? <>No prior-week pacing baseline yet</> : <>You're pacing <span className="num">{weeklyPct}% {weeklyDirection}</span> than last week</>}{topModel ? <>; <span className="num">{topModel.name}</span> is the biggest driver</> : ''}. <span className="num">{formatUsd(data.optimize.savingsUSD)}</span> is recoverable.</>}
+          <div className="ov-card-inner ov-coach-inner">
+            <Icon name="trending-up" />
+            <div className="ov-coach-tx">
+              {rangeActive
+                ? <>{topModel ? <><span className="num">{topModel.name}</span> is the biggest driver in this range</> : 'No single model dominates this range'}. <span className="num">{formatUsd(data.optimize.savingsUSD)}</span> is recoverable.</>
+                : <>{weeklyPct === null ? <>No prior-week pacing baseline yet</> : <>You're pacing <span className="num">{weeklyPct}% {weeklyDirection}</span> than last week</>}{topModel ? <>; <span className="num">{topModel.name}</span> is the biggest driver</> : ''}. <span className="num">{formatUsd(data.optimize.savingsUSD)}</span> is recoverable.</>}
+            </div>
+            <button className="ov-coach-cta" type="button" onClick={() => onNavigate?.('optimize')}>Review →</button>
           </div>
-          <button className="ov-coach-cta" type="button" onClick={() => onNavigate?.('optimize')}>Review →</button>
         </div>
       </div>
 
       <SignalsCard signals={signals} />
 
       <div className="ov-card ov-routing" aria-label="Compare periods entry">
-        <div><span className="ov-label">Compare periods</span><p>Pick two ranges and see exactly what drove the change: projects, models, and the sessions behind them.</p></div>
-        <button className="ov-link" type="button" onClick={() => onNavigate?.('periods')}>Compare →</button>
+        <div className="ov-card-inner ov-routing-body">
+          <div><span className="ov-label">Compare periods</span><p>Pick two ranges and see exactly what drove the change: projects, models, and the sessions behind them.</p></div>
+          <button className="ov-link" type="button" onClick={() => onNavigate?.('periods')}>Compare →</button>
+        </div>
       </div>
 
       <div className="ov-analytics-row">
@@ -909,12 +926,12 @@ export function OverviewContent({
       <div className="ov-body-grid">
         <div className="ov-main-column">
           <div className="ov-card ov-panel ov-models-widget">
-            <div className="ov-panel-head"><h3>Models this period</h3><span className="r">Sorted by cost</span></div>
+            <div className="ov-panel-head"><Icon name="box" /><h3>Models this period</h3><span className="r">Sorted by cost</span></div>
             <div className="ov-panel-body ov-model-panel"><ModelsTable models={models} onSelectModel={onInvestigate ? name => onInvestigate({ filters: modelFilters([name]) }) : undefined} /></div>
           </div>
 
           <div className="ov-card ov-panel ov-sessions-widget">
-            <div className="ov-panel-head"><h3>Most expensive sessions</h3><span className="r"><button className="ov-link" type="button" onClick={() => onNavigate?.('sessions')}>See all →</button></span></div>
+            <div className="ov-panel-head"><Icon name="coins" /><h3>Most expensive sessions</h3><span className="r"><button className="ov-link" type="button" onClick={() => onNavigate?.('sessions')}>See all →</button></span></div>
             <div className="ov-panel-body">
               {data.current.topSessions.length ? data.current.topSessions.map((session, index) => {
                 const model = modelIndex.get(sessionModelKey(session.project, session.date, session.calls, session.cost))
@@ -927,7 +944,7 @@ export function OverviewContent({
 
         <div className="ov-side-column">
           <div className="ov-card ov-panel ov-activities-widget">
-            <div className="ov-panel-head"><h3>Top activities</h3><span className="r">Sorted by cost</span></div>
+            <div className="ov-panel-head"><Icon name="list" /><h3>Top activities</h3><span className="r">Sorted by cost</span></div>
             <div className="ov-panel-body"><TopActivities activities={data.current.topActivities} onSelectCategory={onInvestigate ? raw => onInvestigate({ filters: categoryFilters(raw) }) : undefined} /></div>
           </div>
         </div>
