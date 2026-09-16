@@ -14,6 +14,16 @@ const bridge = vi.hoisted(() => ({
 }))
 vi.mock('../lib/ipc', () => ({ codeburn: bridge, normalizeCliError: (err: unknown) => err }))
 
+// This jsdom setup ships no Storage, and the sidebar's collapsed state is read
+// from one at first render.
+const store = new Map<string, string>()
+vi.stubGlobal('localStorage', {
+  getItem: (key: string) => store.get(key) ?? null,
+  setItem: (key: string, value: string) => { store.set(key, value) },
+  removeItem: (key: string) => { store.delete(key) },
+  clear: () => store.clear(),
+})
+
 function setPlatform(platform: string): void {
   ;(window as unknown as { codeburn?: { platform?: string } }).codeburn = { platform }
 }
@@ -25,6 +35,7 @@ describe('Sidebar', () => {
 
   afterEach(() => {
     delete (window as unknown as { codeburn?: { platform?: string } }).codeburn
+    store.clear()
     vi.clearAllMocks()
   })
 
@@ -33,9 +44,9 @@ describe('Sidebar', () => {
     ['win32', 'Ctrl+'],
   ] as const)('renders every nav item in its group with %s keycaps', (platform, mod) => {
     setPlatform(platform)
-    render(<Sidebar active="overview" onNavigate={() => {}} />)
+    const { container } = render(<Sidebar active="overview" onNavigate={() => {}} />)
     const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const labels = screen.getAllByRole('button').map(item => item.textContent?.replace(/(⌘|Ctrl\+)[\d,.]/, ''))
+    const labels = [...container.querySelectorAll('.ni')].map(item => item.textContent?.replace(/(⌘|Ctrl\+)[\d,.]/, ''))
     expect(labels).toEqual(['Overview', 'Sessions', 'Pull requests', 'Spend', 'Models', 'Optimize', 'Compare', 'Compare periods', 'Plans', 'Plugins', 'Settings'])
     expect(screen.getByRole('button', { name: new RegExp(`Sessions.*${esc(mod)}2`) })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: new RegExp(`Pull requests.*${esc(mod)}3`) })).toBeInTheDocument()
@@ -96,6 +107,40 @@ describe('Sidebar', () => {
     fireEvent.click(about)
     expect(await screen.findByRole('link', { name: /GitHub/ })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /LinkedIn/ })).toBeInTheDocument()
+  })
+
+  it('collapses to a rail, remembers it, and still navigates by icon', () => {
+    const onNavigate = vi.fn()
+    const { container, unmount } = render(<Sidebar active="overview" onNavigate={onNavigate} />)
+    const nav = container.querySelector('.sb')
+
+    expect(nav).not.toHaveClass('collapsed')
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }))
+    expect(nav).toHaveClass('collapsed')
+    expect(localStorage.getItem('codeburn.sidebarCollapsed')).toBe('1')
+
+    // The label never leaves the DOM, so the row keeps its name on the rail.
+    fireEvent.click(screen.getByRole('button', { name: /Spend/ }))
+    expect(onNavigate).toHaveBeenCalledWith('spend')
+
+    unmount()
+    render(<Sidebar active="overview" onNavigate={() => {}} />)
+    expect(document.querySelector('.sb')).toHaveClass('collapsed')
+    expect(screen.getByRole('button', { name: 'Expand sidebar' })).toBeInTheDocument()
+  })
+
+  it.each([
+    ['darwin', { metaKey: true }],
+    ['win32', { ctrlKey: true }],
+  ] as const)('toggles the rail with the %s modifier chord and B', (platform, chord) => {
+    setPlatform(platform)
+    const { container } = render(<Sidebar active="overview" onNavigate={() => {}} />)
+    const nav = container.querySelector('.sb')
+
+    fireEvent.keyDown(window, { key: 'b', ...chord })
+    expect(nav).toHaveClass('collapsed')
+    fireEvent.keyDown(window, { key: 'b', ...chord })
+    expect(nav).not.toHaveClass('collapsed')
   })
 
   it('keeps the companion switches above About on Windows', async () => {

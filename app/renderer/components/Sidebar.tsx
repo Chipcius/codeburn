@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 
 import { version } from '../../package.json'
 import { codeburn } from '../lib/ipc'
-import { shortcutLabel } from '../lib/platform'
+import { isModifierChord, shortcutLabel } from '../lib/platform'
 import type { CompanionStatus } from '../lib/types'
 import { AboutModal } from './AboutModal'
 import { Icon } from './icons'
@@ -56,11 +56,36 @@ export function Sidebar({
   // mid-fade cancels the exit instead of being closed by its pending timer.
   const [aboutOpens, setAboutOpens] = useState(0)
   const showKeys = useModifierHeld()
+  const [collapsed, setCollapsed] = useState(readCollapsed)
+
+  useEffect(() => { writeCollapsed(collapsed) }, [collapsed])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!isModifierChord(event) || event.key.toLowerCase() !== 'b') return
+      event.preventDefault()
+      setCollapsed(value => !value)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   return (
     <>
-      <nav className="sb" data-show-keys={showKeys ? '' : undefined}>
-        <div className="app"><b className="flame-text">CodeBurn</b></div>
+      <nav className={collapsed ? 'sb collapsed' : 'sb'} data-show-keys={showKeys ? '' : undefined}>
+        <div className="app">
+          <b className="flame-text">CodeBurn</b>
+          <button
+            type="button"
+            className="sb-collapse"
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-expanded={!collapsed}
+            data-tip={`${collapsed ? 'Expand sidebar' : 'Collapse sidebar'} ${shortcutLabel('B')}`}
+            onClick={() => setCollapsed(value => !value)}
+          >
+            <Icon name={collapsed ? 'panel-left-open' : 'panel-left-close'} />
+          </button>
+        </div>
         {NAV_GROUPS.map(group => (
           <div className="grp" key={group.label ?? 'top'}>
             {group.label ? <div className="grp-label">{group.label}</div> : null}
@@ -70,6 +95,7 @@ export function Sidebar({
                 className={item.id === active ? 'ni on' : 'ni'}
                 role="button"
                 aria-current={item.id === active ? 'page' : undefined}
+                data-tip={`${item.label} ${shortcutLabel(item.key)}`}
                 tabIndex={0}
                 onClick={() => onNavigate(item.id)}
                 onKeyDown={e => {
@@ -80,7 +106,7 @@ export function Sidebar({
                 }}
               >
                 {item.icon}
-                {item.label}
+                <span className="ni-label">{item.label}</span>
                 <span className="k">{shortcutLabel(item.key)}</span>
               </div>
             ))}
@@ -89,9 +115,9 @@ export function Sidebar({
         <div className="push" />
         <CompanionSwitches />
         <div className="foot">
-          <a className="about" href="#about" onClick={event => { event.preventDefault(); setAboutOpens(opens => opens + 1) }}>
+          <a className="about" href="#about" data-tip="About" onClick={event => { event.preventDefault(); setAboutOpens(opens => opens + 1) }}>
             <Icon name="info" />
-            About
+            <span className="ni-label">About</span>
             <span className="ver">v{version}</span>
           </a>
         </div>
@@ -99,6 +125,18 @@ export function Sidebar({
       {aboutOpens > 0 ? <AboutModal openKey={String(aboutOpens)} onClose={() => setAboutOpens(0)} /> : null}
     </>
   )
+}
+
+const COLLAPSE_KEY = 'codeburn.sidebarCollapsed'
+
+/** Read at first render, not in an effect, so a collapsed sidebar never paints
+ *  wide for a frame before snapping shut. */
+function readCollapsed(): boolean {
+  try { return globalThis.localStorage?.getItem(COLLAPSE_KEY) === '1' } catch { return false }
+}
+
+function writeCollapsed(collapsed: boolean): void {
+  try { globalThis.localStorage?.setItem(COLLAPSE_KEY, collapsed ? '1' : '0') } catch { /* storage can be unavailable */ }
 }
 
 /** Shortcut badges are noise until someone reaches for the modifier, so the nav
@@ -169,7 +207,7 @@ function CompanionSwitches() {
     const blocked = key === 'sidebar' && railBlocked
     const title = blocked ? 'The Capacity Dock needs the menu bar app' : hint
     return (
-      <div className={blocked ? 'companion-row blocked' : 'companion-row'}>
+      <div className={blocked ? 'companion-row blocked' : 'companion-row'} data-tip={label}>
         <span className="companion-label" title={title}>{label}</span>
         <button
           type="button"

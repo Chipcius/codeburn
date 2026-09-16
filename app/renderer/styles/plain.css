@@ -165,6 +165,34 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
 .foot .about { display: flex; align-items: center; height: 28px; padding: 0 8px; gap: 10px; border-radius: 7px; color: var(--mut); text-decoration: none; font-size: var(--fs-body); font-weight: 520; cursor: pointer; }
 .foot .about:hover { background: var(--nav-hover); color: var(--nav-ink); }
 .foot .ver { margin-left: auto; color: var(--mut2); font-size: var(--fs-meta); font-variant-numeric: tabular-nums; }
+
+/* Collapsed to a 56px rail: the width is the one layout transition on this
+   branch, everything inside it shrinks to nothing and fades rather than
+   unmounting, so the rows keep their names for a screen reader. */
+.sb { transition: flex-basis var(--dur-base) var(--ease-out); }
+.sb-collapse { display: inline-flex; margin-left: auto; padding: 4px; border: 0; border-radius: 6px; background: transparent; color: var(--mut); cursor: pointer; }
+.sb-collapse:hover { background: var(--nav-hover); color: var(--nav-ink); }
+.sb.collapsed { flex-basis: 56px; }
+.sb.collapsed :is(.app b, .ni-label, .ni .k, .grp-label, .foot .ver, .companion-label) {
+  flex: 0 1 0; min-width: 0; margin: 0; padding: 0; border-width: 0; overflow: hidden; opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.sb.collapsed :is(.app, .ni, .foot .about, .companion-row) { gap: 0; padding: 0; justify-content: center; overflow: hidden; }
+.sb.collapsed .app { padding-bottom: 14px; }
+.sb.collapsed .sb-collapse { margin-left: 0; }
+.sb.collapsed .ni { width: 32px; height: 32px; margin: 0 auto; }
+.sb.collapsed .foot .about { width: 32px; height: 32px; margin: 0 auto; }
+.sb.collapsed .companion-row .switch { margin-left: 0; }
+.sb.collapsed .companion-note { display: none; }
+/* Hovering a rail row names it to the right, in the chart tooltip's palette. */
+.sb.collapsed :is(.ni, .foot .about, .sb-collapse, .companion-row):hover::after {
+  content: attr(data-tip); position: absolute; left: calc(100% + 10px); top: 50%; z-index: 40;
+  padding: 5px 9px; border: 1px solid color-mix(in srgb, var(--tip-ink) 14%, transparent); border-radius: 7px;
+  background: var(--tip-bg); color: var(--tip-ink); font-size: var(--fs-meta); line-height: 1.35;
+  white-space: nowrap; pointer-events: none; transform: translateY(-50%);
+  box-shadow: 0 6px 20px rgba(0,0,0,.22);
+}
+.sb.collapsed :is(.foot .about, .sb-collapse, .companion-row) { position: relative; }
 /* Windows only: the tray app and the Capacity Dock rail, above About. Same 8px gutter and
    12.5px type as a nav item, so the corner reads as one column rather than two. */
 .companion { padding: 8px 0 2px; border-top: 1px solid var(--line); }
