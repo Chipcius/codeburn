@@ -106,7 +106,10 @@ export function ActivityHeatmap({ daily, bare = false }: { daily: DailyHistoryEn
       return !next || next.week - marker.week >= MIN_LABEL_COLUMNS
     })
   }, [days])
-  const activeDays = days.filter(day => !day.isFuture && day.cost > 0).length
+  const activeDays = useMemo(
+    () => buildHeatmapDays(daily, new Date(), MAX_WEEKS).filter(day => !day.isFuture && day.cost > 0).length,
+    [daily],
+  )
   const [tip, setTip] = useState<{ day: HeatmapDay; x: number; y: number } | null>(null)
 
   // Draw only as many week columns as the slot can hold, right-anchored on the
