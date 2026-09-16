@@ -37,10 +37,15 @@ import zcode from '../assets/providers/zcode.jpg'
 import zed from '../assets/providers/zed.jpg'
 import zerostack from '../assets/providers/zerostack.png'
 
+/* Keys are CLI provider ids (`src/providers`, `allProviderNames()`), not brand
+   names: `kimicode` and `cline-cli` ship the same artwork as the sibling id they
+   are a flavour of. Codebuff, DeepSeek Harness, LingTai TUI, OMP, Open Design,
+   OpenClaude and Quick Desktop have no artwork yet and fall back to the initial. */
 const SINGLE_LOGOS: Record<string, string> = {
   antigravity,
   claude,
   cline,
+  'cline-cli': cline,
   codewhale,
   crush,
   'cursor-agent': cursorAgent,
@@ -53,6 +58,7 @@ const SINGLE_LOGOS: Record<string, string> = {
   'ibm-bob': ibmBob,
   'kilo-code': kiloCode,
   kimi,
+  kimicode: kimi,
   kiro,
   'mistral-vibe': mistralVibe,
   mux,

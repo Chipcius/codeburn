@@ -433,7 +433,7 @@ export function Sessions({
           <div className="session-list">
             {renderedSequence.map(entry => entry.type === 'header' ? (
               <div className="provider-h" key={`provider-${entry.provider}`}>
-                <span>{providerName(entry.provider, detectedProviders)}</span>
+                <span className="provider-h-name"><ProviderLogo provider={entry.provider} size={13} />{providerName(entry.provider, detectedProviders)}</span>
                 <span className="provider-count">{formatCount(entry.count, 'session')}</span>
                 <span className="provider-cost">{formatUsd(entry.cost)}</span>
               </div>
