@@ -135,7 +135,7 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
 
 /* Sidebar brand (flame logo + wordmark), nav icons, and About/social footer. */
 .app { gap: 6px; }
-.app .flamemark { flex: 0 0 auto; }
+.app .flamemark { flex: 0 0 auto; width: auto; }
 .ni svg { width: 16px; height: 16px; flex: 0 0 auto; }
 .ni.on svg { stroke: var(--accent); }
 .foot { display: flex; align-items: center; gap: 10px; margin-top: 4px; padding: 11px 8px 2px; border-top: 1px solid var(--line); }
@@ -261,6 +261,7 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
 :root[data-platform='darwin'] .bar a,
 :root[data-platform='darwin'] .bar input,
 :root[data-platform='darwin'] .bar [role='button'] { -webkit-app-region: no-drag; }
+:root[data-platform='darwin'] :is(.onboard, .about-modal-backdrop, .drawer-scrim, .session-drawer, .pop-menu, .calendar-popover, .toast-host) { -webkit-app-region: no-drag; }
 .app b { background: none; color: var(--accent-text); filter: none; }
 .ni { cursor: pointer; }
 .ni.on { background: var(--hover); color: var(--ink); box-shadow: none; }
@@ -1230,7 +1231,7 @@ html.page-hidden *::after {
    construction. The left margin clears the 0.066em side bearing every headline
    cap carries, so the flame's ink lines up with the glyph stem below it. */
 .onboard-flame {
-  display: inline-block; vertical-align: baseline;
+  display: inline-block; vertical-align: -4px;
   height: 56px; width: auto; image-rendering: auto;
   margin-right: 14px; margin-left: calc(var(--onboard-h) * 0.066);
 }
