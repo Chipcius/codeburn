@@ -253,7 +253,7 @@ function PrRowView({ pr, expanded, onToggle, onInvestigate }: { pr: PrRow; expan
           <span className="pr-card-label">Spend</span>
           <strong {...(pr.approx ? { title: APPROX_TITLE } : {})}>{pr.approx ? '~' : ''}{formatUsd(pr.cost)}</strong>
         </div>
-        <span className="pr-chevron" aria-hidden="true">›</span>
+        <span className="pr-chevron" aria-hidden="true"><Icon name="chevron-right" /></span>
       </div>
       {expanded && (
         <div className="pr-detail-cell">

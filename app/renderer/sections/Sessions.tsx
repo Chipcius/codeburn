@@ -9,6 +9,7 @@ import { SectionSkeleton } from '../components/Skeleton'
 import { SegTabs } from '../components/SegTabs'
 import { SessionDrawer } from '../components/SessionDrawer'
 import { StaleBanner } from '../components/StaleBanner'
+import { Icon } from '../components/icons'
 import { usePolled } from '../hooks/usePolled'
 import { formatCompact, formatCount, formatDayShort, formatUsd, shortenProjectPath } from '../lib/format'
 import { codeburn } from '../lib/ipc'
@@ -450,7 +451,7 @@ export function Sessions({
                   }}
                 >
                   <span className="session-primary">
-                    <span className="session-chevron" aria-hidden="true">›</span>
+                    <span className="session-chevron" aria-hidden="true"><Icon name="chevron-right" /></span>
                     <span className="session-project-copy">
                       <span className="session-title" title={entry.entry.row.title || undefined}>{entry.entry.row.title || shortenProjectPath(entry.entry.row.project)}</span>
                       <span className="session-project">{entry.entry.row.sessionId.slice(0, 18)}</span>

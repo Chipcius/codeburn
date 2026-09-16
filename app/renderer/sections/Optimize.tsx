@@ -219,7 +219,7 @@ function ActionableFindingRows({ findings, byClass }: { findings: OptimizeFindin
               </span>
               <span className="opt-finding-savings">{formatUsd(finding.estimatedSavingsUSD)}</span>
               <span className="opt-finding-tokens">{formatCompact(finding.tokensSaved)} tokens · {finding.basis}</span>
-              <span className="opt-finding-chevron" aria-hidden="true">›</span>
+              <span className="opt-finding-chevron" aria-hidden="true"><Icon name="chevron-right" /></span>
             </button>
             {expanded && (
               <div className="opt-finding-detail" role="region" aria-label={`${finding.title} details`}>
