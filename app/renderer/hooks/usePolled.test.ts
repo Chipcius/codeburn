@@ -4,7 +4,7 @@ import { afterEach, describe, it, expect, vi } from 'vitest'
 import { render, renderHook, act } from '@testing-library/react'
 
 import { RefreshCadenceContext, type RefreshCadence } from '../lib/refreshCadence'
-import { __resetPolledMemo, clearPolledMemo, hasPolledMemo, primePolledMemo, usePolled } from './usePolled'
+import { __resetPolledMemo, clearPolledMemo, hasPolledMemo, polledMemoTimestamp, primePolledMemo, usePolled } from './usePolled'
 
 function cadenceWrapper(intervalMs: number | null) {
   const value: RefreshCadence = { value: 'x', intervalMs, setValue: () => {} }
@@ -230,6 +230,23 @@ describe('usePolled', () => {
     expect(second.result.current.data).toEqual({ total: 42 })
     expect(second.result.current.switching).toBe(true)
     expect(secondFetcher).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports no refresh time for a snapshot restored from a previous app run', async () => {
+    const first = renderHook(() => usePolled(vi.fn().mockResolvedValue({ total: 42 }), [], { memoKey: 'overview|restart', intervalMs: null }))
+    await act(async () => {})
+    expect(polledMemoTimestamp('overview|restart')).toBeCloseTo(Date.now(), -3)
+    first.unmount()
+
+    // The restored payload is hours old and the refresh it describes never
+    // happened in this run: the footer must not announce it as one.
+    __resetPolledMemo()
+    expect(polledMemoTimestamp('overview|restart')).toBeNull()
+
+    const second = renderHook(() => usePolled(vi.fn().mockResolvedValue({ total: 43 }), [], { memoKey: 'overview|restart', intervalMs: null }))
+    await act(async () => {})
+    expect(polledMemoTimestamp('overview|restart')).toBeCloseTo(Date.now(), -3)
+    second.unmount()
   })
 
   it('compresses a heavy report snapshot before placing it in renderer storage', async () => {

@@ -286,12 +286,15 @@ export function hasPolledMemo(key: string): boolean {
   return memoGet(key) !== undefined
 }
 
-/** Timestamp of the exact report snapshot currently available for `key`.
- * The app footer uses this to describe the selected destination instead of
- * repeating Overview's timestamp everywhere. Reading it may hydrate the
- * in-memory memo from the versioned durable snapshot, but never changes data. */
+/** Timestamp of the last fetch that produced the report for `key` IN THIS
+ * renderer. A snapshot restored from disk is painted but never reported as a
+ * refresh: it dates from an earlier app run, so claiming it here made the footer
+ * announce a refresh that was hours old and had not happened. Reading this may
+ * hydrate the in-memory memo from the versioned durable snapshot, but never
+ * changes data. */
 export function polledMemoTimestamp(key: string): number | null {
-  return memoGet(key)?.at ?? null
+  const entry = memoGet(key)
+  return entry && !entry.durable ? entry.at : null
 }
 
 /**

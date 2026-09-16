@@ -185,6 +185,17 @@ describe('Overview', () => {
     vi.useRealTimers()
   })
 
+  it('counts the streak from yesterday when today has no spend yet', async () => {
+    const now = new Date()
+    const daily = consecutiveDays(now, 12, index => (index === 11 ? 0 : 5))
+    getOverview.mockResolvedValue({ ...makePayload(now), history: { daily } })
+
+    const { container } = render(<Overview period="30days" provider="all" />)
+
+    expect(await screen.findByText('Last 30 days')).toBeInTheDocument()
+    expect(container.querySelector('.ov-streak')).toHaveTextContent('11-day streak')
+  })
+
   it("renders real hero, stats, model, saved, session, and daily-chart data", async () => {
     const now = new Date()
     getOverview.mockResolvedValue(makePayload(now))
