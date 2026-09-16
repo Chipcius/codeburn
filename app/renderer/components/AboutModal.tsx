@@ -31,10 +31,10 @@ function openExternal(event: MouseEvent<HTMLAnchorElement>, url: string): void {
   void codeburn.openExternal(url)
 }
 
-export function AboutModal({ socials = SOCIALS, onClose }: { socials?: SocialLink[]; onClose: () => void }) {
+export function AboutModal({ socials = SOCIALS, openKey, onClose }: { socials?: SocialLink[]; openKey: string; onClose: () => void }) {
   const status = useUpdateStatus()
   const [checked, setChecked] = useState(false)
-  const { closing, beginExit } = useExitAnimation(onClose, DUR.base)
+  const { closing, beginExit } = useExitAnimation(onClose, DUR.base, openKey)
 
   useEscape(true, beginExit)
 

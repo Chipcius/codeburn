@@ -31,7 +31,9 @@ export function Sidebar({
   onNavigate: (section: Section) => void
   status?: ReactNode
 }) {
-  const [aboutOpen, setAboutOpen] = useState(false)
+  // A count, not a flag: every open is a fresh key, so reopening the modal
+  // mid-fade cancels the exit instead of being closed by its pending timer.
+  const [aboutOpens, setAboutOpens] = useState(0)
 
   return (
     <>
@@ -60,11 +62,11 @@ export function Sidebar({
         <div className="push" />
         <CompanionSwitches />
         <div className="foot">
-          <a className="about" href="#about" onClick={event => { event.preventDefault(); setAboutOpen(true) }}>About</a>
+          <a className="about" href="#about" onClick={event => { event.preventDefault(); setAboutOpens(opens => opens + 1) }}>About</a>
           <SocialGlyphs />
         </div>
       </nav>
-      {aboutOpen ? <AboutModal onClose={() => setAboutOpen(false)} /> : null}
+      {aboutOpens > 0 ? <AboutModal openKey={String(aboutOpens)} onClose={() => setAboutOpens(0)} /> : null}
     </>
   )
 }
