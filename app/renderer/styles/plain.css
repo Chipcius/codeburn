@@ -186,7 +186,7 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
   background: rgba(8, 10, 14, .56);
   animation: scrim-in var(--dur-base) var(--ease-out) backwards;
 }
-.about-modal-backdrop.closing { animation: scrim-out var(--dur-base) var(--ease-in-out) forwards; }
+.about-modal-backdrop.closing { animation: scrim-out var(--dur-base) var(--ease-in-out) forwards; pointer-events: none; }
 .about-modal-backdrop.closing .about-modal { animation: modal-out var(--dur-base) var(--ease-in-out) forwards; }
 @keyframes modal-in { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: none; } }
 @keyframes modal-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(0.98); } }
@@ -1403,7 +1403,8 @@ html.page-hidden *::after {
    the drawer on close, so the component holds it mounted for --dur-slow under a
    `closing` class and the exit is the entrance run backwards. */
 .drawer-scrim { position: fixed; inset: 0; background: rgb(0 0 0 / 35%); z-index: 60; animation: scrim-in var(--dur-slow) var(--ease-out) backwards; }
-.drawer-scrim.closing { animation: scrim-out var(--dur-slow) var(--ease-in-out) forwards; }
+/* An overlay on its way out must not eat the click that reopens it. */
+.drawer-scrim.closing { animation: scrim-out var(--dur-slow) var(--ease-in-out) forwards; pointer-events: none; }
 @keyframes scrim-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes scrim-out { from { opacity: 1; } to { opacity: 0; } }
 @keyframes drawer-in { from { opacity: 0; transform: translateX(100%); } to { opacity: 1; transform: none; } }
@@ -1419,7 +1420,7 @@ html.page-hidden *::after {
   outline: none;
   animation: drawer-in var(--dur-slow) var(--ease-out) backwards;
 }
-.session-drawer.closing { animation: drawer-out var(--dur-slow) var(--ease-in-out) forwards; }
+.session-drawer.closing { animation: drawer-out var(--dur-slow) var(--ease-in-out) forwards; pointer-events: none; }
 @media (max-width: 1100px) {
   .session-drawer { left: 0; width: auto; }
   :root[data-platform='darwin'] .session-drawer { padding-top: 34px; }

@@ -485,6 +485,7 @@ export function Sessions({
       {openRow && (
         <SessionDrawer
           row={openRow}
+          openKey={sessionRowKey(openRow)}
           filters={filters}
           medianCost={medianCost}
           onClose={closeDrawer}

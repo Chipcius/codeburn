@@ -38,10 +38,14 @@ export function motionClass(base: string, animated: string): string {
 /** Milliseconds behind --dur-fast, --dur-base and --dur-slow in plain.css. */
 export const DUR = { fast: 120, base: 180, slow: 240 } as const
 
-export function useExitAnimation(onDone: () => void, durationMs: number): { closing: boolean; beginExit: () => void } {
+export function useExitAnimation(onDone: () => void, durationMs: number, openKey: string | boolean = true): { closing: boolean; beginExit: () => void } {
   const [closing, setClosing] = useState(false)
   const done = useRef(onDone)
   done.current = onDone
+
+  // Re-opening on a new subject mid-exit must disarm the pending timer, or it
+  // fires and closes the subject the user just asked for.
+  useEffect(() => { setClosing(false) }, [openKey])
 
   useEffect(() => {
     if (!closing) return

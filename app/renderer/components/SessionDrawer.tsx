@@ -22,8 +22,11 @@ import { Icon } from './icons'
  * open and the PARENT returns focus to the control that opened it (the opener
  * element is still alive behind the drawer). Tab is trapped inside.
  */
-export function SessionDrawer({ row, filters, medianCost, onClose }: {
+export function SessionDrawer({ row, openKey, filters, medianCost, onClose }: {
   row: SessionDrillRow
+  /** Row identity, so a drawer still exiting on the old row disarms its close
+   *  when the user picks a new one. */
+  openKey: string
   filters: InvestigationFilters
   /** Median cost of the sessions the list is currently showing (the searched
    *  and filtered set). Absent when the population is too small for the
@@ -32,7 +35,7 @@ export function SessionDrawer({ row, filters, medianCost, onClose }: {
   onClose: () => void
 }) {
   const panelRef = useRef<HTMLDivElement>(null)
-  const { closing, beginExit } = useExitAnimation(onClose, DUR.slow)
+  const { closing, beginExit } = useExitAnimation(onClose, DUR.slow, openKey)
 
   useEscape(true, beginExit)
 
