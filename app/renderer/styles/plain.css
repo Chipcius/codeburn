@@ -779,14 +779,11 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .ov-models th:first-child, .ov-models td:first-child { width: 100%; text-align: left; }
 .ov-models .ov-model-name { overflow: hidden; color: var(--ink); font-weight: var(--fw-medium); text-overflow: ellipsis; }
 .ov-models td.mono { font-family: var(--mono); color: var(--ink); }
-.pr-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-3); margin-bottom: var(--sp-5); }
+.pr-page { display: grid; gap: 12px; }
+.pr-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-3); }
 .pr-summary-item { display: flex; min-width: 0; flex-direction: column; gap: var(--sp-2); padding: var(--sp-4); border: 1px solid var(--line); border-radius: 12px; background: var(--card-inner); box-shadow: var(--card-inner-shadow); }
 .pr-summary-item span { color: var(--mut2); font-size: var(--fs-label); font-weight: var(--fw-strong); letter-spacing: .055em; text-transform: uppercase; }
 .pr-summary-item strong { overflow: hidden; color: var(--ink); font-family: var(--mono); font-size: var(--fs-stat); font-weight: var(--fw-kpi); font-variant-numeric: tabular-nums; letter-spacing: -.02em; text-overflow: ellipsis; white-space: nowrap; }
-.pr-list-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin: 0 2px 10px; }
-.pr-list-head > div { display: flex; flex-direction: column; gap: 3px; }
-.pr-list-head strong { color: var(--ink); font-size: var(--fs-body); font-weight: var(--fw-subhead); }
-.pr-list-head span { color: var(--mut2); font-size: var(--fs-meta); }
 .pr-list-count { padding: 4px 8px; border: 1px solid var(--line); border-radius: 999px; background: var(--fill); font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .pr-list { display: flex; flex-direction: column; gap: 8px; }
 .pr-card { overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); box-shadow: var(--card-shadow); transition: border-color var(--dur-fast) var(--ease-out); }

@@ -106,11 +106,13 @@ function PullRequestsPage({ pullRequests, staleError, period, provider, range, o
   return (
     <>
       {staleError && <StaleBanner error={staleError} />}
-      <Panel title="Pull request spend">
-        {empty
-          ? <PrEmptyNote period={period} provider={provider} range={range} />
-          : <PrTable pullRequests={pullRequests} onInvestigate={onInvestigate} />}
-      </Panel>
+      {empty ? (
+        <Panel title="Pull request spend">
+          <PrEmptyNote period={period} provider={provider} range={range} />
+        </Panel>
+      ) : (
+        <PrTable pullRequests={pullRequests} onInvestigate={onInvestigate} />
+      )}
     </>
   )
 }
@@ -160,58 +162,58 @@ function PrTable({ pullRequests, onInvestigate }: { pullRequests: PullRequests; 
   const displayedAttributed = rows.reduce((sum, row) => sum + Number(row.cost.toFixed(2)), 0)
 
   return (
-    <>
-      <div className="pr-summary" aria-label="Pull request attribution summary">
-        <div className="pr-summary-item">
-          <span>Attributed spend</span>
-          <strong>{formatUsd(summable ? displayedAttributed : distinctCost)}</strong>
+    <div className="pr-page">
+      <Panel title="Pull request spend">
+        <div className="pr-summary" aria-label="Pull request attribution summary">
+          <div className="pr-summary-item">
+            <span>Attributed spend</span>
+            <strong>{formatUsd(summable ? displayedAttributed : distinctCost)}</strong>
+          </div>
+          <div className="pr-summary-item">
+            <span>Pull requests</span>
+            <strong>{rows.length.toLocaleString('en-US')}</strong>
+          </div>
+          <div className="pr-summary-item">
+            <span>Linked sessions</span>
+            <strong>{distinctSessions.toLocaleString('en-US')}</strong>
+          </div>
+          <div className="pr-summary-item">
+            <span>Folded agent runs</span>
+            <strong>{(subagentSessions ?? 0).toLocaleString('en-US')}</strong>
+          </div>
         </div>
-        <div className="pr-summary-item">
-          <span>Pull requests</span>
-          <strong>{rows.length.toLocaleString('en-US')}</strong>
+      </Panel>
+      <Panel
+        title="Attributed pull requests"
+        right={<>Sorted by spend, highest first <span className="pr-list-count">{rows.length.toLocaleString('en-US')} total</span></>}
+      >
+          <div className="pr-list" aria-label="Spend by pull request">
+          {rows.map(pr => (
+            <PrRowView
+              key={pr.url}
+              pr={pr}
+              expanded={expandedUrl === pr.url}
+              onToggle={() => setExpandedUrl(current => current === pr.url ? null : pr.url)}
+              onInvestigate={onInvestigate}
+            />
+          ))}
         </div>
-        <div className="pr-summary-item">
-          <span>Linked sessions</span>
-          <strong>{distinctSessions.toLocaleString('en-US')}</strong>
-        </div>
-        <div className="pr-summary-item">
-          <span>Folded agent runs</span>
-          <strong>{(subagentSessions ?? 0).toLocaleString('en-US')}</strong>
-        </div>
-      </div>
-      <div className="pr-list-head">
-        <div>
-          <strong>Attributed pull requests</strong>
-          <span>Sorted by spend, highest first</span>
-        </div>
-        <span className="pr-list-count">{rows.length.toLocaleString('en-US')} total</span>
-      </div>
-      <div className="pr-list" aria-label="Spend by pull request">
-        {rows.map(pr => (
-          <PrRowView
-            key={pr.url}
-            pr={pr}
-            expanded={expandedUrl === pr.url}
-            onToggle={() => setExpandedUrl(current => current === pr.url ? null : pr.url)}
-            onInvestigate={onInvestigate}
-          />
-        ))}
-      </div>
-      {summable ? (
-        <p className="pr-footnote">
-          Costs are attributed turn by turn, so every row adds up without double counting.
-          {subagentSessions ? ` ${subagentSessions.toLocaleString('en-US')} subagent ${subagentSessions === 1 ? 'run is' : 'runs are'} included in the PR where the work happened.` : ''}
-        </p>
-      ) : (
-        <p className="pr-footnote">
-          {formatUsd(distinctCost)} across {distinctSessions.toLocaleString('en-US')} distinct {sessionWord(distinctSessions)} produced pull requests.
-          {' '}Attribution is by reference: a session referencing several PRs counts toward each, so the rows above are not summed.
-        </p>
-      )}
-      {unattributed > 0 && (
-        <p className="pr-unattributed">Not tied to a specific PR: {formatUsd(unattributed)}</p>
-      )}
-    </>
+        {summable ? (
+          <p className="pr-footnote">
+            Costs are attributed turn by turn, so every row adds up without double counting.
+            {subagentSessions ? ` ${subagentSessions.toLocaleString('en-US')} subagent ${subagentSessions === 1 ? 'run is' : 'runs are'} included in the PR where the work happened.` : ''}
+          </p>
+        ) : (
+          <p className="pr-footnote">
+            {formatUsd(distinctCost)} across {distinctSessions.toLocaleString('en-US')} distinct {sessionWord(distinctSessions)} produced pull requests.
+            {' '}Attribution is by reference: a session referencing several PRs counts toward each, so the rows above are not summed.
+          </p>
+        )}
+        {unattributed > 0 && (
+          <p className="pr-unattributed">Not tied to a specific PR: {formatUsd(unattributed)}</p>
+        )}
+      </Panel>
+    </div>
   )
 }
 
