@@ -28,7 +28,7 @@
   --tip-bg: #1a1d23;
   --tip-ink: #ffffff;
   /* Type ladder — sizes + weights (theme-independent). */
-  --fs-hero: 40px; --fs-stat: 24px; --fs-kpi: 17px; --fs-subhead: 13px;
+  --fs-hero: 40px; --fs-stat: 24px; --fs-kpi: 17px; --fs-title: 15px; --fs-subhead: 13px;
   --fs-body: 12.5px; --fs-meta: 11.5px; --fs-label: 10.5px; --fs-micro: 9.5px;
   --fw-body: 500; --fw-medium: 550; --fw-subhead: 600; --fw-strong: 620; --fw-kpi: 650; --fw-hero: 700;
   /* Spacing scale (px). */
@@ -451,7 +451,7 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
 .ni { font-size: var(--fs-body); }
 .ni .k { font-size: var(--fs-label); }
 .sb .status { font-size: var(--fs-meta); }
-.bar .t { margin: 0; font-size: var(--fs-subhead); font-weight: var(--fw-subhead); }
+.bar .t { margin: 0; font-size: var(--fs-title); font-weight: var(--fw-subhead); }
 .bar .scope { font-size: var(--fs-meta); }
 .seg span { font-size: var(--fs-meta); }
 .pop { font-size: var(--fs-meta); }
