@@ -39,7 +39,7 @@ import { codeburn } from './lib/ipc'
 import { trackEvent } from './lib/track'
 import { isMacPlatform, isModifierChord, shortcutLabel } from './lib/platform'
 import { localDateKey, PERIOD_LABELS } from './lib/period'
-import { readDisabledProviders } from './lib/providers'
+import { detectedProviders as detectedProviderList, providerLabel, readDisabledProviders, type DetectedProvider } from './lib/providers'
 import { reportMemoKey } from './lib/reportMemoKey'
 import { persistRefreshValue, readRefreshValue, refreshValueToMs, RefreshCadenceContext, type RefreshCadence } from './lib/refreshCadence'
 import { OverviewContent, type InvestigateRequest } from './sections/Overview'
@@ -250,15 +250,6 @@ function persistProjectFiltered(active: boolean): void {
   try { globalThis.localStorage?.setItem('codeburn.projectFiltered', active ? '1' : '0') } catch { /* storage can be unavailable */ }
 }
 
-function providerName(provider: string): string {
-  if (provider === 'all') return 'All providers'
-  return provider
-    .split(/[-\s]+/)
-    .filter(Boolean)
-    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ')
-}
-
 export function refreshedLabel(lastSuccessAt: number | null, loading: boolean, now: number): string {
   if (loading && lastSuccessAt === null) return 'refreshing…'
   if (lastSuccessAt === null) return 'not refreshed yet'
@@ -330,7 +321,7 @@ function AppMain() {
   const [settingsPane, setSettingsPane] = useState<SettingsPane>('general')
   const [providerCatalog, setProviderCatalog] = useState<{
     key: string | null
-    entries: Array<{ id: string; label: string }>
+    entries: DetectedProvider[]
   }>({ key: null, entries: [] })
   const detectedProviders = providerCatalog.entries
   const [claudeConfigSource, setClaudeConfigSource] = useState<string | null>(initialConfigSource)
@@ -522,30 +513,12 @@ function AppMain() {
     // payload contains just the selected provider; merging it forever also
     // leaked idle providers across period changes.
     if (!overview.data || overview.switching || provider !== 'all' || claudeConfigSource || scope !== 'local') return
-    const details = overview.data.current.providerDetails
-    // Prefer providerDetails (internal id + display label); fall back to the
-    // providers map keys (lowercased display names) for older CLIs. `hasUsage`
-    // keeps idle discovery rows out of the picker, but only when the CLI
-    // actually emits it: every released CLI omits it, and falling back to cost
-    // there hid subscription-backed providers whose period spend is $0.
-    const found = details
-      ? [...details]
-          .filter(entry => entry.hasUsage ?? true)
-          .sort((a, b) => b.cost - a.cost)
-          .map(entry => ({ id: entry.id, label: entry.label }))
-      : Object.entries(overview.data.current.providers)
-          // Fallback map keys are lowercased display names; ones with spaces
-          // ("grok build") cannot round-trip as --provider, so exclude them
-          // rather than offer a filter that is guaranteed to error.
-          .filter(([key, cost]) => cost > 0 && /^[a-z0-9-]+$/.test(key))
-          .sort(([, a], [, b]) => b - a)
-          .map(([key]) => ({ id: key, label: providerName(key) }))
-    setProviderCatalog({ key: allProviderOverviewKey, entries: found })
+    setProviderCatalog({ key: allProviderOverviewKey, entries: detectedProviderList(overview.data.current) })
   }, [allProviderOverviewKey, claudeConfigSource, overview.data, overview.switching, provider, scope])
 
   const selectedProviderEntry = useMemo(() => provider === 'all'
     ? null
-    : detectedProviders.find(entry => entry.id === provider) ?? { id: provider, label: providerName(provider) },
+    : detectedProviders.find(entry => entry.id === provider) ?? { id: provider, label: providerLabel(provider), cost: 0, idle: false },
   [detectedProviders, provider])
   const visibleProviderEntries = useMemo(() => providerCatalog.key === allProviderOverviewKey
     ? detectedProviders
@@ -673,7 +646,7 @@ function AppMain() {
       // Keep the current-main provider-switch contract while the shared Core
       // provider snapshot work is still held: warm the visible period for each
       // detected provider only after the higher-value period/report queue.
-      for (const targetProvider of visibleProviderEntries.map(entry => entry.id)) {
+      for (const targetProvider of visibleProviderEntries.filter(entry => !entry.idle).map(entry => entry.id)) {
         if (cancelled || targetProvider === provider) continue
         const key = overviewMemoKey(targetProvider, period, null, null)
         if (warmedKeys.current.has(key) || hasPolledMemo(key)) continue
@@ -872,9 +845,9 @@ function AppMain() {
   const claudeConfigs = overview.data?.claudeConfigs
   const providerOptions = [
     { value: 'all', label: 'All providers' },
-    ...visibleProviderEntries.map(entry => ({ value: entry.id, label: entry.label })),
+    ...visibleProviderEntries.map(entry => ({ value: entry.id, label: entry.label, muted: entry.idle })),
   ]
-  const providerLabel = selectedProviderEntry?.label ?? providerName(provider)
+  const activeProviderLabel = selectedProviderEntry?.label ?? providerLabel(provider)
   const activeConfigLabel = claudeConfigSource
     ? claudeConfigs?.options.find(option => option.id === claudeConfigSource)?.label ?? null
     : null
@@ -882,7 +855,7 @@ function AppMain() {
   // "Combined" in place of the (forced-'all') provider label.
   const scopeCaption = scope === 'combined'
     ? `${customRange ? rangeLabel(customRange) : PERIOD_LABELS[period]} · Combined`
-    : `${customRange ? rangeLabel(customRange) : PERIOD_LABELS[period]} · ${providerLabel}${activeConfigLabel ? ` · ${activeConfigLabel}` : ''}`
+    : `${customRange ? rangeLabel(customRange) : PERIOD_LABELS[period]} · ${activeProviderLabel}${activeConfigLabel ? ` · ${activeConfigLabel}` : ''}`
   const refreshing = usePolledInFlight() || overview.switching || (!!headlineSnapshot && overview.loading)
   const selectedReportKeys = selectedReportMemoKeys(section, period, provider, customRange, activeOverviewKey)
   const selectedReportTimestamps = selectedReportKeys.map(polledMemoTimestamp)
@@ -922,7 +895,7 @@ function AppMain() {
               customRange={customRange}
               onRangeSelect={range => commitNav({ range, visibleCount: INITIAL_VISIBLE })}
               provider={provider}
-              providerLabel={providerLabel}
+              providerLabel={activeProviderLabel}
               providerOptions={providerOptions}
               onProviderSelect={onProviderSelect}
               claudeConfigs={claudeConfigs}
@@ -964,7 +937,7 @@ function AppMain() {
               { k: shortcutLabel(','), label: 'Settings' },
               { k: shortcutLabel('R'), label: 'Refresh' },
             ]}
-            right={<RefreshMark refreshing={refreshing} label={refreshedLabel(selectedLastSuccessAt, false, now)} />}
+            right={<RefreshMark refreshing={refreshing} label={refreshedLabel(selectedLastSuccessAt, refreshing, now)} />}
           />
         )}
       </div>
