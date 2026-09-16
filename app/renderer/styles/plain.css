@@ -157,7 +157,6 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
 /* Sidebar: one monochrome column. Grouped rows, a pill for the row you are on,
    and no colour of its own besides the wordmark. */
 .app { gap: 6px; padding: 0 8px 14px; }
-.app .flamemark { flex: 0 0 auto; width: auto; }
 .sb .icon { width: 14px; height: 14px; stroke-width: 1.5; }
 .grp-label { padding: 16px 8px 4px; color: var(--mut2); font-size: var(--fs-label); font-weight: var(--fw-subhead); letter-spacing: .06em; text-transform: uppercase; }
 .ni { height: 28px; margin-bottom: 0; padding: 0 8px; gap: 10px; color: var(--mut); }

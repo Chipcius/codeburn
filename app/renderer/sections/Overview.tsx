@@ -719,7 +719,7 @@ function DailyChart({ daily, dataStart = null, animateKey = '', onSelectDay }: {
               : null))}
           </div>
           <div className="chart" ref={chartRef}>
-            {daily.map((day, index) => {
+            {daily.map(day => {
               const noData = isNoData(day)
               // A day with recorded activity is a drill-through entry: clicking it
               // opens the sessions that were active that day (sessions started
