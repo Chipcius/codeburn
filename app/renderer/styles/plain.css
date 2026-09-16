@@ -428,7 +428,7 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
 .tgl.on { background: var(--accent); }
 .tgl::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; }
 .tgl.on::after { left: 14px; }
-.set-claim { display: flex; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border-top: 1px solid var(--line2); }
+.set-claim { display: flex; gap: var(--sp-3); padding: var(--sp-3); border-top: 1px solid var(--line2); }
 .set-claim:first-child { border-top: 0; }
 .set-claim > svg { width: 18px; height: 18px; flex: 0 0 auto; color: var(--accent); margin-top: 1px; }
 .set-claim-t { font-size: var(--fs-body); font-weight: var(--fw-medium); color: var(--ink); }
