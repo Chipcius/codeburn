@@ -28,3 +28,12 @@ export function formatAxisMoney(value: number): string {
   if (size >= 1) return `${sign}$${Math.round(size)}`
   return `${sign}$${size.toFixed(2)}`
 }
+
+/** Plot height the axis labels are spaced against, in CSS px (`.chart` / `.sbars`). */
+const PLOT_HEIGHT = 150
+
+/** Drops any tick whose label would collide with the peak's own label: the exact figure wins. */
+export function ticksClearOfPeak(ticks: number[], peak: number, axisMax: number, minGap = 15): number[] {
+  if (!(axisMax > 0) || !(peak > 0)) return ticks
+  return ticks.filter(tick => Math.abs(tick - peak) / axisMax * PLOT_HEIGHT >= minGap)
+}

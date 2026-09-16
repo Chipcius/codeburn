@@ -21,7 +21,7 @@ import {
 } from '../lib/investigation'
 import { contiguousDailyWindow, dataStartKey, formatChartDate, localDateKey, sliceDailyToPeriod, sliceDailyToRange } from '../lib/period'
 import { reportMemoKey } from '../lib/reportMemoKey'
-import { formatAxisMoney, niceTicks } from '../lib/chartAxis'
+import { formatAxisMoney, niceTicks, ticksClearOfPeak } from '../lib/chartAxis'
 import { paceDirection, sparkArea, sparkPath, sparkPoints } from '../lib/spark'
 import type {
   ActReportJson,
@@ -747,7 +747,7 @@ function DailyChart({ daily, dataStart = null, animateKey = '', onSelectDay }: {
           )}
         </div>
         <div className="chart-axis" aria-hidden="true">
-          {valueTicks.map(tick => <span className="chart-axis-tick" key={tick} style={{ bottom: `${(tick / axisMax) * 100}%` }}>{formatAxisMoney(tick)}</span>)}
+          {ticksClearOfPeak(valueTicks, peak && peak.cost > 0 ? peak.cost : 0, axisMax).map(tick => <span className="chart-axis-tick" key={tick} style={{ bottom: `${(tick / axisMax) * 100}%` }}>{formatAxisMoney(tick)}</span>)}
           {peak && peak.cost > 0 && (
             <span className="chart-axis-peak" style={{ bottom: `${(peak.cost / axisMax) * 100}%` }}>{formatUsd(peak.cost)}</span>
           )}

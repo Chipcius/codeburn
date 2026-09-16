@@ -25,7 +25,7 @@ describe('StackedBars', () => {
     const { container } = render(<StackedBars daily={daily} />)
 
     expect(container.querySelectorAll('.sbars .c')).toHaveLength(16)
-    const ticks = container.querySelectorAll('.sbars-wrap > .ov-xax span')
+    const ticks = container.querySelectorAll('.sbars-wrap .ov-xax span')
     expect([...ticks].map(tick => tick.textContent)).toEqual(['Jul 4', 'Jul 8', 'Jul 12', 'Jul 16'])
   })
 

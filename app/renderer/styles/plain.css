@@ -915,7 +915,7 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .chart-weekline { position: absolute; top: 0; bottom: 0; border-left: 1px dotted var(--mut2); opacity: .16; }
 .chart-peak-guide { position: absolute; right: 0; border-top: 1px dashed var(--accent); opacity: .7; pointer-events: none; }
 .chart-axis-tick, .chart-axis-peak { position: absolute; right: 0; transform: translateY(50%); color: var(--mut2); font-family: var(--mono); font-size: var(--fs-label); font-variant-numeric: tabular-nums; line-height: 1; white-space: nowrap; }
-.chart-axis-peak { z-index: 1; padding: 2px 0 2px 4px; background: var(--card-inner); color: var(--accent-text); font-weight: var(--fw-subhead); }
+.chart-axis-peak { z-index: 1; padding: 5px 0 5px 6px; background: var(--card-inner); color: var(--accent-text); font-weight: var(--fw-subhead); }
 .chart { position: relative; height: 150px; display: flex; align-items: flex-end; gap: 4px; border-bottom: 1px solid var(--line); }
 .chart .col { flex: 1 1 0; min-width: 2px; background: var(--bar); border-radius: 2px 2px 0 0; min-height: 3px; transition: background var(--dur-fast) var(--ease-out); border: 0; padding: 0; }
 .chart .col.hi { background: var(--accent); } .chart .col:hover { background: var(--bar-hi); }
@@ -932,6 +932,13 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .chart-tip-row .chart-tip-sw.hi { background: var(--accent); opacity: 1; }
 .chart-tip-row span { flex: 1; opacity: .7; }
 .chart-tip-row b { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: var(--fw-kpi); }
+.sbars-wrap .chart-frame { flex: 1; min-height: 0; }
+.sbars { flex: 0 0 150px; padding-top: 0; border-bottom-color: var(--line); }
+.chart-tip-sw.s-flagship { background: var(--s-flagship); opacity: 1; }
+.chart-tip-sw.s-premium { background: var(--s-premium); opacity: 1; }
+.chart-tip-sw.s-balanced { background: var(--s-balanced); opacity: 1; }
+.chart-tip-sw.s-fast { background: var(--s-fast); opacity: 1; }
+.chart-tip-sw.s-other { background: var(--s-other); opacity: 1; }
 .sankey { min-width: 0; }
 .sankey text { fill: var(--mut); font-size: var(--fs-meta); }
 .sankey .sankey-amount { fill: var(--ink); font-family: var(--mono); font-variant-numeric: tabular-nums; }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatAxisMoney, niceTicks } from './chartAxis'
+import { formatAxisMoney, niceTicks, ticksClearOfPeak } from './chartAxis'
 
 describe('niceTicks', () => {
   it('rounds up to a 1/2/2.5/5 step and always starts at zero', () => {
@@ -41,5 +41,19 @@ describe('formatAxisMoney', () => {
 
   it('carries the sign outside the symbol', () => {
     expect(formatAxisMoney(-300)).toBe('-$300')
+  })
+})
+
+describe('ticksClearOfPeak', () => {
+  it('drops only the tick the peak label would sit on', () => {
+    expect(ticksClearOfPeak([0, 200, 400, 600, 800], 622.41, 800)).toEqual([0, 200, 400, 800])
+  })
+
+  it('keeps every tick when the peak sits clear of all of them', () => {
+    expect(ticksClearOfPeak([0, 500, 1000, 1500], 1166.32, 1500)).toEqual([0, 500, 1000, 1500])
+  })
+
+  it('leaves the axis alone when there is no peak to mark', () => {
+    expect(ticksClearOfPeak([0, 1, 2], 0, 2)).toEqual([0, 1, 2])
   })
 })
