@@ -59,7 +59,7 @@ export function Sankey({ flow }: { flow: SpendFlow }) {
   })
 
   return (
-    <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} width="100%" style={{ minWidth: 560, display: 'block' }}>
+    <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} width="100%" style={{ minWidth: VIEW_W, display: 'block' }}>
       <defs>
         {models.map(model => (
           <linearGradient key={model.id} id={gradientId(model.id)} x1="0" y1="0" x2="1" y2="0">

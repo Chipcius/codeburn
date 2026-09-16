@@ -31,9 +31,7 @@ export function StackedBars({ daily, fallbackLabel = 'All models', animateKey = 
   // Fallback days contribute day.cost to the scale so their single segment is proportional.
   const maxTotal = Math.max(1, ...daily.map(day => (modelSpend(day) > 0 ? modelSpend(day) : Math.max(0, day.cost))))
   const legendSeries = SERIES_ORDER.filter(series => presentSeries.has(series))
-  const ticks = daily.filter((_, index) => index % 4 === 0)
-  const lastDay = daily.at(-1)
-  if (lastDay && ticks.at(-1) !== lastDay) ticks.push(lastDay)
+  const ticks = daily.filter((_, index) => (daily.length - 1 - index) % 4 === 0)
 
   return (
     <div className="sbars-wrap">
