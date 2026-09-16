@@ -585,7 +585,7 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .ov-hero-kpi-accent > strong { color: var(--accent-text); }
 .ov-hero-kpi-saved > strong { color: var(--ok); }
 /* The hero and monthly stats are single, equal-column divided cards. */
-.ov-hero-split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: hidden; align-items: stretch; }
+.ov-hero-split { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: hidden; align-items: stretch; }
 .ov-hero-split > * { min-width: 0; padding: var(--sp-4); }
 .ov-hero-split > * + * { border-left: 1px solid var(--line2); }
 .ov-hero-split.snapshot-hero > * { grid-column: 1 / -1; }
@@ -600,7 +600,7 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .ov-combined-row .ov-combined-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ov-combined-row .ov-combined-val { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
 .ov-combined-row.err .ov-combined-val { color: var(--warn); font-family: inherit; }
-.ov-hero-split .ov-heatmap-bare { display: flex; flex-direction: column; justify-content: space-between; gap: 8px; order: 1; grid-column: 1 / -1; border-top: 1px solid var(--line2); border-left: 0; }
+.ov-hero-split .ov-heatmap-bare { display: flex; flex-direction: column; justify-content: space-between; gap: 8px; }
 .ov-activity-head { display: flex; align-items: baseline; gap: 8px; }
 .ov-hero-sub .neutral { color: var(--mut); font-weight: 560; }
 .ov-efficiency { display: flex; min-width: 0; flex-direction: column; padding: var(--sp-4); }
@@ -815,11 +815,12 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .ov-active-days { color: var(--accent-text) !important; font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .ov-heatmap-frame { display: grid; min-width: 0; grid-template-columns: 28px minmax(0, 1fr); grid-template-rows: 14px auto; align-items: start; column-gap: 7px; row-gap: 3px; }
 .ov-heatmap-corner { grid-column: 1; grid-row: 1; }
-.ov-heatmap-scroll { min-width: 0; max-width: 100%; overflow-x: auto; grid-column: 2; grid-row: 1 / span 2; padding: 0 0 3px; }
-.ov-heatmap-scroll:focus-visible { border-radius: 3px; outline: 1px solid var(--accent); outline-offset: 2px; }
+/* The component draws only as many week columns as this slot holds, so the
+   track always fits and the newest week is never scrolled out of sight. */
+.ov-heatmap-scroll { min-width: 0; max-width: 100%; overflow-x: hidden; grid-column: 2; grid-row: 1 / span 2; padding: 0 0 3px; }
 .ov-heatmap-track { display: grid; width: max-content; min-width: max-content; grid-template-rows: 14px auto; row-gap: 3px; }
-.ov-heatmap-months { display: grid; min-height: 14px; grid-template-columns: repeat(26, 11px); grid-auto-columns: 11px; column-gap: 3px; color: var(--mut2); font-size: var(--fs-micro); font-weight: 520; line-height: 12px; }
-.ov-heatmap-months span { grid-column-end: span 3; overflow: visible; white-space: nowrap; }
+.ov-heatmap-months { display: grid; min-height: 14px; grid-auto-columns: 11px; column-gap: 3px; color: var(--mut2); font-size: var(--fs-micro); font-weight: 520; line-height: 12px; }
+.ov-heatmap-months span { grid-row: 1; overflow: visible; white-space: nowrap; }
 .ov-heatmap-labels { display: grid; grid-column: 1; grid-row: 2; grid-template-rows: repeat(7, 11px); gap: 3px; color: var(--mut2); font-size: var(--fs-micro); font-weight: 520; line-height: 11px; }
 .ov-heatmap-labels span { text-align: right; }
 .ov-heatmap-cells { display: grid; grid-template-rows: repeat(7, 11px); grid-auto-flow: column; grid-auto-columns: 11px; gap: 3px; }

@@ -296,129 +296,27 @@ describe('Overview', () => {
     expect(ticks.at(-1)).toHaveTextContent(now.toLocaleString('en-US', { month: 'short', day: 'numeric' }))
   })
 
-  it('opens the activity heatmap at the newest dates without pinning later manual scrolling', async () => {
-    const scrollWidth = vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(520)
-    const clientWidth = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(320)
-    try {
-      const now = new Date()
-      getOverview.mockResolvedValue(makePayload(now))
-
-      const { container } = render(<Overview period="30days" provider="all" />)
-
-      expect(await screen.findByText('$312.40')).toBeInTheDocument()
-      const scroller = container.querySelector('.ov-heatmap-scroll') as HTMLDivElement
-      expect(scroller.scrollLeft).toBe(200)
-
-      scroller.scrollLeft = 24
-      fireEvent.scroll(scroller)
-      expect(scroller.scrollLeft).toBe(24)
-    } finally {
-      scrollWidth.mockRestore()
-      clientWidth.mockRestore()
-    }
-  })
-
-  it('waits for the compact heatmap slot to reach its final width before aligning newest dates', async () => {
-    let measuredScrollWidth = 320
-    let measuredClientWidth = 320
-    const scrollWidth = vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get')
-      .mockImplementation(() => measuredScrollWidth)
-    const clientWidth = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get')
-      .mockImplementation(() => measuredClientWidth)
-    let resizeCallback: ResizeObserverCallback | null = null
-    const disconnect = vi.fn()
-    class MockResizeObserver {
-      constructor(callback: ResizeObserverCallback) {
-        resizeCallback = callback
-      }
-      observe = vi.fn()
-      disconnect = disconnect
-      unobserve = vi.fn()
-    }
-    vi.stubGlobal('ResizeObserver', MockResizeObserver)
-
-    try {
-      const now = new Date()
-      getOverview.mockResolvedValue(makePayload(now))
-
-      const { container } = render(<Overview period="30days" provider="all" />)
-
-      expect(await screen.findByText('$312.40')).toBeInTheDocument()
-      const scroller = container.querySelector('.ov-heatmap-scroll') as HTMLDivElement
-      expect(scroller.scrollLeft).toBe(0)
-
-      measuredScrollWidth = 520
-      measuredClientWidth = 320
-      act(() => resizeCallback?.([], {} as ResizeObserver))
-      expect(scroller.scrollLeft).toBe(200)
-      expect(disconnect).not.toHaveBeenCalled()
-
-      scroller.scrollLeft = 24
-      fireEvent.scroll(scroller)
-      act(() => resizeCallback?.([], {} as ResizeObserver))
-      expect(scroller.scrollLeft).toBe(24)
-    } finally {
-      vi.unstubAllGlobals()
-      scrollWidth.mockRestore()
-      clientWidth.mockRestore()
-    }
-  })
-
-  it('keeps following the newest dates across later resizes until the user scrolls away', async () => {
-    let measuredScrollWidth = 520
-    let measuredClientWidth = 320
-    const scrollWidth = vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get')
-      .mockImplementation(() => measuredScrollWidth)
-    const clientWidth = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get')
-      .mockImplementation(() => measuredClientWidth)
-    let resizeCallback: ResizeObserverCallback | null = null
-    class MockResizeObserver {
-      constructor(callback: ResizeObserverCallback) { resizeCallback = callback }
-      observe = vi.fn()
-      disconnect = vi.fn()
-      unobserve = vi.fn()
-    }
-    vi.stubGlobal('ResizeObserver', MockResizeObserver)
-
-    try {
-      const now = new Date()
-      getOverview.mockResolvedValue(makePayload(now))
-      const { container } = render(<Overview period="30days" provider="all" />)
-      expect(await screen.findByText('$312.40')).toBeInTheDocument()
-      const scroller = container.querySelector('.ov-heatmap-scroll') as HTMLDivElement
-      expect(scroller.scrollLeft).toBe(200)
-
-      measuredClientWidth = 240
-      act(() => resizeCallback?.([], {} as ResizeObserver))
-      expect(scroller.scrollLeft).toBe(280)
-
-      scroller.scrollLeft = 24
-      fireEvent.scroll(scroller)
-      measuredClientWidth = 200
-      act(() => resizeCallback?.([], {} as ResizeObserver))
-      expect(scroller.scrollLeft).toBe(24)
-    } finally {
-      vi.unstubAllGlobals()
-      scrollWidth.mockRestore()
-      clientWidth.mockRestore()
-    }
-  })
-
-  it('keeps weekday labels fixed while month context scrolls with the activity cells', async () => {
+  it('keeps weekday labels, and month labels on one row at least three columns apart', async () => {
     const now = new Date()
     getOverview.mockResolvedValue(makePayload(now))
 
-    render(<Overview period="30days" provider="all" />)
+    const { container } = render(<Overview period="30days" provider="all" />)
 
     expect(await screen.findByText('$312.40')).toBeInTheDocument()
-    const timeline = screen.getByRole('region', { name: 'Scrollable daily activity timeline' })
     const weekdayLabels = screen.getByLabelText('Weekday labels')
-
     expect(within(weekdayLabels).getByText('Mon')).toBeInTheDocument()
     expect(within(weekdayLabels).getByText('Wed')).toBeInTheDocument()
     expect(within(weekdayLabels).getByText('Fri')).toBeInTheDocument()
-    expect(within(timeline).queryByText('Mon')).not.toBeInTheDocument()
-    expect(within(timeline).getByText(now.toLocaleString('en-US', { month: 'short' }))).toBeInTheDocument()
+
+    const months = screen.getByLabelText('Month labels')
+    expect(within(months).getByText(now.toLocaleString('en-US', { month: 'short' }))).toBeInTheDocument()
+    const columns = [...months.querySelectorAll('span')]
+      .map(span => Number((span as HTMLElement).style.gridColumnStart))
+    expect(columns.length).toBeGreaterThan(1)
+    for (let index = 1; index < columns.length; index++) {
+      expect(columns[index]! - columns[index - 1]!).toBeGreaterThanOrEqual(3)
+    }
+    expect(container.querySelectorAll('.ov-heat-cell').length % 7).toBe(0)
   })
 
   it('renders efficiency, cost-per-outcome, and the weekday-spike risk signal', async () => {
