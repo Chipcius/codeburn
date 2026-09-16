@@ -4,13 +4,16 @@ import { EmptyNote } from '../components/EmptyState'
 import { SectionSkeleton } from '../components/Skeleton'
 import { SegTabs } from '../components/SegTabs'
 import { RangeCalendar } from '../components/RangeCalendar'
+import { useEscape } from '../hooks/useEscape'
 import { usePolled } from '../hooks/usePolled'
 import { ChartTip } from '../components/ChartTip'
+import { formatAxisMoney, niceTicks, ticksClearOfPeak } from '../lib/chartAxis'
 import { formatCompact, formatUsd, shortenProjectPath } from '../lib/format'
 import { codeburn } from '../lib/ipc'
 import { reportMemoKey } from '../lib/reportMemoKey'
 import { trackEvent } from '../lib/track'
 import type { DateRange, PeriodContribution, PeriodDiffReport, PeriodRangeInfo, PeriodSessionDiff } from '../lib/types'
+import { Icon } from '../components/icons'
 
 // Compare periods: two ranges, one deterministic difference. A is the
 // reference, B the analyzed period; every difference on screen is B − A,
@@ -248,6 +251,7 @@ export function PeriodCompare({
   return (
     <div className="pcmp" aria-label="Compare periods">
       <div className="panel cmp-card pcmp-controls">
+        <div className="pbody pcmp-controls-body">
         <div className="pcmp-controls-row">
           <SegTabs
             options={[{ value: 'last7', label: 'Last 7 vs prior 7' }, { value: 'custom', label: 'Custom' }]}
@@ -255,7 +259,7 @@ export function PeriodCompare({
             onChange={pickPreset}
           />
           <button type="button" className="pcmp-swap" onClick={swap} aria-label="Swap A and B">
-            <span className="pcmp-swap-icon" aria-hidden="true">⇄</span> Swap
+            <Icon name="arrow-left-right" className="pcmp-swap-icon" /> Swap
           </button>
         </div>
         <div className="pcmp-ranges">
@@ -263,6 +267,7 @@ export function PeriodCompare({
           <RangeField label="B · analyzed" value={rangeB} onChange={setRangeB} />
         </div>
         <RangeMeta rangeA={rangeA} rangeB={rangeB} />
+        </div>
       </div>
 
       {!report.data
@@ -287,8 +292,10 @@ export function PeriodCompare({
               />
               <details className="panel cmp-card pcmp-fold">
                 <summary>All metrics</summary>
-                <TotalsCard report={report.data} />
-                <NormalizedCard report={report.data} />
+                <div className="pcmp-fold-body">
+                  <TotalsCard report={report.data} />
+                  <NormalizedCard report={report.data} />
+                </div>
               </details>
               <CoverageCard report={report.data} />
             </>
@@ -305,16 +312,11 @@ function RangeField({ label, value, onChange }: { label: string; value: DateRang
     const onPointerDown = (event: MouseEvent) => {
       if (!wrapRef.current?.contains(event.target as Node)) setOpen(false)
     }
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false)
-    }
     document.addEventListener('mousedown', onPointerDown)
-    document.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.removeEventListener('mousedown', onPointerDown)
-      document.removeEventListener('keydown', onKeyDown)
-    }
+    return () => document.removeEventListener('mousedown', onPointerDown)
   }, [open])
+
+  useEscape(open, () => setOpen(false))
 
   return (
     <div className="pcmp-range" ref={wrapRef}>
@@ -383,6 +385,7 @@ function SummaryCard({ report }: { report: PeriodDiffReport }) {
   ]
   return (
     <div className="panel cmp-card pcmp-summary">
+      <div className="pbody pcmp-summary-body">
       <p className="pcmp-lead">{leadSentence(report)}</p>
       <div className="pcmp-tiles">
         {tiles.map(tile => (
@@ -392,6 +395,7 @@ function SummaryCard({ report }: { report: PeriodDiffReport }) {
             <span className={`pcmp-tile-change ${tile.tone}`}>{tile.change}, {signedWholePct(tile.pct)}</span>
           </div>
         ))}
+      </div>
       </div>
     </div>
   )
@@ -404,7 +408,11 @@ function DayBarsCard({ report }: { report: PeriodDiffReport }) {
   const span = Math.max(daysA.length, daysB.length)
   if (span === 0) return null
   const max = Math.max(0, ...daysA.map(day => day.cost), ...daysB.map(day => day.cost))
-  const height = (cost: number): string => `${max > 0 ? Math.max(2, (cost / max) * 100) : 2}%`
+  // Bars are drawn against the top tick, so a bar top and a gridline agree.
+  const valueTicks = niceTicks(max)
+  const axisMax = valueTicks.at(-1) || 1
+  const height = (cost: number): string => `${axisMax > 0 ? Math.max(2, (cost / axisMax) * 100) : 2}%`
+  const peakIndex = Math.max(daysA.findIndex(day => day.cost === max), daysB.findIndex(day => day.cost === max))
   const labelA = rangeLabel(report.rangeA)
   const labelB = rangeLabel(report.rangeB)
   // Same stride as the Overview chart, floored so a short range still gets a
@@ -435,7 +443,15 @@ function DayBarsCard({ report }: { report: PeriodDiffReport }) {
           <span><i className="pcmp-swatch-b" />{labelB}</span>
         </span>
       </div>
-      <div className="pcmp-chart">
+      <div className="pbody pcmp-chart">
+        <div className="chart-frame">
+        <div className="chart-plot">
+        <div className="chart-grid" aria-hidden="true">
+          {valueTicks.map(tick => <span className="chart-gridline" key={tick} style={{ bottom: `${(tick / axisMax) * 100}%` }} />)}
+          {Array.from({ length: span }, (_, index) => (index > 0 && index % 7 === 0
+            ? <span className="chart-weekline" key={index} style={{ left: `${(index / span) * 100}%` }} />
+            : null))}
+        </div>
         <div className="chart pcmp-days" style={{ gap: `${span > 45 ? 3 : span > 20 ? 6 : 10}px` }} aria-label="Cost per day in both ranges">
           {Array.from({ length: span }, (_, index) => (
             <button
@@ -449,6 +465,14 @@ function DayBarsCard({ report }: { report: PeriodDiffReport }) {
             >{bar('A', index)}{bar('B', index)}</button>
           ))}
         </div>
+        {max > 0 && (
+          <span className="chart-peak-guide" aria-hidden="true" style={{ bottom: `${(max / axisMax) * 100}%`, left: `${((Math.max(0, peakIndex) + 0.5) / span) * 100}%` }} />
+        )}
+        </div>
+        <div className="chart-axis" aria-hidden="true">
+          {ticksClearOfPeak(valueTicks, max, axisMax).map(tick => <span className="chart-axis-tick" key={tick} style={{ bottom: `${(tick / axisMax) * 100}%` }}>{formatAxisMoney(tick)}</span>)}
+          {max > 0 && <span className="chart-axis-peak" style={{ bottom: `${(max / axisMax) * 100}%` }}>{formatUsd(max)}</span>}
+        </div>
         <div className="ov-xax">
           {ticks.map(index => {
             // A centred label on the appended edge tick runs past the card;
@@ -459,8 +483,9 @@ function DayBarsCard({ report }: { report: PeriodDiffReport }) {
               : <span key={index} style={{ left: `${((index + 0.5) / span) * 100}%` }}>Day {index + 1}</span>
           })}
         </div>
+        </div>
+        <p className="pcmp-caption">Each pair is one day of A beside the same-numbered day of B.</p>
       </div>
-      <p className="pcmp-caption">Each pair is one day of A beside the same-numbered day of B.</p>
       {tip && (
         <ChartTip x={tip.x} y={tip.y}>
           {(['A', 'B'] as const).map(side => {
@@ -505,6 +530,7 @@ function TotalsCard({ report }: { report: PeriodDiffReport }) {
   return (
     <div className="cmp-card pcmp-block">
       <div className="cmp-head"><h3>Totals</h3><span className="cmp-head-note">B − A · API-equivalent cost is not a subscription bill</span></div>
+      <div className="pbody">
       {(carriedA > 0 || carriedB > 0) && (
         <p className="pcmp-caption">
           Session detail only. A further {formatUsd(carriedA)} (A) and {formatUsd(carriedB)} (B) comes from daily
@@ -530,6 +556,7 @@ function TotalsCard({ report }: { report: PeriodDiffReport }) {
             </div>
           )
         })}
+      </div>
       </div>
     </div>
   )
@@ -584,6 +611,7 @@ function NormalizedCard({ report }: { report: PeriodDiffReport }) {
   return (
     <div className="cmp-card pcmp-block">
       <div className="cmp-head"><h3>Normalized</h3><span className="cmp-head-note">A dash means the denominator is zero or unknown.</span></div>
+      <div className="pbody">
       <div className="pcmp-table" role="table" aria-label="Normalized difference">
         <div className="pcmp-tr pcmp-th" role="row">
           <span role="columnheader">View</span><span role="columnheader">A</span><span role="columnheader">B</span><span role="columnheader">Diff</span><span role="columnheader">%</span>
@@ -594,6 +622,7 @@ function NormalizedCard({ report }: { report: PeriodDiffReport }) {
       <p className="pcmp-caption">
         Denominators: {report.normalized.denominators.perDay}; {report.normalized.denominators.per100Calls}.
       </p>
+      </div>
     </div>
   )
 }
@@ -633,8 +662,7 @@ function MoversCard({
       <div className="cmp-head">
         <h3>What changed, biggest movers</h3>
         <span className="cmp-head-note">{view === 'raw' ? 'Raw' : view === 'perDay' ? 'Per day' : 'Per 100 calls'}</span>
-      </div>
-      <div className="pcmp-controls-row">
+        <span className="pcmp-controls-row">
         <div role="group" aria-label="Contribution lens">
           <SegTabs
             options={[{ value: 'projects', label: 'By project' }, { value: 'models', label: 'By model' }]}
@@ -654,7 +682,9 @@ function MoversCard({
             {showAll ? 'Show top five' : `Show all ${ranked.length}`}
           </button>
         )}
+        </span>
       </div>
+      <div className="pbody">
       {view === 'perDay' && (
         <p className="pcmp-caption">Each side's cost divided by its own calendar days (A: {report.rangeA.days}, B: {report.rangeB.days}). Differences and percentages compare these daily averages. A row with no value on either side sorts last, so it can fall below the top five here.</p>
       )}
@@ -712,6 +742,7 @@ function MoversCard({
         />
       )}
       <p className="pcmp-caption">Click a row to see its sessions. Projects and models split the same difference two ways. Do not add them together.</p>
+      </div>
     </div>
   )
 }
@@ -798,6 +829,7 @@ function CoverageCard({ report }: { report: PeriodDiffReport }) {
   return (
     <details className="panel cmp-card pcmp-fold">
       <summary>What is counted{aggregateOnly > 0 && `: ${formatUsd(aggregateOnly)} has no session detail behind it`}</summary>
+      <div className="pbody">
       <ul className="pcmp-coverage">
         <li>Share of calls with a known price. A: {report.coverage.pricingCoverageA === null ? 'unknown' : `${Math.round(report.coverage.pricingCoverageA * 100)}%`}, B: {report.coverage.pricingCoverageB === null ? 'unknown' : `${Math.round(report.coverage.pricingCoverageB * 100)}%`}.</li>
         {unpriced.length > 0 && (
@@ -816,6 +848,7 @@ function CoverageCard({ report }: { report: PeriodDiffReport }) {
         )}
         <li>Every difference is B − A over all usage in each range. Nothing is sampled, guessed or written by a model.</li>
       </ul>
+      </div>
     </details>
   )
 }
