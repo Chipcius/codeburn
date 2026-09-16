@@ -453,7 +453,7 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
 .sb .status { font-size: var(--fs-meta); }
 .bar .t { flex: 0 0 auto; margin: 0; font-size: var(--fs-title); font-weight: var(--fw-subhead); white-space: nowrap; }
 .bar .scope { min-width: 0; overflow: hidden; font-size: var(--fs-meta); text-overflow: ellipsis; white-space: nowrap; }
-.seg span { padding: 2.5px 6px; font-size: var(--fs-meta); }
+.seg span { font-size: var(--fs-meta); }
 .pop { font-size: var(--fs-meta); }
 .phead .r { font-size: var(--fs-meta); }
 .legend { font-size: var(--fs-label); }
