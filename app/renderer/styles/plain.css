@@ -390,16 +390,16 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
 .scroll-x .pbody { overflow-x: auto; }
 /* Thin, always-visible scrollbars so vertical/horizontal overflow stays discoverable. */
 .spend-scroll > .pbody::-webkit-scrollbar,
-.session-list::-webkit-scrollbar,
+.session-list-inner::-webkit-scrollbar,
 .scroll-x .pbody::-webkit-scrollbar { width: 6px; height: 6px; }
 .spend-scroll > .pbody::-webkit-scrollbar-thumb,
-.session-list::-webkit-scrollbar-thumb,
+.session-list-inner::-webkit-scrollbar-thumb,
 .scroll-x .pbody::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 3px; }
 .spend-scroll > .pbody::-webkit-scrollbar-thumb:hover,
-.session-list::-webkit-scrollbar-thumb:hover,
+.session-list-inner::-webkit-scrollbar-thumb:hover,
 .scroll-x .pbody::-webkit-scrollbar-thumb:hover { background: var(--mut2); }
 .spend-scroll > .pbody::-webkit-scrollbar-track,
-.session-list::-webkit-scrollbar-track,
+.session-list-inner::-webkit-scrollbar-track,
 .scroll-x .pbody::-webkit-scrollbar-track { background: transparent; }
 .legend { gap: 8px 12px; }
 .error-boundary { display: flex; padding: 20px; }
@@ -998,9 +998,10 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .sessions-empty { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-4); border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
 .sessions-clear { padding: 0; border: 0; background: transparent; color: var(--mut); font: inherit; font-size: var(--fs-meta); cursor: pointer; }
 .sessions-clear:hover, .sessions-clear:focus-visible { color: var(--accent-text); text-decoration: underline; }
-.session-list { --session-columns: minmax(160px, 1.6fr) 64px minmax(144px, 1fr) 48px 68px 72px; overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: var(--card-shadow); }
+.session-list { --session-columns: minmax(160px, 1.6fr) 64px minmax(144px, 1fr) 48px 68px 72px; padding: 0 2px 2px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); box-shadow: var(--card-shadow); }
+.session-list-inner { overflow-x: auto; margin-top: 2px; border: 1px solid var(--line); border-radius: 12px; background: var(--card-inner); box-shadow: var(--card-inner-shadow); }
 .provider-h, .session-row { display: grid; min-width: 650px; grid-template-columns: var(--session-columns); align-items: center; column-gap: 8px; }
-.provider-h { position: sticky; top: 0; z-index: 2; padding: var(--sp-2) var(--sp-3) var(--sp-1); background: var(--panel); color: var(--mut2); font-size: var(--fs-label); font-weight: var(--fw-subhead); font-variant-numeric: tabular-nums; letter-spacing: .05em; text-transform: uppercase; }
+.provider-h { position: sticky; top: 0; z-index: 2; padding: var(--sp-2) var(--sp-3) var(--sp-1); background: var(--card-inner); color: var(--mut2); font-size: var(--fs-label); font-weight: var(--fw-subhead); font-variant-numeric: tabular-nums; letter-spacing: .05em; text-transform: uppercase; }
 .provider-h > span:not(:first-child) { font-family: var(--mono); letter-spacing: 0; text-align: right; }
 .provider-h-name { display: inline-flex; min-width: 0; align-items: center; gap: 6px; }
 .provider-count { grid-column: 3 / 5; }

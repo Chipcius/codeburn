@@ -432,48 +432,50 @@ export function Sessions({
       ) : (
         <>
           <div className="session-list">
-            {renderedSequence.map(entry => entry.type === 'header' ? (
-              <div className="provider-h" key={`provider-${entry.provider}`}>
-                <span className="provider-h-name"><ProviderLogo provider={entry.provider} size={13} />{providerName(entry.provider, detectedProviders)}</span>
-                <span className="provider-count">{formatCount(entry.count, 'session')}</span>
-                <span className="provider-cost">{formatUsd(entry.cost)}</span>
-              </div>
-            ) : (
-              <Fragment key={sessionRowKey(entry.entry.row)}>
-                <button
-                  className="session-row"
-                  type="button"
-                  aria-expanded={effectiveOpenSessionId === sessionRowKey(entry.entry.row)}
-                  onClick={event => {
-                    lastOpenerRef.current = event.currentTarget
-                    setInternalOpenSessionId(sessionRowKey(entry.entry.row))
-                    onSessionOpen?.(sessionRowKey(entry.entry.row))
-                  }}
-                >
-                  <span className="session-primary">
-                    <span className="session-chevron" aria-hidden="true"><Icon name="chevron-right" /></span>
-                    <span className="session-project-copy">
-                      <span className="session-title" title={entry.entry.row.title || undefined}>{entry.entry.row.title || shortenProjectPath(entry.entry.row.project)}</span>
-                      <span className="session-project">{entry.entry.row.sessionId.slice(0, 18)}</span>
+            <div className="session-list-inner">
+              {renderedSequence.map(entry => entry.type === 'header' ? (
+                <div className="provider-h" key={`provider-${entry.provider}`}>
+                  <span className="provider-h-name"><ProviderLogo provider={entry.provider} size={13} />{providerName(entry.provider, detectedProviders)}</span>
+                  <span className="provider-count">{formatCount(entry.count, 'session')}</span>
+                  <span className="provider-cost">{formatUsd(entry.cost)}</span>
+                </div>
+              ) : (
+                <Fragment key={sessionRowKey(entry.entry.row)}>
+                  <button
+                    className="session-row"
+                    type="button"
+                    aria-expanded={effectiveOpenSessionId === sessionRowKey(entry.entry.row)}
+                    onClick={event => {
+                      lastOpenerRef.current = event.currentTarget
+                      setInternalOpenSessionId(sessionRowKey(entry.entry.row))
+                      onSessionOpen?.(sessionRowKey(entry.entry.row))
+                    }}
+                  >
+                    <span className="session-primary">
+                      <span className="session-chevron" aria-hidden="true"><Icon name="chevron-right" /></span>
+                      <span className="session-project-copy">
+                        <span className="session-title" title={entry.entry.row.title || undefined}>{entry.entry.row.title || shortenProjectPath(entry.entry.row.project)}</span>
+                        <span className="session-project">{entry.entry.row.sessionId.slice(0, 18)}</span>
+                      </span>
                     </span>
-                  </span>
-                  <span className="session-when">{formatDayShort(entry.entry.row.endedAt)}</span>
-                  <span className="session-models">{entry.entry.row.models.join(', ')}</span>
-                  <span>{entry.entry.row.turns}</span>
-                  {investigating ? (
-                    <span className="session-cost-split">
-                      <strong>{formatUsd(entry.entry.cost)}</strong>
-                      {entry.entry.cost < entry.entry.row.cost - 1e-9 && (
-                        <small title="Full cost of the whole session"> of {formatUsd(entry.entry.row.cost)}</small>
-                      )}
-                    </span>
-                  ) : (
-                    <span>{formatUsd(entry.entry.row.cost)}</span>
-                  )}
-                  <span>{formatCompact(rowTokens(entry.entry.row))}</span>
-                </button>
-              </Fragment>
-            ))}
+                    <span className="session-when">{formatDayShort(entry.entry.row.endedAt)}</span>
+                    <span className="session-models">{entry.entry.row.models.join(', ')}</span>
+                    <span>{entry.entry.row.turns}</span>
+                    {investigating ? (
+                      <span className="session-cost-split">
+                        <strong>{formatUsd(entry.entry.cost)}</strong>
+                        {entry.entry.cost < entry.entry.row.cost - 1e-9 && (
+                          <small title="Full cost of the whole session"> of {formatUsd(entry.entry.row.cost)}</small>
+                        )}
+                      </span>
+                    ) : (
+                      <span>{formatUsd(entry.entry.row.cost)}</span>
+                    )}
+                    <span>{formatCompact(rowTokens(entry.entry.row))}</span>
+                  </button>
+                </Fragment>
+              ))}
+            </div>
           </div>
           <div className="sessions-more-caption">Showing {renderedRows.toLocaleString('en-US')} of {included.length.toLocaleString('en-US')}</div>
           {remaining > 0 && (
