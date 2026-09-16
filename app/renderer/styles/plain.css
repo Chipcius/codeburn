@@ -381,7 +381,9 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
 .calendar-day:disabled { color: var(--mut2); opacity: .38; cursor: default; }
 .btn-p { background: var(--accent); box-shadow: none; }
 .btn-s { background: var(--panel); }
-.panel { border-color: var(--line); box-shadow: var(--card-shadow); }
+/* The shared card: a hairline outer frame with a header strip over an inner surface,
+   the same anatomy the Overview cards use. */
+.panel { display: flex; flex-direction: column; overflow: visible; border-color: var(--line); border-radius: 14px; box-shadow: var(--card-shadow); padding: 0 2px 2px; }
 .spend-top-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .spend-breakdowns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .spend-scroll > .pbody { max-height: 300px; overflow-y: auto; }
@@ -501,8 +503,10 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
   .set-alias .btnp { grid-column: 3; justify-self: end; }
 }
 .error-stack { max-height: 320px; margin: 0 0 12px; padding: 10px 12px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--phead); color: var(--mut); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-meta); line-height: 1.5; white-space: pre; }
-.phead { border-color: var(--line2); padding: var(--sp-3); }
-.pbody { padding: var(--sp-3); }
+.phead { flex: 0 0 auto; gap: var(--sp-2); min-height: 40px; padding: 0 14px; background: none; border-bottom: 0; }
+.phead > .icon { width: 16px; height: 16px; color: var(--mut2); }
+.pbody { flex: 1 1 auto; margin-top: 2px; padding: var(--sp-4); background: var(--card-inner); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--card-inner-shadow); }
+.panel > .phead + .pbody { margin-top: 0; }
 .hint { gap: var(--sp-4); padding: var(--sp-2) var(--sp-5); }
 /* Panel-strip titles unified to the subhead rung. */
 .phead b { font-size: var(--fs-subhead); font-weight: var(--fw-subhead); color: var(--ink); }
@@ -518,7 +522,7 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
 .bar .scope { min-width: 0; overflow: hidden; font-size: var(--fs-meta); text-overflow: ellipsis; white-space: nowrap; }
 .seg span { font-size: var(--fs-meta); }
 .pop { font-size: var(--fs-meta); }
-.phead .r { font-size: var(--fs-meta); }
+.phead .r { flex: 0 0 auto; margin-left: auto; color: var(--mut2); font-size: var(--fs-label); }
 .legend { font-size: var(--fs-label); }
 .li .no { font-size: var(--fs-label); }
 .hint { font-size: var(--fs-label); }
