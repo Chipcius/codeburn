@@ -450,7 +450,7 @@ function RoutingWhatIf({ routing, onNavigate }: {
   )
 }
 
-function deriveStats(data: MenubarPayload, now: Date) {
+function deriveStats(data: MenubarPayload, now: Date, anchorKey = localDateKey(now)) {
   const daily = data.history.daily
   const todayKey = localDateKey(now)
   const todayEntry = daily.find(day => day.date === todayKey)
@@ -468,11 +468,16 @@ function deriveStats(data: MenubarPayload, now: Date) {
   const pacePct = priorAverage > 0 ? ((currentAverage - priorAverage) / priorAverage) * 100 : null
   // Cumulative spend, one point per calendar day of the month so far, so a
   // silent day is a flat step rather than a missing column.
-  const yesterdayKey = localDateKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1))
-  const yesterdayCost = daily.find(day => day.date === yesterdayKey)?.cost ?? null
-  const sevenDayAvg = daily.length ? mean(daily.slice(-7).map(day => day.cost)) : null
-  const dayOverDayPct = yesterdayCost !== null && yesterdayCost > 0
-    ? (((todayEntry?.cost ?? 0) - yesterdayCost) / yesterdayCost) * 100
+  // Anchored to the last day of the selected window, not to today, so a custom
+  // range reports the days it actually covers.
+  const [anchorYear, anchorMonth, anchorDay] = anchorKey.split('-').map(Number)
+  const priorKey = localDateKey(new Date(anchorYear, anchorMonth - 1, anchorDay - 1))
+  const anchorCost = daily.find(day => day.date === anchorKey)?.cost ?? 0
+  const priorDayCost = daily.find(day => day.date === priorKey)?.cost ?? null
+  const upToAnchor = daily.filter(day => day.date <= anchorKey)
+  const sevenDayAvg = upToAnchor.length ? mean(upToAnchor.slice(-7).map(day => day.cost)) : null
+  const dayOverDayPct = priorDayCost !== null && priorDayCost > 0
+    ? ((anchorCost - priorDayCost) / priorDayCost) * 100
     : null
   let running = 0
   const mtdSeries = contiguousDailyWindow(daily, `${monthPrefix}-01`, todayKey).map(day => (running += day.cost))
@@ -487,7 +492,7 @@ function deriveStats(data: MenubarPayload, now: Date) {
     pacePct,
     mtdSeries,
     projectedTail,
-    yesterdayCost,
+    priorDayCost,
     sevenDayAvg,
     dayOverDayPct,
     prevMonthName: prevMonth.toLocaleString('en-US', { month: 'long' }),
@@ -970,7 +975,9 @@ export function OverviewContent({
     ? COMBINED_SESSION_COUNT_HELP
     : (sessionCountIsExact(data.current.sessionCountBasis) ? undefined : SESSION_COUNT_HELP)
   const animateKey = heroSelectionKey
-  const stats = deriveStats(data, now)
+  const anchorKey = rangeActive ? range.to : localDateKey(now)
+  const anchorIsToday = anchorKey === localDateKey(now)
+  const stats = deriveStats(data, now, anchorKey)
   const periodDaily = sliceDailyToPeriod(data.history.daily, period, now)
   // Daily chart: contiguous zero-filled calendar window. A custom range spans
   // [from..to]; otherwise the trend covers at least the last 30 days, extended
@@ -1046,9 +1053,9 @@ export function OverviewContent({
                 )}
             </div>
             <div className="ov-hero-foot">
-              <div><span>Yesterday</span><strong>{stats.yesterdayCost === null ? 'n/a' : formatUsd(stats.yesterdayCost)}</strong></div>
+              <div><span>{anchorIsToday ? 'Yesterday' : 'Previous day'}</span><strong>{stats.priorDayCost === null ? 'n/a' : formatUsd(stats.priorDayCost)}</strong></div>
               <div><span>7-day avg</span><strong>{stats.sevenDayAvg === null ? 'n/a' : formatUsd(stats.sevenDayAvg)}</strong></div>
-              <div><span>vs yesterday</span><strong className={stats.dayOverDayPct === null ? undefined : `tone-${paceDirection(stats.dayOverDayPct)}`}>{stats.dayOverDayPct === null ? 'n/a' : `${stats.dayOverDayPct >= 0 ? '+' : '-'}${Math.abs(Math.round(stats.dayOverDayPct))}%`}</strong></div>
+              <div><span>{anchorIsToday ? 'vs yesterday' : 'vs previous day'}</span><strong className={stats.dayOverDayPct === null ? undefined : `tone-${paceDirection(stats.dayOverDayPct)}`}>{stats.dayOverDayPct === null ? 'n/a' : `${stats.dayOverDayPct >= 0 ? '+' : '-'}${Math.abs(Math.round(stats.dayOverDayPct))}%`}</strong></div>
             </div>
           </div>
           <ActivityHeatmap daily={data.history.daily} bare />

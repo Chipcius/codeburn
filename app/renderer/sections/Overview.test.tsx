@@ -586,6 +586,28 @@ describe('Overview', () => {
     expect(screen.getByText(/is the biggest driver in this range/)).toBeInTheDocument()
   })
 
+  it('anchors the hero secondary row to the end of a custom range', async () => {
+    const now = new Date()
+    const overview = polled(makePayload(now))
+    const dayKey = (back: number) => localDateKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - back))
+
+    const { container, rerender } = render(<OverviewContent period="30days" provider="all" overview={overview} />)
+    await screen.findByText('Month to date')
+    const foot = () => container.querySelector('.ov-hero-foot') as HTMLElement
+    // No range: the row still describes today and the day before it.
+    expect(within(foot()).getByText('Yesterday')).toBeInTheDocument()
+    expect(within(foot()).getByText('$5.17')).toBeInTheDocument()
+    expect(within(foot()).getByText('+24%')).toBeInTheDocument()
+
+    // Range ending on the $28.00 runner-up day, whose previous day is $5.00.
+    rerender(<OverviewContent period="30days" provider="all" range={{ from: dayKey(15), to: dayKey(9) }} overview={overview} />)
+    expect(within(foot()).getByText('Previous day')).toBeInTheDocument()
+    expect(within(foot()).getByText('$5.00')).toBeInTheDocument()
+    expect(within(foot()).getByText('$8.29')).toBeInTheDocument()
+    expect(within(foot()).getByText('vs previous day')).toBeInTheDocument()
+    expect(within(foot()).getByText('+460%')).toBeInTheDocument()
+  })
+
   it('renders local-model savings in the hero only when present', async () => {
     const now = new Date()
     const payload = makePayload(now)
