@@ -16,6 +16,9 @@ import { Icon, type IconName } from '../components/icons'
 
 type OptimizeTab = 'waste' | 'reverts' | 'abandoned' | 'fixes'
 
+/** The card's header title: the tab the list below is showing. */
+const TAB_TITLES: Record<OptimizeTab, string> = { waste: 'Waste', reverts: 'Reverts', abandoned: 'Abandoned', fixes: 'Fixes' }
+
 export function Optimize({ period, provider, range = null }: { period: Period; provider: string; range?: DateRange | null }) {
   const overview = usePolled<MenubarPayload>(
     () => range ? codeburn.getOverview(period, provider, range) : codeburn.getOverview(period, provider),
@@ -72,13 +75,10 @@ export function OptimizeContent({
   return (
     <>
       {overview.error && <StaleBanner error={overview.error} />}
-      <SegTabs
-        options={options}
-        value={tab}
-        onChange={value => setTab(value as OptimizeTab)}
-        style={{ alignSelf: 'flex-start' }}
-      />
-      <Panel>
+      <Panel
+        title={TAB_TITLES[tab]}
+        right={<SegTabs options={options} value={tab} onChange={value => setTab(value as OptimizeTab)} />}
+      >
         {tab === 'waste' ? (
           <WasteRows report={optimizeReport} />
         ) : tab === 'reverts' ? (
