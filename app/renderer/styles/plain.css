@@ -503,7 +503,7 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
   .set-alias .btnp { grid-column: 3; justify-self: end; }
 }
 .error-stack { max-height: 320px; margin: 0 0 12px; padding: 10px 12px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--phead); color: var(--mut); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-meta); line-height: 1.5; white-space: pre; }
-.phead { flex: 0 0 auto; gap: var(--sp-2); min-height: 40px; padding: 0 14px; background: none; border-bottom: 0; }
+.phead { flex: 0 0 auto; gap: var(--sp-2); min-height: 40px; padding: 0 17px; background: none; border-bottom: 0; }
 .phead > .icon { width: 16px; height: 16px; color: var(--mut2); }
 .pbody { flex: 1 1 auto; margin-top: 2px; padding: var(--sp-4); background: var(--card-inner); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--card-inner-shadow); }
 .panel > .phead + .pbody { margin-top: 0; }
@@ -636,7 +636,7 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .ov-kpi-saved > strong { color: var(--ok); }
 /* The outer card is a hairline frame around the inner surface; the header row sits on that strip. */
 .ov-card { display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--card-shadow); padding: 0 2px 2px; }
-.ov-panel-head { display: flex; flex: 0 0 auto; align-items: center; gap: var(--sp-2); min-height: 40px; margin: 0; padding: 0 14px; }
+.ov-panel-head { display: flex; flex: 0 0 auto; align-items: center; gap: var(--sp-2); min-height: 40px; margin: 0; padding: 0 17px; }
 .ov-panel-head > .icon { width: 16px; height: 16px; color: var(--mut2); }
 .ov-panel-body, .ov-card-inner { background: var(--card-inner); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--card-inner-shadow); padding: var(--sp-4); }
 /* Headerless cards carry the same 2px rim on all four sides; a header row supplies the top rim itself. */
@@ -745,6 +745,9 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .ov-stat-pill .icon { width: 11px; height: 11px; }
 .ov-stat-pill.tone-good { background: color-mix(in srgb, var(--ok) 16%, var(--card-inner)); color: var(--ok); }
 .ov-stat-pill.tone-bad { background: color-mix(in srgb, var(--bad) 16%, var(--card-inner)); color: var(--bad); }
+/* A remaining amount is not a change: no arrow, no direction colour. */
+.ov-stat-pill.tone-neutral { padding: 2px 9px; background: var(--fill); color: var(--mut); }
+.ov-stat-pill.tone-neutral b { color: var(--ink); font-family: var(--mono); font-weight: var(--fw-kpi); }
 .ov-stat-foot { display: flex; margin-top: auto; padding-top: var(--sp-3); border-top: 1px solid var(--line); }
 .ov-stat-foot .ov-link { display: inline-flex; align-items: center; gap: var(--sp-1); }
 .ov-stat-foot .icon { width: 12px; height: 12px; }

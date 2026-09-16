@@ -1089,11 +1089,9 @@ export function OverviewContent({
               <SpendTrend values={[...stats.mtdSeries, ...stats.projectedTail]} tone="bad" dashFrom={Math.max(0, stats.mtdSeries.length - 1)} />
               <div className="ov-stat-figures">
                 <div className="v">{formatUsd(stats.projected)} <small>est</small></div>
-                <span className="ov-stat-pill tone-bad">
-                  <Icon name="arrow-up" />
-                  {formatUsd(Math.max(0, stats.projected - stats.mtd))}
+                <span className="ov-stat-pill tone-neutral">
+                  <b>{formatUsd(Math.max(0, stats.projected - stats.mtd))}</b> to go
                 </span>
-                <div className="d">to go</div>
               </div>
               <div className="ov-stat-foot">
                 <button className="ov-link" type="button" onClick={() => onNavigate?.('plans')}>See plans <Icon name="arrow-right" /></button>
