@@ -33,6 +33,11 @@
   --fw-body: 500; --fw-medium: 550; --fw-subhead: 600; --fw-strong: 620; --fw-kpi: 650; --fw-hero: 700;
   /* Spacing scale (px). */
   --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px; --sp-7: 32px;
+  /* Motion: one easing family, three durations. Every transition and keyframe
+     in the app reads these; nothing declares its own curve or millisecond. */
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast: 120ms; --dur-base: 180ms; --dur-slow: 240ms;
   --grad: var(--accent);
   --grad-bar: var(--bar-hi);
 }
@@ -477,7 +482,7 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .li-clickable { cursor: pointer; border-radius: 7px; }
 .li-clickable:hover, .li-clickable:focus-visible { background: var(--hover); outline: none; }
 .li-clickable:focus-visible { box-shadow: inset 0 0 0 1px var(--accent); }
-.li .chev { transition: transform 140ms ease; }
+.li .chev { transition: transform var(--dur-fast) var(--ease-out); }
 .li-clickable[aria-expanded="true"] .chev { transform: rotate(90deg); }
 
 /* Spend: a project row's inline session sub-list (indented, TUI-style). */
@@ -678,7 +683,7 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .pr-list-head span { color: var(--mut2); font-size: var(--fs-meta); }
 .pr-list-count { padding: 4px 8px; border: 1px solid var(--line); border-radius: 999px; background: var(--fill); font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .pr-list { display: flex; flex-direction: column; gap: 8px; }
-.pr-card { overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: 0 1px 2px rgba(0,0,0,.07); transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease; }
+.pr-card { overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: 0 1px 2px rgba(0,0,0,.07); transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out); }
 .pr-card:hover { border-color: color-mix(in srgb, var(--line) 55%, var(--mut2)); box-shadow: 0 4px 12px rgba(0,0,0,.10); transform: translateY(-1px); }
 .pr-card.is-open { border-color: color-mix(in srgb, var(--accent) 32%, var(--line)); box-shadow: 0 6px 18px rgba(0,0,0,.12); }
 .pr-card-trigger { display: grid; grid-template-columns: minmax(280px, 1.35fr) minmax(230px, 1fr) 100px 28px; min-height: 74px; align-items: center; gap: var(--sp-5); padding: var(--sp-3); cursor: pointer; }
@@ -697,7 +702,7 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .pr-model-chip { display: inline-flex; max-width: 100%; align-items: center; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--fill); color: var(--mut); font-family: var(--mono); font-size: var(--fs-label); line-height: 1; white-space: nowrap; }
 .pr-card-cost { text-align: right; }
 .pr-card-cost strong { color: var(--ink); font-family: var(--mono); font-size: var(--fs-kpi); font-weight: var(--fw-kpi); font-variant-numeric: tabular-nums; }
-.pr-chevron { display: grid; width: 26px; height: 26px; place-items: center; border: 1px solid var(--line); border-radius: 7px; background: var(--fill); color: var(--mut2); font-family: system-ui, sans-serif; font-size: var(--fs-kpi); line-height: 1; transition: transform 140ms ease, background 140ms ease; }
+.pr-chevron { display: grid; width: 26px; height: 26px; place-items: center; border: 1px solid var(--line); border-radius: 7px; background: var(--fill); color: var(--mut2); font-family: system-ui, sans-serif; font-size: var(--fs-kpi); line-height: 1; transition: transform var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out); }
 .pr-card.is-open .pr-chevron { transform: rotate(90deg); }
 .pr-detail-cell { padding: var(--sp-4) var(--sp-4) var(--sp-4) 56px; border-top: 1px solid var(--line2); background: color-mix(in srgb, var(--panel) 82%, var(--fill)); }
 .pr-detail { max-width: 880px; }
@@ -743,7 +748,7 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .opt-impact-low { --impact: var(--mut2); }
 .opt-finding-savings { color: var(--ok); font-family: var(--mono); font-size: var(--fs-meta); font-weight: var(--fw-subhead); font-variant-numeric: tabular-nums; text-align: right; }
 .opt-finding-tokens { color: var(--mut); font-family: var(--mono); font-size: var(--fs-label); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
-.opt-finding-chevron { color: var(--mut2); font-family: system-ui, sans-serif; font-size: var(--fs-kpi); line-height: 1; transition: transform 140ms ease; }
+.opt-finding-chevron { color: var(--mut2); font-family: system-ui, sans-serif; font-size: var(--fs-kpi); line-height: 1; transition: transform var(--dur-fast) var(--ease-out); }
 .opt-finding-toggle[aria-expanded="true"] .opt-finding-chevron { transform: rotate(90deg); }
 .opt-finding-detail { min-width: 0; padding: 12px; border-top: 1px solid var(--line2); background: color-mix(in srgb, var(--panel) 84%, var(--hover)); }
 .opt-explanation { margin: 0 0 12px; color: var(--mut); font-size: var(--fs-body); line-height: 1.55; }
@@ -793,13 +798,13 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .ov-activity-main strong { flex: 0 0 auto; font-family: var(--mono); font-size: var(--fs-meta); font-variant-numeric: tabular-nums; }
 .ov-activity-meta { margin-top: 3px; color: var(--mut); font-size: var(--fs-label); font-variant-numeric: tabular-nums; }
 .chart { position: relative; height: 150px; display: flex; align-items: flex-end; gap: 4px; padding-top: 8px; border-bottom: 1px solid var(--line2); }
-.chart .col { flex: 1; background: var(--bar); border-radius: 3px 3px 0 0; min-height: 3px; transition: background .14s ease; border: 0; padding: 0; }
+.chart .col { flex: 1; background: var(--bar); border-radius: 3px 3px 0 0; min-height: 3px; transition: background var(--dur-fast) var(--ease-out); border: 0; padding: 0; }
 .chart .col.hi { background: var(--bar-hi); } .chart .col:hover { background: var(--accent); }
 /* Days before recorded history: a faint dashed stub, never a solid zero-height bar reading as real spend. */
 .chart .col.nodata { background: transparent; border-top: 1px dashed var(--line); opacity: .6; }
 .chart .col.nodata:hover { background: transparent; }
 .chart .col:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
-.chart-tip { position: fixed; pointer-events: none; max-width: calc(100vw - 16px); opacity: 0; background: var(--tip-bg); color: var(--tip-ink); border: 1px solid color-mix(in srgb, var(--tip-ink) 14%, transparent); border-radius: 7px; padding: 7px 10px; line-height: 1.35; white-space: nowrap; box-shadow: 0 6px 20px rgba(0,0,0,.22); transition: opacity .1s ease; z-index: 1000; }
+.chart-tip { position: fixed; pointer-events: none; max-width: calc(100vw - 16px); opacity: 0; background: var(--tip-bg); color: var(--tip-ink); border: 1px solid color-mix(in srgb, var(--tip-ink) 14%, transparent); border-radius: 7px; padding: 7px 10px; line-height: 1.35; white-space: nowrap; box-shadow: 0 6px 20px rgba(0,0,0,.22); transition: opacity var(--dur-fast) var(--ease-out); z-index: 1000; }
 .chart-tip.on { opacity: 1; }
 .chart-tip-d { color: inherit; opacity: .62; font-size: var(--fs-label); }
 .chart-tip-v { color: inherit; font-weight: 680; font-size: var(--fs-subhead); font-variant-numeric: tabular-nums; margin-top: 1px; }
@@ -885,7 +890,7 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .session-row:hover, .session-row:focus-visible { background: var(--hover); outline: none; }
 .session-row:focus-visible { box-shadow: inset 0 0 0 1px var(--accent); }
 .session-primary { display: flex; min-width: 0; align-items: center; gap: 7px; font-family: inherit; text-align: left; }
-.session-chevron { flex: 0 0 auto; color: var(--mut2); font-family: system-ui, sans-serif; font-size: var(--fs-kpi); line-height: 1; transition: transform 140ms ease; }
+.session-chevron { flex: 0 0 auto; color: var(--mut2); font-family: system-ui, sans-serif; font-size: var(--fs-kpi); line-height: 1; transition: transform var(--dur-fast) var(--ease-out); }
 .session-row[aria-expanded="true"] .session-chevron { transform: rotate(90deg); }
 .session-project-copy { min-width: 0; }
 .session-title { display: block; overflow: hidden; font-size: var(--fs-body); font-weight: var(--fw-medium); text-overflow: ellipsis; white-space: nowrap; }
@@ -1005,12 +1010,12 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .skel::after {
   content: ''; position: absolute; inset: 0; transform: translateX(-100%);
   background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 9%, transparent), transparent);
-  animation: skel-shimmer 1.3s ease-in-out infinite;
+  animation: skel-shimmer 1.3s var(--ease-in-out) infinite;
 }
 @keyframes skel-shimmer { 100% { transform: translateX(100%); } }
 
 /* Section body fade/slide on section switch (keyed remount in App). */
-.section-fade { animation: section-in 180ms ease-out; }
+.section-fade { animation: section-in var(--dur-base) var(--ease-out); }
 @keyframes section-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
 /* Action toasts: single, bottom-right, slide-in. */
@@ -1022,21 +1027,25 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
   box-shadow: 0 8px 24px rgba(0,0,0,.16);
 }
 .toast-error { border-left-color: var(--bad); }
-.toast-in { animation: toast-in 200ms ease-out; }
+.toast-in { animation: toast-in var(--dur-base) var(--ease-out); }
 @keyframes toast-in { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
 
 /* Micro-interactions: card hover-lift + button press. Transform only, no reflow. */
-.panel, .ov-card { transition: transform 140ms ease, box-shadow 140ms ease; }
+.panel, .ov-card { transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out); }
 .panel:hover, .ov-card:hover { transform: translateY(-1px); box-shadow: var(--card-shadow), 0 6px 16px rgba(0,0,0,.10); }
-.btnp, .btn, .ov-coach-cta { transition: transform 120ms ease; }
+.btnp, .btn, .ov-coach-cta { transition: transform var(--dur-fast) var(--ease-out); }
 .btnp:active, .btn:active, .ov-coach-cta:active { transform: scale(0.98); }
 
+/* The one reduced-motion escape hatch for the whole app: nothing transitions,
+   nothing animates, and every hover-lift or press-scale settles at rest. */
 @media (prefers-reduced-motion: reduce) {
-  .skel::after, .section-fade, .toast-in { animation: none; }
-  .switch-line.on { animation: none; background: var(--accent); }
-  .refresh-mark.spinning { animation: none; opacity: .6; }
-  .panel, .ov-card, .btnp, .btn, .ov-coach-cta { transition: none; }
-  .panel:hover, .ov-card:hover, .btnp:active, .btn:active, .ov-coach-cta:active { transform: none; }
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .switch-line.on { background: var(--accent); }
+  .refresh-mark.spinning { opacity: .6; }
+  .panel:hover, .ov-card:hover { transform: none; }
 }
 
 /* Energy: pause every looping animation while the window is hidden/minimized so
@@ -1128,19 +1137,11 @@ html.page-hidden *::after {
 .splash-prov-strip {
   display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 9px;
 }
-.splash-prov { display: inline-flex; opacity: 0.28; transition: opacity 200ms ease; }
+.splash-prov { display: inline-flex; opacity: 0.28; transition: opacity var(--dur-slow) var(--ease-out); }
 .splash-prov.done { opacity: 0.8; }
 .splash-prov.active { opacity: 1; animation: splash-prov-pulse 1.4s ease-in-out infinite; }
 .splash-status-note { font-size: var(--fs-label); color: #6f665c; }
 @keyframes splash-prov-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-
-@media (prefers-reduced-motion: reduce) {
-  .fm-flicker,
-  .splash-lit .splash-mark, .splash-lit .splash-mark::before, .splash-lit .splash-word { animation: none; }
-  .splash { transition: none; }
-  .splash-status { animation: none; }
-  .splash-prov.active { animation: none; }
-}
 
 /* ————— First-launch onboarding (fixed dark canvas, like the splash) ————— */
 .onboard {
@@ -1185,20 +1186,20 @@ html.page-hidden *::after {
 .onboard-btn:focus-visible { outline: 1px solid #f2701c; outline-offset: 1px; }
 .onboard-btn-ghost { min-width: 96px; }
 .onboard-dots { display: flex; gap: 6px; }
-.onboard-dot { width: 6px; height: 6px; border-radius: 50%; background: color-mix(in srgb, #fff 18%, transparent); transition: background 150ms ease; }
+.onboard-dot { width: 6px; height: 6px; border-radius: 50%; background: color-mix(in srgb, #fff 18%, transparent); transition: background var(--dur-fast) var(--ease-out); }
 .onboard-dot.on { background: #f2701c; }
-.onboard-in { animation: splash-word-in 320ms ease-out both; }
+.onboard-in { animation: splash-word-in 320ms var(--ease-out) both; }
 
 /* Toggle switch (shared shape; used by onboarding consent + Settings privacy). */
 .switch {
   position: relative; width: 38px; height: 22px; flex: none;
   border-radius: 999px; border: 1px solid color-mix(in srgb, #fff 18%, transparent);
   background: color-mix(in srgb, #fff 8%, transparent); cursor: pointer; padding: 0;
-  transition: background 150ms ease, border-color 150ms ease;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
 }
 .switch .switch-knob {
   position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;
-  background: #f4f1ec; transition: transform 150ms ease;
+  background: #f4f1ec; transition: transform var(--dur-fast) var(--ease-out);
 }
 .switch.on { background: #f2701c; border-color: #f2701c; }
 .switch.on .switch-knob { transform: translateX(16px); background: #fff; }
@@ -1213,11 +1214,6 @@ html.page-hidden *::after {
 .set-p .switch .switch-knob { background: var(--mut); }
 .set-p .switch.on { background: var(--accent); border-color: var(--accent); }
 .set-p .switch.on .switch-knob { background: #fff; }
-
-@media (prefers-reduced-motion: reduce) {
-  .onboard-in { animation: none; }
-  .switch, .switch .switch-knob, .onboard-dot { transition: none; }
-}
 
 /* ————— Drill-through: history navigation, selection chips, session drawer ————— */
 
@@ -1399,7 +1395,7 @@ button.pcmp-row-on { background: rgba(128, 128, 128, 0.18); }
 .pcmp-chart { padding: var(--sp-2) var(--sp-3) 0; }
 .pcmp-days { justify-content: space-between; }
 .pcmp-day { flex: 1; min-width: 0; display: flex; justify-content: center; align-items: flex-end; gap: 1px; height: 100%; border: 0; padding: 0; background: none; }
-.pcmp-bar { flex: 0 1 calc(50% - 0.5px); min-width: 0; max-width: 14px; border-radius: 3px 3px 0 0; min-height: 3px; transition: filter .14s ease; }
+.pcmp-bar { flex: 0 1 calc(50% - 0.5px); min-width: 0; max-width: 14px; border-radius: 3px 3px 0 0; min-height: 3px; transition: filter var(--dur-fast) var(--ease-out); }
 .pcmp-bar-a { background: var(--bar); }
 .pcmp-bar-b { background: var(--accent); }
 .pcmp-day:hover .pcmp-bar { filter: brightness(1.25); }
