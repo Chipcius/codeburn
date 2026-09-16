@@ -19,6 +19,40 @@ export const PERIOD_OPTIONS: SegOption[] = [
   { value: 'lifetime', label: 'Life' },
 ]
 
+/** Back/Forward history controls. Rendered on every screen so the title
+ *  keeps one position; the sections without history show them disabled. */
+export function BarNav({ canBack = false, canForward = false, onBack, onForward }: {
+  canBack?: boolean
+  canForward?: boolean
+  onBack?: () => void
+  onForward?: () => void
+}) {
+  return (
+    <div className="bar-nav" role="group" aria-label="Navigation history">
+      <button
+        type="button"
+        className="bar-nav-btn"
+        aria-label="Back"
+        title="Back"
+        disabled={!canBack}
+        onClick={() => { if (canBack) onBack?.() }}
+      >
+        ‹
+      </button>
+      <button
+        type="button"
+        className="bar-nav-btn"
+        aria-label="Forward"
+        title="Forward"
+        disabled={!canForward}
+        onClick={() => { if (canForward) onForward?.() }}
+      >
+        ›
+      </button>
+    </div>
+  )
+}
+
 /** The `.bar` top bar: back/forward history controls, title, scope caption,
  *  period SegTabs, provider ProviderPop. */
 export function TopBar({
@@ -62,31 +96,8 @@ export function TopBar({
 }) {
   return (
     <div className="bar">
-      {onBack && onForward && (
-        <div className="bar-nav" role="group" aria-label="Navigation history">
-          <button
-            type="button"
-            className="bar-nav-btn"
-            aria-label="Back"
-            title="Back"
-            disabled={!canBack}
-            onClick={() => { if (canBack) onBack() }}
-          >
-            ‹
-          </button>
-          <button
-            type="button"
-            className="bar-nav-btn"
-            aria-label="Forward"
-            title="Forward"
-            disabled={!canForward}
-            onClick={() => { if (canForward) onForward() }}
-          >
-            ›
-          </button>
-        </div>
-      )}
-      <div className="t">{title}</div>
+      <BarNav canBack={canBack} canForward={canForward} onBack={onBack} onForward={onForward} />
+      <h1 className="t">{title}</h1>
       {scope !== undefined && <span className="scope">{scope}</span>}
       <div className="sp" />
       <SegTabs options={PERIOD_OPTIONS} value={customRange ? '' : period} onChange={onPeriodChange} />

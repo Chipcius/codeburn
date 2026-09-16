@@ -6,6 +6,7 @@ import { Panel } from '../components/Panel'
 import { SectionSkeleton } from '../components/Skeleton'
 import type { Section } from '../components/Sidebar'
 import { StaleBanner } from '../components/StaleBanner'
+import { BarNav } from '../components/TopBar'
 import { usePolled } from '../hooks/usePolled'
 import { formatConverted } from '../lib/format'
 import { codeburn } from '../lib/ipc'
@@ -94,7 +95,8 @@ export function Plans({ period, refreshToken = 0, onNavigate, ready = true }: { 
   return (
     <>
       <div className="bar">
-        <div className="t">Plans</div>
+        <BarNav />
+        <h1 className="t">Plans</h1>
         <div className="sp" />
         <button type="button" className="btn btn-s" onClick={() => onNavigate?.('settings', 'plans')}>
           Add plan…

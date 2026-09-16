@@ -5,6 +5,7 @@ import { PluginDetailsModal } from './PluginDetails'
 import { InstallFlowModal } from './InstallFlow'
 import styles from './Plugins.module.css'
 import { isWindowsPlatform } from '../lib/platform'
+import { BarNav } from '../components/TopBar'
 
 interface PluginInfo {
   name: string
@@ -28,7 +29,6 @@ interface PluginInfo {
 function PluginsComingSoon() {
   return (
     <div className={styles.container}>
-      <h1>Plugins</h1>
       <div className={styles.soon}>
         <svg className={styles.soonMark} viewBox="0 0 24 24" aria-hidden="true">
           <circle cx="12" cy="12" r="1" />
@@ -45,7 +45,12 @@ function PluginsComingSoon() {
 
 export function PluginsSection() {
   // Decided before the loader renders rather than inside it, so its effects never run.
-  return isWindowsPlatform() ? <PluginsComingSoon /> : <PluginsList />
+  return (
+    <>
+      <div className="bar"><BarNav /><h1 className="t">Plugins</h1></div>
+      {isWindowsPlatform() ? <PluginsComingSoon /> : <PluginsList />}
+    </>
+  )
 }
 
 function PluginsList() {
@@ -107,7 +112,6 @@ function PluginsList() {
 
   return (
     <div className={styles.container}>
-      <h1>Plugins</h1>
       {error && <div className={styles.error}>{error}</div>}
       {plugins.length === 0 ? (
         <div className={`card ${styles.empty}`}>
@@ -152,12 +156,12 @@ function PluginsList() {
                     Verify
                   </button>
                   {confirming === plugin.name ? (
-                    <span style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.875rem', color: 'var(--mut)' }}>Remove {plugin.name}?</span>
-                      <button className="btnp" onClick={() => void removePlugin(plugin.name)} disabled={removing === plugin.name} style={{ fontSize: '0.75rem' }}>
+                    <span style={{ display: 'flex', gap: 'var(--sp-1)', alignItems: 'center' }}>
+                      <span style={{ fontSize: 'var(--fs-body)', color: 'var(--mut)' }}>Remove {plugin.name}?</span>
+                      <button className="btnp" onClick={() => void removePlugin(plugin.name)} disabled={removing === plugin.name} style={{ fontSize: 'var(--fs-label)' }}>
                         {removing === plugin.name ? 'Removing...' : 'Yes'}
                       </button>
-                      <button className="btnp" onClick={() => setConfirming(null)} style={{ fontSize: '0.75rem' }}>
+                      <button className="btnp" onClick={() => setConfirming(null)} style={{ fontSize: 'var(--fs-label)' }}>
                         No
                       </button>
                     </span>
@@ -173,7 +177,7 @@ function PluginsList() {
         </div>
       )}
       {plugins.length > 0 && (
-        <button className="btnp btnp-primary" onClick={() => setShowInstallFlow(true)} style={{ marginTop: '1.5rem' }}>
+        <button className="btnp btnp-primary" onClick={() => setShowInstallFlow(true)} style={{ marginTop: 'var(--sp-6)' }}>
           Install plugin
         </button>
       )}

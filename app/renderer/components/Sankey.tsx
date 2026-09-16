@@ -99,7 +99,7 @@ export function Sankey({ flow }: { flow: SpendFlow }) {
       ))}
 
       {models.map(node => (
-        <text key={node.id} x="118" y={round(node.y + node.h / 2 + 3)} textAnchor="end" fontSize="10" fill="var(--mut)">
+        <text key={node.id} x="118" y={round(node.y + node.h / 2 + 3)} textAnchor="end" fontSize="var(--fs-label)" fill="var(--mut)">
           {node.displayLabel} · {formatUsd(node.cost)}
         </text>
       ))}
@@ -109,7 +109,7 @@ export function Sankey({ flow }: { flow: SpendFlow }) {
           <text
             x="534"
             y={round(node.y + node.h / 2 + 3)}
-            fontSize="10"
+            fontSize="var(--fs-label)"
             fill="var(--mut)"
             aria-label={`${node.axLabel} ${formatUsd(node.cost)}`}
           >
