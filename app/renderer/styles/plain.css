@@ -927,6 +927,9 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .chart-tip-row .chart-tip-sw.hi { background: var(--accent); opacity: 1; }
 .chart-tip-row span { flex: 1; opacity: .7; }
 .chart-tip-row b { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: var(--fw-kpi); }
+.sankey { min-width: 0; }
+.sankey text { fill: var(--mut); font-size: var(--fs-meta); }
+.sankey .sankey-amount { fill: var(--ink); font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .ov-xax { position: relative; height: 22px; color: var(--mut); font-size: var(--fs-label); font-family: var(--mono); }
 .ov-xax span { position: absolute; top: 7px; transform: translateX(-50%); white-space: nowrap; }
 .ov-xax span:first-child { transform: none; }
