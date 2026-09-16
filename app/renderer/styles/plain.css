@@ -1046,8 +1046,35 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 /* Micro-interactions: card hover-lift + button press. Transform only, no reflow. */
 .panel, .ov-card { transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out); }
 .panel:hover, .ov-card:hover { transform: translateY(-1px); box-shadow: var(--card-shadow), 0 6px 16px rgba(0,0,0,.10); }
-.btnp, .btn, .ov-coach-cta { transition: transform var(--dur-fast) var(--ease-out); }
-.btnp:active, .btn:active, .ov-coach-cta:active { transform: scale(0.98); }
+
+/* Hover: every surface that answers a pointer settles its colour over
+   --dur-fast. Nothing in this list moves a box. */
+.ni, .foot .about, .foot .social a, .set-rail-item,
+.li-clickable, .session-row, .ov-drill, .opt-finding-toggle, .pop-item,
+.cmp-sample, button.pcmp-row, .calendar-day, .sessions-more, .ov-heat-cell, .pr-card-trigger,
+.session-provider-filter button, .sessions-clear, .tray-accent,
+.ov-link, .set-text-button, .drawer-link, .pr-link, .about-modal-link, .alias {
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+
+/* Press: buttons and segmented pills take the 2% dip. A row or a card never
+   does — a list that shrinks under the cursor reads as a bug. */
+.btnp, .btn, .ov-coach-cta, .bar-nav-btn, .sessions-toggle, .opt-copy, .calendar-nav,
+.drawer-close, .about-modal-close, .about-modal-update-button, .pcmp-swap, .onboard-btn,
+.seg span, .set-p .seg button {
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.btnp:active, .btn:active, .ov-coach-cta:active, .bar-nav-btn:active, .sessions-toggle:active,
+.opt-copy:active, .calendar-nav:active:not(:disabled), .drawer-close:active, .about-modal-close:active,
+.about-modal-update-button:active, .pcmp-swap:active, .onboard-btn:active,
+.seg span:active, .set-p .seg button:active { transform: scale(0.98); }
 
 /* The one reduced-motion escape hatch for the whole app: nothing transitions,
    nothing animates, and every hover-lift or press-scale settles at rest. */
@@ -1059,6 +1086,10 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
   .switch-line.on { background: var(--accent); }
   .refresh-mark.spinning { opacity: .6; }
   .panel:hover, .ov-card:hover { transform: none; }
+  .btnp:active, .btn:active, .ov-coach-cta:active, .bar-nav-btn:active, .sessions-toggle:active,
+  .opt-copy:active, .calendar-nav:active:not(:disabled), .drawer-close:active, .about-modal-close:active,
+  .about-modal-update-button:active, .pcmp-swap:active, .onboard-btn:active,
+  .seg span:active, .set-p .seg button:active { transform: none; }
 }
 
 /* Energy: pause every looping animation while the window is hidden/minimized so
