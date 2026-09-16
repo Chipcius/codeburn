@@ -707,8 +707,8 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .pr-list-head span { color: var(--mut2); font-size: var(--fs-meta); }
 .pr-list-count { padding: 4px 8px; border: 1px solid var(--line); border-radius: 999px; background: var(--fill); font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .pr-list { display: flex; flex-direction: column; gap: 8px; }
-.pr-card { overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: 0 1px 2px rgba(0,0,0,.07); transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out); }
-.pr-card:hover { border-color: color-mix(in srgb, var(--line) 55%, var(--mut2)); box-shadow: 0 4px 12px rgba(0,0,0,.10); transform: translateY(-1px); }
+.pr-card { overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: 0 1px 2px rgba(0,0,0,.07); transition: border-color var(--dur-fast) var(--ease-out); }
+.pr-card:hover { border-color: color-mix(in srgb, var(--line) 55%, var(--mut2)); }
 .pr-card.is-open { border-color: color-mix(in srgb, var(--accent) 32%, var(--line)); box-shadow: 0 6px 18px rgba(0,0,0,.12); }
 .pr-card-trigger { display: grid; grid-template-columns: minmax(280px, 1.35fr) minmax(230px, 1fr) 100px 28px; min-height: 74px; align-items: center; gap: var(--sp-5); padding: var(--sp-3); cursor: pointer; }
 .pr-card-identity { display: flex; min-width: 0; align-items: center; gap: 11px; }
@@ -1072,10 +1072,6 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes toast-out { from { opacity: 1; } to { opacity: 0; } }
 
-/* Micro-interactions: card hover-lift + button press. Transform only, no reflow. */
-.panel, .ov-card { transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out); }
-.panel:hover, .ov-card:hover { transform: translateY(-1px); box-shadow: var(--card-shadow), 0 6px 16px rgba(0,0,0,.10); }
-
 /* Hover: every surface that answers a pointer settles its colour over
    --dur-fast. Nothing in this list moves a box. */
 .ni, .foot .about, .set-rail-item,
@@ -1106,7 +1102,7 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .seg span:active, .set-p .seg button:active { transform: scale(0.98); }
 
 /* The one reduced-motion escape hatch for the whole app: nothing transitions,
-   nothing animates, and every hover-lift or press-scale settles at rest. */
+   nothing animates, and every press-scale settles at rest. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation: none !important;
@@ -1114,7 +1110,6 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
   }
   .switch-line.on { background: var(--accent); }
   .refresh-mark.spinning { opacity: .6; }
-  .panel:hover, .ov-card:hover { transform: none; }
   .btnp:active, .btn:active, .ov-coach-cta:active, .bar-nav-btn:active, .sessions-toggle:active,
   .opt-copy:active, .calendar-nav:active:not(:disabled), .drawer-close:active, .about-modal-close:active,
   .about-modal-update-button:active, .pcmp-swap:active, .onboard-btn:active,
