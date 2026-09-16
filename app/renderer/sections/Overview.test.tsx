@@ -271,10 +271,10 @@ describe('Overview', () => {
     // would match two cards.
     expect(within(kpis).getByText('$84.20')).toBeInTheDocument()
     expect(within(kpis).getByText('across 11 fixes')).toBeInTheDocument()
-    const statsCard = screen.getByText('Month to date').closest('.ov-stats3')
-    expect(statsCard).toHaveClass('ov-card')
-    expect(statsCard?.children).toHaveLength(2)
-    expect(within(statsCard as HTMLElement).getByText('Projected month')).toBeInTheDocument()
+    const statsRow = screen.getByText('Month to date').closest('.ov-stats3')
+    expect(statsRow?.children).toHaveLength(2)
+    expect(screen.getByText('Month to date').closest('.ov-card')).not.toBe(screen.getByText('Projected month').closest('.ov-card'))
+    expect(within(statsRow as HTMLElement).getByText('Projected month')).toBeInTheDocument()
     expect(screen.queryByText('Nearest limit')).not.toBeInTheDocument()
   })
 
@@ -434,10 +434,16 @@ describe('Overview', () => {
     expect(await screen.findByText('$99.20')).toBeInTheDocument()
     // Projected = MTD + median(trailing-7 = $5) × 16 days left = $179.20.
     expect(screen.getByText('$179.20')).toBeInTheDocument()
-    expect(screen.getByText('$80.00 to go')).toBeInTheDocument()
+    const projected = screen.getByText('Projected month').closest('.ov-card') as HTMLElement
+    expect(within(projected).getByText('$80.00')).toBeInTheDocument()
+    expect(within(projected).getByText('to go')).toBeInTheDocument()
     // Pace compares July's daily avg (6.613) to the PREVIOUS calendar month's
     // (June: 14×$5 + $32 = $102 / 15 = 6.8) → -3%, and the label names June.
-    expect(screen.getByText('-3% vs June pace')).toBeInTheDocument()
+    // The pill carries the arrow, so the figure itself is unsigned.
+    const monthToDate = screen.getByText('Month to date').closest('.ov-card') as HTMLElement
+    expect(within(monthToDate).getByText('3%')).toBeInTheDocument()
+    expect(within(monthToDate).getByText('vs June pace')).toBeInTheDocument()
+    expect(within(monthToDate).getByText('3%').closest('.ov-stat-pill')).toHaveClass('tone-good')
   })
 
   it('recovers a matched session model for the sub-line without a series dot', async () => {
@@ -611,7 +617,7 @@ describe('Overview', () => {
     expect(within(kpis).getByText(/6,300 calls · Session count unavailable/)).toBeInTheDocument()
     expect(within(kpis).queryByText(/128 sessions/)).not.toBeInTheDocument()
     expect(within(kpis).queryByText(/At least/)).not.toBeInTheDocument()
-    expect(within(kpis).getByText('Combined · Last 30 days')).toBeInTheDocument()
+    expect(container.querySelector('.ov-panel-head h3')).toHaveTextContent('Combined · Last 30 days')
     expect(within(kpis).getByText('2 of 2 devices')).toBeInTheDocument()
     expect(within(kpis).getByText('workstation')).toBeInTheDocument()
     expect(within(kpis).getByText('laptop · this device')).toBeInTheDocument()

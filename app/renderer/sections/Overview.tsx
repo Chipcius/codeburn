@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import gsap from 'gsap'
 
 import { CliErrorPanel } from '../components/CliErrorPanel'
@@ -21,6 +21,7 @@ import {
 } from '../lib/investigation'
 import { contiguousDailyWindow, dataStartKey, formatChartDate, localDateKey, sliceDailyToPeriod, sliceDailyToRange } from '../lib/period'
 import { reportMemoKey } from '../lib/reportMemoKey'
+import { paceDirection, sparkArea, sparkPath, sparkPoints } from '../lib/spark'
 import type {
   ActReportJson,
   CombinedUsage,
@@ -454,6 +455,12 @@ function deriveStats(data: MenubarPayload, now: Date) {
   const priorAverage = mean(priorEntries.map(day => day.cost))
   const currentAverage = mean(mtdEntries.map(day => day.cost))
   const pacePct = priorAverage > 0 ? ((currentAverage - priorAverage) / priorAverage) * 100 : null
+  // Cumulative spend, one point per calendar day of the month so far, so a
+  // silent day is a flat step rather than a missing column.
+  let running = 0
+  const mtdSeries = contiguousDailyWindow(daily, `${monthPrefix}-01`, todayKey).map(day => (running += day.cost))
+  const remainingDays = Math.max(0, daysInMonth - now.getDate())
+  const projectedTail = Array.from({ length: remainingDays }, (_, index) => mtd + (projected - mtd) * ((index + 1) / remainingDays))
 
   return {
     todayEntry,
@@ -461,8 +468,45 @@ function deriveStats(data: MenubarPayload, now: Date) {
     mtd,
     projected,
     pacePct,
+    mtdSeries,
+    projectedTail,
     prevMonthName: prevMonth.toLocaleString('en-US', { month: 'long' }),
   }
+}
+
+const TREND_WIDTH = 132
+const TREND_HEIGHT = 44
+
+/**
+ * The card's corner curve: cumulative spend, filled with a gradient in the
+ * delta's colour, with today marked and any projected tail drawn dashed.
+ */
+function SpendTrend({ values, tone, dashFrom }: { values: number[]; tone: 'good' | 'bad' | 'flat'; dashFrom?: number }) {
+  const gradientId = useId()
+  const points = sparkPoints(values, TREND_WIDTH, TREND_HEIGHT)
+  if (points.length < 2) return null
+  const solid = dashFrom === undefined ? points : points.slice(0, dashFrom + 1)
+  const dashed = dashFrom === undefined ? [] : points.slice(dashFrom)
+  const guide = solid.at(-1) ?? points[0]
+  const last = points.at(-1) ?? points[0]
+
+  return (
+    <div className={`ov-trend tone-${tone}`} aria-hidden="true">
+      <svg viewBox={`0 0 ${TREND_WIDTH} ${TREND_HEIGHT}`} preserveAspectRatio="none">
+        <defs>
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={sparkArea(solid, TREND_HEIGHT)} fill={`url(#${gradientId})`} />
+        <path className="ov-trend-line" d={sparkPath(solid)} vectorEffect="non-scaling-stroke" />
+        {dashed.length > 1 && <path className="ov-trend-line dashed" d={sparkPath(dashed)} vectorEffect="non-scaling-stroke" />}
+        <line className="ov-trend-guide" x1={guide[0]} y1="0" x2={guide[0]} y2={TREND_HEIGHT} vectorEffect="non-scaling-stroke" />
+      </svg>
+      <span className="ov-trend-dot" style={{ left: `${(last[0] / TREND_WIDTH) * 100}%`, top: `${(last[1] / TREND_HEIGHT) * 100}%` }} />
+    </div>
+  )
 }
 
 export function sessionModelKey(project: string, date: string, calls: number, cost: number): string {
@@ -769,7 +813,7 @@ export function OverviewContent({
   provider?: string
   range?: DateRange | null
   overview: Polled<MenubarPayload>
-  onNavigate?: (section: 'optimize' | 'sessions' | 'periods') => void
+  onNavigate?: (section: 'optimize' | 'sessions' | 'periods' | 'spend' | 'plans') => void
   /** Drill-through entries: day bars, expensive sessions, models, categories. */
   onInvestigate?: (request: InvestigateRequest) => void
   ready?: boolean
@@ -935,9 +979,51 @@ export function OverviewContent({
       </div>
 
       {!rangeActive && (
-        <div className="ov-card ov-stats3">
-          <div className="ov-stat ov-card-inner"><div className="ov-label">Month to date</div><div className="v">{formatUsd(stats.mtd)}</div><div className="d">{stats.pacePct === null ? `No ${stats.prevMonthName} pace yet` : `${stats.pacePct >= 0 ? '+' : ''}${Math.round(stats.pacePct)}% vs ${stats.prevMonthName} pace`}</div></div>
-          <div className="ov-stat ov-card-inner"><div className="ov-label">Projected month</div><div className="v">{formatUsd(stats.projected)} <small>est</small></div><div className="d warn">{formatUsd(Math.max(0, stats.projected - stats.mtd))} to go</div></div>
+        <div className="ov-stats3">
+          <div className="ov-card">
+            <div className="ov-panel-head"><Icon name="calendar" /><h3>Month to date</h3></div>
+            <div className="ov-card-inner ov-stat">
+              <div className="ov-stat-top">
+                <div className="ov-stat-figures">
+                  <div className="v">{formatUsd(stats.mtd)}</div>
+                  {stats.pacePct === null ? (
+                    <div className="d">No {stats.prevMonthName} pace yet</div>
+                  ) : (
+                    <>
+                      <span className={`ov-stat-pill tone-${paceDirection(stats.pacePct)}`}>
+                        <Icon name={stats.pacePct < 0 ? 'arrow-down' : 'arrow-up'} />
+                        {Math.abs(Math.round(stats.pacePct))}%
+                      </span>
+                      <div className="d">vs {stats.prevMonthName} pace</div>
+                    </>
+                  )}
+                </div>
+                <SpendTrend values={stats.mtdSeries} tone={stats.pacePct === null ? 'flat' : paceDirection(stats.pacePct)} />
+              </div>
+              <div className="ov-stat-foot">
+                <button className="ov-link" type="button" onClick={() => onNavigate?.('spend')}>See spend <Icon name="arrow-right" /></button>
+              </div>
+            </div>
+          </div>
+          <div className="ov-card">
+            <div className="ov-panel-head"><Icon name="trending-up" /><h3>Projected month</h3></div>
+            <div className="ov-card-inner ov-stat">
+              <div className="ov-stat-top">
+                <div className="ov-stat-figures">
+                  <div className="v">{formatUsd(stats.projected)} <small>est</small></div>
+                  <span className="ov-stat-pill tone-bad">
+                    <Icon name="arrow-up" />
+                    {formatUsd(Math.max(0, stats.projected - stats.mtd))}
+                  </span>
+                  <div className="d">to go</div>
+                </div>
+                <SpendTrend values={[...stats.mtdSeries, ...stats.projectedTail]} tone="bad" dashFrom={Math.max(0, stats.mtdSeries.length - 1)} />
+              </div>
+              <div className="ov-stat-foot">
+                <button className="ov-link" type="button" onClick={() => onNavigate?.('plans')}>See plans <Icon name="arrow-right" /></button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
