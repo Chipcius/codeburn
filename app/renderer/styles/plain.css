@@ -752,7 +752,7 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 /* A remaining amount is not a change: no arrow, no direction colour. */
 .ov-stat-pill.tone-neutral { padding: 2px 9px; background: var(--fill); color: var(--mut); }
 .ov-stat-pill.tone-neutral b { color: var(--ink); font-family: var(--mono); font-weight: var(--fw-kpi); }
-.ov-stat-foot { display: flex; margin-top: auto; padding-top: var(--sp-3); border-top: 1px solid var(--line); }
+.ov-stat-foot { display: flex; margin-top: auto; padding-top: var(--sp-2); }
 .ov-stat-foot .ov-link { display: inline-flex; align-items: center; gap: var(--sp-1); }
 .ov-stat-foot .icon { width: 12px; height: 12px; }
 /* Corner curve: the dotted ground fades out toward the figures so it never competes with them. */
