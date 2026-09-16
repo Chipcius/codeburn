@@ -176,5 +176,5 @@ function shortenId(value: string): string {
 }
 
 function ellipsize(value: string, max: number): string {
-  return value.length > max ? `${value.slice(0, max - 3)}...` : value
+  return value.length > max ? `${value.slice(0, max - 1)}…` : value
 }

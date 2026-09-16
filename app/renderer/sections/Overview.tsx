@@ -10,7 +10,7 @@ import { SectionSkeleton } from '../components/Skeleton'
 import { StaleBanner } from '../components/StaleBanner'
 import { motionEnabled, useBarGrowIn } from '../lib/motion'
 import { type Polled, usePolled } from '../hooks/usePolled'
-import { formatCompact, formatUsd, formatUsdWithCurrency } from '../lib/format'
+import { formatCompact, formatCount, formatUsd, formatUsdWithCurrency } from '../lib/format'
 import { codeburn } from '../lib/ipc'
 import {
   categoryFilters,
@@ -165,10 +165,10 @@ type ReworkedFile = { path: string; sessions: number; edits: number }
 function workflowCoachingNote(workflow: WorkflowRollup, topReworked?: ReworkedFile): string | null {
   const { correctionRate, corrections, medianTimeToFirstEditMs } = workflow
   if (correctionRate !== null && correctionRate >= WORKFLOW_CORRECTION_RATE && corrections >= WORKFLOW_CORRECTION_COUNT) {
-    return `You corrected the assistant on ${Math.round(correctionRate * 100)}% of prompts (${corrections} times). State the requirements in the first message to cut the back and forth.`
+    return `You corrected the assistant on ${Math.round(correctionRate * 100)}% of prompts (${formatCount(corrections, 'time')}). State the requirements in the first message to cut the back and forth.`
   }
   if (topReworked && topReworked.sessions >= WORKFLOW_CHURN_SESSIONS) {
-    return `${topReworked.path} was reworked across ${topReworked.sessions} sessions (${topReworked.edits} edits). A focused pass on it may cost less than the repeated churn.`
+    return `${topReworked.path} was reworked across ${formatCount(topReworked.sessions, 'session')} (${formatCount(topReworked.edits, 'edit')}). A focused pass on it may cost less than the repeated churn.`
   }
   if (medianTimeToFirstEditMs !== null && medianTimeToFirstEditMs >= WORKFLOW_TTFE_SLOW_MS) {
     return `Median time to first edit is ${formatWorkflowDuration(medianTimeToFirstEditMs)}. Point the assistant at the target file to cut the exploration before it starts editing.`
@@ -613,7 +613,7 @@ function DailyChart({ daily, dataStart = null, animateKey = '', onSelectDay }: {
           ) : (
             <>
               <div className="chart-tip-v">{formatUsd(tip.day.cost)}</div>
-              <div className="chart-tip-s">{tip.day.calls} calls · {tip.day.topModels[0]?.name ?? 'No model'} led</div>
+              <div className="chart-tip-s">{formatCount(tip.day.calls, 'call')} · {tip.day.topModels[0]?.name ?? 'No model'} led</div>
             </>
           )}
         </ChartTip>
@@ -663,7 +663,7 @@ function TopActivities({ activities, onSelectCategory }: { activities: MenubarPa
               <strong>{formatUsd(activity.cost)}</strong>
             </div>
             <div className="ov-activity-meta">
-              <span>{activity.turns.toLocaleString('en-US')} turns</span>
+              <span>{formatCount(activity.turns, 'turn')}</span>
               <span>{formatRate(activity.oneShotRate)} one-shot</span>
             </div>
           </div>
@@ -684,7 +684,7 @@ export function Overview({ period, provider }: { period: Period; provider: strin
 function CombinedDevices({ usage }: { usage: CombinedUsage }) {
   return (
     <div className="ov-combined-devices">
-      <div className="ov-combined-head">{usage.combined.reachableCount} of {usage.combined.deviceCount} devices</div>
+      <div className="ov-combined-head">{usage.combined.reachableCount.toLocaleString('en-US')} of {formatCount(usage.combined.deviceCount, 'device')}</div>
       {usage.perDevice.map(device => (
         <div className={device.error ? 'ov-combined-row err' : 'ov-combined-row'} key={device.id}>
           <span className="ov-combined-name">{device.local ? `${device.name} · this device` : device.name}</span>
@@ -768,7 +768,7 @@ export function OverviewContent({
             <div className="ov-hero-main">
               <div className="ov-hero-top"><span className="ov-label">{headlineSnapshot.label}</span><span className="ov-streak">exact {capturedLabel}</span></div>
               <div className="ov-hero-num" data-countup={headlineSnapshot.cost}>{headlineCost}</div>
-              <div className="ov-hero-sub">{headlineSnapshot.calls.toLocaleString('en-US')} calls · sessions updating</div>
+              <div className="ov-hero-sub">{formatCount(headlineSnapshot.calls, 'call')} · sessions updating</div>
             </div>
           </div>
           <SectionSkeleton label="Updating detailed drill-downs…" rows={3} chart />
@@ -849,7 +849,7 @@ export function OverviewContent({
               Replaying the live hero from $0 on handoff makes that exact value
               appear to collapse and recover; snap to the revalidated total. */}
           <CountUp value={heroCost} animateKey={animateKey} animate={!suppressHeroReplay} />
-          <div className="ov-hero-sub" title={heroSessionHelp}>{heroCalls.toLocaleString('en-US')} calls · {heroSessionLabel}</div>
+          <div className="ov-hero-sub" title={heroSessionHelp}>{formatCount(heroCalls, 'call')} · {heroSessionLabel}</div>
           {combined
             ? <CombinedDevices usage={combined} />
             : (
@@ -896,7 +896,7 @@ export function OverviewContent({
       <SignalsCard signals={signals} />
 
       <div className="ov-card ov-routing" aria-label="Compare periods entry">
-        <div><span className="ov-label">Compare periods</span><p>Pick two ranges and see exactly what drove the change — projects, models, and the sessions behind them.</p></div>
+        <div><span className="ov-label">Compare periods</span><p>Pick two ranges and see exactly what drove the change: projects, models, and the sessions behind them.</p></div>
         <button className="ov-link" type="button" onClick={() => onNavigate?.('periods')}>Compare →</button>
       </div>
 

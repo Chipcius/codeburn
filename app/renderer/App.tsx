@@ -959,7 +959,7 @@ function AppMain() {
         {section !== 'settings' && (
           <Hint
             items={[
-              { k: shortcutLabel('1-8,9'), label: 'Navigate' },
+              { k: shortcutLabel('1-9'), label: 'Navigate' },
               { k: shortcutLabel(','), label: 'Settings' },
               { k: shortcutLabel('R'), label: 'Refresh' },
             ]}
@@ -972,10 +972,13 @@ function AppMain() {
 }
 
 /** Footer refresh state. The icon is always in the DOM at a fixed 12px so the
- *  "refreshed Ns ago" text never moves between idle and in-flight. */
+ *  "refreshed Ns ago" text never moves between idle and in-flight, and it sits
+ *  LAST in a right-anchored row so the label re-flowing never shifts it. */
 function RefreshMark({ refreshing, label }: { refreshing: boolean; label: string }) {
   return (
     <>
+      <span className="sr-only" role="status" aria-live="polite">{refreshing ? 'Refreshing' : ''}</span>
+      <span>{label}</span>
       <svg
         className={refreshing ? 'refresh-mark spinning' : 'refresh-mark'}
         width="12"
@@ -991,8 +994,6 @@ function RefreshMark({ refreshing, label }: { refreshing: boolean; label: string
         <path d="M10.1 6a4.1 4.1 0 1 1-1.25-2.95" />
         <path d="M10.6 1.3v2.9H7.7" />
       </svg>
-      <span className="sr-only" role="status" aria-live="polite">{refreshing ? 'Refreshing' : ''}</span>
-      <span>{label}</span>
     </>
   )
 }

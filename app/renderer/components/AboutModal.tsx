@@ -1,8 +1,9 @@
-import { useEffect, useState, type MouseEvent, type ReactNode } from 'react'
+import { useState, type MouseEvent, type ReactNode } from 'react'
 
 import { version } from '../../package.json'
 import { FlameMark } from './FlameMark'
 import { BUILD_STAMP } from '../lib/build'
+import { useEscape } from '../hooks/useEscape'
 import { updateDownloadUrl, useUpdateStatus } from '../hooks/useUpdateStatus'
 import { codeburn } from '../lib/ipc'
 
@@ -32,14 +33,7 @@ export function AboutModal({ socials = SOCIALS, onClose }: { socials?: SocialLin
   const status = useUpdateStatus()
   const [checked, setChecked] = useState(false)
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
+  useEscape(true, onClose)
 
   return (
     <div className="about-modal-backdrop" onClick={onClose}>

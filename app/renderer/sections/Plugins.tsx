@@ -102,7 +102,7 @@ function PluginsList() {
   }
 
   if (loading) {
-    return <div className={styles.container}>Loading plugins...</div>
+    return <div className={styles.container}>Loading plugins…</div>
   }
 
   return (
@@ -155,7 +155,7 @@ function PluginsList() {
                     <span style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
                       <span style={{ fontSize: '0.875rem', color: 'var(--mut)' }}>Remove {plugin.name}?</span>
                       <button className="btnp" onClick={() => void removePlugin(plugin.name)} disabled={removing === plugin.name} style={{ fontSize: '0.75rem' }}>
-                        {removing === plugin.name ? 'Removing...' : 'Yes'}
+                        {removing === plugin.name ? 'Removing…' : 'Yes'}
                       </button>
                       <button className="btnp" onClick={() => setConfirming(null)} style={{ fontSize: '0.75rem' }}>
                         No

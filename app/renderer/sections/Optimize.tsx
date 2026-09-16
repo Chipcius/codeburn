@@ -7,7 +7,7 @@ import { SectionSkeleton } from '../components/Skeleton'
 import { SegTabs } from '../components/SegTabs'
 import { StaleBanner } from '../components/StaleBanner'
 import { type Polled, usePolled } from '../hooks/usePolled'
-import { formatCompact, formatUsd } from '../lib/format'
+import { formatCompact, formatCount, formatUsd } from '../lib/format'
 import { codeburn } from '../lib/ipc'
 import { reportMemoKey } from '../lib/reportMemoKey'
 import { trackEvent } from '../lib/track'
@@ -101,7 +101,7 @@ function WasteRows({ report }: { report: Polled<OptimizeJsonReport> }) {
   return (
     <div className="opt-waste">
       <div className="opt-summary">
-        {report.data.summary.findingCount.toLocaleString('en-US')} findings · {formatUsd(report.data.summary.potentialSavingsCostUSD)} potential · health {report.data.summary.healthScore}/100
+        {formatCount(report.data.summary.findingCount, 'finding')} · {formatUsd(report.data.summary.potentialSavingsCostUSD)} potential · health {report.data.summary.healthScore}/100
       </div>
       <ActionableFindingRows findings={report.data.findings} byClass={report.data.summary.byClass} />
       <AppliedFixRows fixes={report.data.appliedFixes ?? []} />
