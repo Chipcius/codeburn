@@ -107,9 +107,9 @@ describe('grokbot provider', () => {
   it('resolves the Electron userData persistence dir per platform', () => {
     delete process.env['CODEBURN_GROKBOT_DIR']
     expect(grokbotPersistenceDir('darwin', '/home/x'))
-      .toBe('/home/x/Library/Application Support/Grok Bot/sand-client-persistence')
+      .toBe(join('/home/x', 'Library', 'Application Support', 'Grok Bot', 'sand-client-persistence'))
     expect(grokbotPersistenceDir('linux', '/home/x'))
-      .toBe('/home/x/.config/Grok Bot/sand-client-persistence')
+      .toBe(join('/home/x', '.config', 'Grok Bot', 'sand-client-persistence'))
     process.env['CODEBURN_GROKBOT_DIR'] = '/override'
     expect(grokbotPersistenceDir('darwin', '/home/x')).toBe('/override')
   })
