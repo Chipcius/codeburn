@@ -552,7 +552,13 @@ export async function runStdioServe(buildProgram: () => Command): Promise<void> 
       // an old result look current.
       if (configFingerprint === null) outputMemo.clear()
 
-      const memoKey = request.args.join('\u0000')
+      // The local date is part of the identity: `--period today` means a
+      // different window after midnight, and nothing in the corpus has to change
+      // for that to happen, so a memo keyed on the args alone kept serving
+      // yesterday until its five-minute cap ran out.
+      const now = new Date()
+      const localDay = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+      const memoKey = [localDay, ...request.args].join('\u0000')
       const memoHit = outputMemo.get(memoKey)
       if (
         configFingerprint !== null

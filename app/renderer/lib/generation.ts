@@ -35,7 +35,10 @@ let current: Generation | null = null
 
 export function rememberGeneration(payload: MenubarPayload | null | undefined, at: number | null): Generation | null {
   const totals = payload?.periodTotals
-  if (totals && at != null && (current === null || at > current.at)) {
+  // A first paint the producer is still filling in is not a generation: its
+  // windows are summed from the files indexed so far.
+  const complete = payload?.stale !== true && payload?.hydration?.complete !== false
+  if (totals && complete && at != null && (current === null || at > current.at)) {
     if (import.meta.env?.DEV) {
       const breach = periodTotalsBreach(totals)
       if (breach) console.error(`codeburn: period totals are not nested: ${breach}`)

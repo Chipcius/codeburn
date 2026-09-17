@@ -888,7 +888,7 @@ function AppMain() {
       <div className="ct" aria-busy={refreshing}>
         <div className={refreshing ? 'switch-line on' : 'switch-line'} aria-hidden="true" />
         <UpdateBanner />
-        <IndexingBanner payload={overview.data ?? null} />
+        <IndexingBanner payload={overview.degraded ?? overview.data ?? null} />
         <DailyBudgetBanner payload={overview.data ?? null} provider={provider} />
         <ErrorBoundary key={section}>
         {section === 'plans' ? (
