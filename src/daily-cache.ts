@@ -457,10 +457,45 @@ function sanitizeProjects(raw: unknown): { projects?: DailyEntry['projects'] } {
 
 const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/
 
+/// The row that owns a provider slice's calls and cost no model row explains.
+/// Pre-v14 slices carry only calls/cost/savings, so their money exists in the
+/// day total with nothing to attribute it to and every model table silently
+/// totals less than the headline it sits under.
+export const CARRIED_MODEL_NAME = 'Unknown (carried)'
+
+const REMAINDER_KEYS = ['calls', 'cost', 'inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens'] as const
+
+/// Credit whatever `totals` holds that its own model rows cannot explain to
+/// CARRIED_MODEL_NAME. Idempotent: the row it writes is part of the next sum,
+/// so a second pass sees a zero remainder. Only ever adds.
+function creditCarriedRemainder(
+  totals: { calls: number; cost: number; inputTokens?: number; outputTokens?: number; cacheReadTokens?: number; cacheWriteTokens?: number },
+  models: Record<string, ModelDayStats>,
+): void {
+  const rows = Object.values(models)
+  const rest = emptyModelStats()
+  for (const key of REMAINDER_KEYS) {
+    rest[key] = Math.max(0, num(totals[key]) - rows.reduce((sum, m) => sum + m[key], 0))
+  }
+  if (rest.calls <= 0) return
+  const acc = Object.hasOwn(models, CARRIED_MODEL_NAME) ? models[CARRIED_MODEL_NAME]! : emptyModelStats()
+  for (const key of REMAINDER_KEYS) acc[key] += rest[key]
+  setOwn(models, CARRIED_MODEL_NAME, acc)
+}
+
+/// The day and each provider slice are summed independently: a day can hold the
+/// full model split while one of its slices was written before slices carried
+/// one (or the reverse), and a provider-scoped view reads the slice's map alone.
+function creditDayRemainders(day: DailyEntry): DailyEntry {
+  for (const slice of Object.values(day.providers)) creditCarriedRemainder(slice, slice.models ??= {})
+  creditCarriedRemainder(day, day.models)
+  return day
+}
+
 function migrateDays(days: Record<string, unknown>[]): DailyEntry[] {
   return days
     .filter(d => d && typeof d === 'object' && typeof d.date === 'string' && DATE_KEY_RE.test(d.date))
-    .map(d => ({
+    .map((d): DailyEntry => ({
       date: d.date as string,
       cost: num(d.cost),
       savingsUSD: num(d.savingsUSD),
@@ -478,6 +513,7 @@ function migrateDays(days: Record<string, unknown>[]): DailyEntry[] {
       ...(sanitizeProjects(d.projects)),
       ...(d.carried === true ? { carried: true as const } : {}),
     }))
+    .map(creditDayRemainders)
 }
 
 /// The providers a cache at `fromVersion` still owes a re-derivation, carrying
