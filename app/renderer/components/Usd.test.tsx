@@ -30,6 +30,17 @@ describe('Usd', () => {
     expect(screen.queryByRole('tooltip')).toBeNull()
   })
 
+  it('omits the Calls row when the breakdown carries no call count', async () => {
+    const user = userEvent.setup()
+    const { calls: _calls, ...noCalls } = TOKENS
+    render(<Usd value={12.5} tokens={noCalls} />)
+
+    await user.hover(screen.getByText('$12.50'))
+    const tip = screen.getByRole('tooltip')
+    expect(tip).toHaveTextContent('Cache write900')
+    expect(tip).not.toHaveTextContent('Calls')
+  })
+
   it('opens on keyboard focus and closes on Escape', async () => {
     const user = userEvent.setup()
     render(<Usd value={12.5} tokens={TOKENS} />)
@@ -56,5 +67,11 @@ describe('tokensOf / sumTokens', () => {
     expect(sumTokens(rows, 2)).toEqual(TOKENS)
     expect(sumTokens([])).toBeNull()
     expect(sumTokens([TOKENS, { inputTokens: 1 }])).toBeNull()
+  })
+
+  it('leaves calls out when a row does not carry one, rather than adding a zero', () => {
+    const noCalls = { inputTokens: 100, outputTokens: 200, cacheReadTokens: 300, cacheWriteTokens: 400 }
+    expect(sumTokens([TOKENS, noCalls])).not.toHaveProperty('calls')
+    expect(sumTokens([noCalls])).not.toHaveProperty('calls')
   })
 })

@@ -33,7 +33,10 @@ export function tokensOf(source: PartialBreakdown | null | undefined): TokenBrea
  *  average that an Avg/day figure is. */
 export function sumTokens(rows: readonly PartialBreakdown[], divideBy = 1): TokenBreakdown | null {
   if (!rows.length || divideBy <= 0) return null
-  const total = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, calls: 0 }
+  const total = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }
+  // One row without a call count makes the total unknown, not smaller: adding a
+  // zero for it would print a Calls row that no source measured.
+  let calls: number | undefined = 0
   for (const row of rows) {
     const t = tokensOf(row)
     if (!t) return null
@@ -41,14 +44,15 @@ export function sumTokens(rows: readonly PartialBreakdown[], divideBy = 1): Toke
     total.outputTokens += t.outputTokens
     total.cacheReadTokens += t.cacheReadTokens
     total.cacheWriteTokens += t.cacheWriteTokens
-    total.calls += t.calls ?? 0
+    if (t.calls == null) calls = undefined
+    else if (calls !== undefined) calls += t.calls
   }
   return {
     inputTokens: Math.round(total.inputTokens / divideBy),
     outputTokens: Math.round(total.outputTokens / divideBy),
     cacheReadTokens: Math.round(total.cacheReadTokens / divideBy),
     cacheWriteTokens: Math.round(total.cacheWriteTokens / divideBy),
-    calls: Math.round(total.calls / divideBy),
+    ...(calls === undefined ? {} : { calls: Math.round(calls / divideBy) }),
   }
 }
 
