@@ -61,11 +61,17 @@ type OutputMemoEntry = {
 }
 
 /// Which derivation a response came from: a counter that advances once per
-/// answer this process actually derived, plus the day range that answer covers.
-/// A memoized answer carries the stamp of the derivation it came from, so a
+/// answer this process actually derived, and when that derivation happened. A
+/// memoized answer carries the stamp of the derivation it came from, so a
 /// client holding several panels can tell which of them share one reading of
 /// the corpus and show a single clock for it.
-export type ServeGeneration = { n: number; from: string | null; to: string | null }
+///
+/// Deliberately NOT the day range of the query. A menubar payload answers for
+/// its period but also carries a year of daily history, live sessions and
+/// per-period totals, so the request's own period would have described only a
+/// part of what the answer covers - a `today` request stamping `today..today`
+/// over a payload whose history reaches back months.
+export type ServeGeneration = { n: number; at: string }
 
 // Kept as a small seam so the ordering contract can be tested without relying
 // on filesystem watcher scheduling: an event arriving while a parse is in
@@ -75,7 +81,7 @@ export function createOutputMemoEntry(
   parseCompletedAt: number,
   output: string,
   configFingerprint: string,
-  generation: ServeGeneration = { n: 0, from: null, to: null },
+  generation: ServeGeneration = { n: 0, at: new Date(0).toISOString() },
 ): OutputMemoEntry {
   return { createdAt: parseCompletedAt, validatedFrom: parseStartedAt, output, configFingerprint, generation }
 }
@@ -91,6 +97,11 @@ export function localDateKey(now: Date = new Date()): string {
 /// replayed as today's for the rest of the memo's life. The resolved day range
 /// rides along for the same reason, and because a period whose bounds moved is
 /// a different question even on the same date.
+///
+/// The local date is also what makes the payload's clock-derived fields safe to
+/// memoize: `periodTotals` (one entry per headline period, each window anchored
+/// on the current day) and `streak` (days counted back from today) both change
+/// only when the local date does.
 export function outputMemoKey(args: string[], now: Date = new Date()): string {
   const range = servedDayRange(args)
   return [args.join('\u0000'), localDateKey(now), range?.from ?? '', range?.to ?? ''].join('\u0001')
@@ -648,8 +659,7 @@ export async function runStdioServe(buildProgram: () => Command): Promise<void> 
           // Memoized so the poll that follows the fill answers instantly with
           // the converged payload instead of re-deriving it.
           if (code === 0 && fingerprint !== null) {
-            const dayRange = servedDayRange(args)
-            outputMemo.set(outputMemoKey(args), createOutputMemoEntry(startedAt, Date.now(), output, fingerprint, { n: ++generationCounter, from: dayRange?.from ?? null, to: dayRange?.to ?? null }))
+            outputMemo.set(outputMemoKey(args), createOutputMemoEntry(startedAt, Date.now(), output, fingerprint, { n: ++generationCounter, at: new Date().toISOString() }))
           }
         } catch {
           // Best effort. A failed fill leaves the cache incomplete, which is
@@ -743,8 +753,7 @@ export async function runStdioServe(buildProgram: () => Command): Promise<void> 
           result = await run()
         }
         const { output, code } = result
-        const dayRange = servedDayRange(request.args)
-        const generation: ServeGeneration = { n: ++generationCounter, from: dayRange?.from ?? null, to: dayRange?.to ?? null }
+        const generation: ServeGeneration = { n: ++generationCounter, at: new Date().toISOString() }
         if (code === 0) {
           // A partial answer is never memoized. The roots stay quiet while the
           // fill converges, so a memo hit would pin the client to the first
