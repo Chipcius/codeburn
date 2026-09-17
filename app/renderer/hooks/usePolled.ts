@@ -364,9 +364,13 @@ export function usePolled<T>(
         setDataKey(memoKey)
         servedCached = true
         // The footer's "refreshed Ns ago" must describe the payload on screen,
-        // not this hook instance's last fetch of some other key.
-        setLastSuccessAt(cached.at)
-        lastSuccessRef.current = cached.at
+        // not this hook instance's last fetch of some other key. A durable entry
+        // is a snapshot from an earlier app run, not a refresh this one made, so
+        // it stamps nothing: the fetch below is what sets the clock.
+        if (!cached.durable) {
+          setLastSuccessAt(cached.at)
+          lastSuccessRef.current = cached.at
+        }
         // Still fresh, and this is a switch rather than a poll/manual refresh:
         // the painted answer is good enough, so skip the CLI spawn entirely.
         // A durable entry came from an earlier renderer lifetime. Paint it, but
