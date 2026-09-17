@@ -66,6 +66,16 @@ describe('groupProjects', () => {
     expect(groups[0].coverage.distinctSessions).toBe(4)
   })
 
+  it('treats an exact temp root as temporary, not only paths under it', () => {
+    const groups = groupProjects([
+      project('/private/tmp', null, [row('main', 2)]),
+      project('/tmp', null, [row('main', 1)]),
+      project('/Users/me/Projects/real', null, [row('main', 5)]),
+    ])
+    expect(groups.map(g => g.id)).toEqual(['Projects/real', '__temporary__'])
+    expect(groups.at(-1)!.note).toBe('2 projects')
+  })
+
   it('marks a repo whose checkouts all live in a temp dir', () => {
     const groups = groupProjects([
       project('/private/tmp/bench-1/thing', 'github.com/org/thing', [row('main', 2)]),

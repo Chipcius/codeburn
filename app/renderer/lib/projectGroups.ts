@@ -12,12 +12,14 @@ export type ProjectGroup = {
   coverage: BranchSpendCoverage
 }
 
-const TEMP_ROOTS = ['/tmp/', '/private/tmp/', '/var/folders/', '/private/var/folders/']
+const TEMP_ROOTS = ['/tmp', '/private/tmp', '/var/folders', '/private/var/folders']
 export const TEMPORARY_GROUP = '__temporary__'
 
 function isTempPath(path: string): boolean {
-  const normalized = path.replace(/\\/g, '/')
-  return TEMP_ROOTS.some(root => normalized.startsWith(root))
+  const normalized = path.replace(/\\/g, '/').replace(/\/+$/, '')
+  // The root itself counts, not only what is under it: a session that recorded
+  // /private/tmp as its cwd is as temporary as one a level down.
+  return TEMP_ROOTS.some(root => normalized === root || normalized.startsWith(`${root}/`))
 }
 
 function segments(path: string): string[] {
