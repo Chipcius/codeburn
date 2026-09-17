@@ -1635,6 +1635,9 @@ final class AppStore {
             codexError = nil
             codexLoadState = .loaded
             await codexBankedResetAnnouncer.observe(usage.resetCredits)
+            // A bootstrap is the far side of a gap, so this fetch only seeds a
+            // baseline — the same discipline `bootstrapSubscription` uses.
+            await detectCodexEarlyResets(baselineIsTrusted: false)
         } catch let err as CodexSubscriptionService.FetchError {
             applyCodexFetchError(err)
         } catch {
@@ -1657,6 +1660,11 @@ final class AppStore {
             if codexLoadState != .notBootstrapped { codexLoadState = .notBootstrapped }
             return false
         }
+        // Read before `beginCodexQuotaRefresh` moves the state to `.loading`;
+        // with a refresh already in flight the restore state is the real one.
+        let stateBeforeFetch = codexRefreshInFlightRequest == nil
+            ? codexLoadState
+            : (codexRefreshRestoreState ?? codexLoadState)
         let token = beginCodexQuotaRefresh()
         do {
             guard let usage = try await codexQuotaFetcher() else {
@@ -1676,6 +1684,9 @@ final class AppStore {
             // side-effect of a successful fetch and must not be able to hold the
             // single-flight token open.
             await codexBankedResetAnnouncer.observe(usage.resetCredits)
+            await detectCodexEarlyResets(
+                baselineIsTrusted: stateBeforeFetch.earlyResetBaselineIsTrusted
+            )
             return true
         } catch let err as CodexSubscriptionService.FetchError {
             guard isCurrentCodexQuotaRefresh(token) else { return false }
@@ -1717,6 +1728,7 @@ final class AppStore {
         codexUsage = nil
         codexError = nil
         codexLoadState = .notBootstrapped
+        earlyQuotaResetMonitor.forget(providerID: CapacityDockProvider.codex.rawValue)
         // Same reason the snapshot store is wiped on the Claude side: a
         // reconnect under a different account must baseline again rather than
         // announce that account's entire inventory as new grants.
@@ -2682,7 +2694,9 @@ final class AppStore {
                     percent: credits.usedPercent / 100,
                     resetsAt: credits.resetsAt,
                     windowSeconds: credits.windowSeconds,
-                    fetchedAt: usage.fetchedAt
+                    fetchedAt: usage.fetchedAt,
+                    storageLabel: credits.storageLabel,
+                    usedUnits: credits.used
                 )
                 if primary == nil { primary = row }
                 details.append(row)
@@ -2915,6 +2929,50 @@ final class AppStore {
             providerID: provider.rawValue,
             providerName: provider.displayName,
             planLabel: planLabel,
+            baselineIsTrusted: baselineIsTrusted,
+            observations: observations,
+            now: now
+        )
+    }
+
+    /// Hand Codex's freshly fetched windows to the same monitor. Codex windows
+    /// have no keys of their own, so each is identified by its pre-localization
+    /// `storageLabel` when the row has one, else by its display label (a period
+    /// or model name, which does not translate).
+    ///
+    /// A window with no `resetsAt` is passed with no reading, and one with no
+    /// validated duration with no duration: both make the detector say nothing.
+    private func detectCodexEarlyResets(baselineIsTrusted: Bool, now: Date = Date()) async {
+        guard let summary = codexQuotaSummary(filter: .codex) else { return }
+        let provider = CapacityDockProvider.codex
+        var observations: [EarlyQuotaResetMonitor.Observation] = []
+        var seen: Set<String> = []
+        for row in summary.details {
+            let identity = row.storageLabel ?? row.label
+            guard !identity.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
+            let key = EarlyQuotaResetFormat.windowKey(forLabel: identity)
+            guard seen.insert(key).inserted else { continue }
+            observations.append(EarlyQuotaResetMonitor.Observation(
+                windowKey: key,
+                windowName: EarlyQuotaResetFormat.windowName(forLabel: identity),
+                windowSeconds: row.windowSeconds,
+                // `QuotaSummary.Window` carries a 0...1 fraction; the detector
+                // reasons in 0...100 points.
+                reading: row.resetsAt.map {
+                    EarlyQuotaResetReading(
+                        percent: row.percent * 100,
+                        resetsAt: $0,
+                        observedAt: now,
+                        usedUnits: row.usedUnits
+                    )
+                }
+            ))
+        }
+        guard !observations.isEmpty else { return }
+        await earlyQuotaResetMonitor.record(
+            providerID: provider.rawValue,
+            providerName: provider.displayName,
+            planLabel: summary.planLabel,
             baselineIsTrusted: baselineIsTrusted,
             observations: observations,
             now: now
