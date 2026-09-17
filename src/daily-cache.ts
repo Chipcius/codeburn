@@ -483,15 +483,6 @@ function creditCarriedRemainder(
   setOwn(models, CARRIED_MODEL_NAME, acc)
 }
 
-/// The day and each provider slice are summed independently: a day can hold the
-/// full model split while one of its slices was written before slices carried
-/// one (or the reverse), and a provider-scoped view reads the slice's map alone.
-function creditDayRemainders(day: DailyEntry): DailyEntry {
-  for (const slice of Object.values(day.providers)) creditCarriedRemainder(slice, slice.models ??= {})
-  creditCarriedRemainder(day, day.models)
-  return day
-}
-
 function migrateDays(days: Record<string, unknown>[]): DailyEntry[] {
   return days
     .filter(d => d && typeof d === 'object' && typeof d.date === 'string' && DATE_KEY_RE.test(d.date))
@@ -513,7 +504,14 @@ function migrateDays(days: Record<string, unknown>[]): DailyEntry[] {
       ...(sanitizeProjects(d.projects)),
       ...(d.carried === true ? { carried: true as const } : {}),
     }))
-    .map(creditDayRemainders)
+    // Day and slices are summed independently: a day can hold the full model
+    // split while one of its slices was written before slices carried one (or
+    // the reverse), and a provider-scoped view reads the slice's map alone.
+    .map(day => {
+      for (const slice of Object.values(day.providers)) creditCarriedRemainder(slice, slice.models ??= {})
+      creditCarriedRemainder(day, day.models)
+      return day
+    })
 }
 
 /// The providers a cache at `fromVersion` still owes a re-derivation, carrying
