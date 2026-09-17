@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { spawn, type ChildProcess } from 'child_process'
 import { mkdir, readFile, writeFile } from 'fs/promises'
 import { join } from 'path'
-import { classifyRootReuse, createOutputMemoEntry, fileDaySpan, outputMemoKey } from '../src/serve.js'
+import { classifyRootReuse, createOutputMemoEntry, fileDaySpan, outputMemoKey, servedDayRange } from '../src/serve.js'
 
 it('timestamps a completed output memo before parsing begins', () => {
   const parseStartedAt = 100
@@ -162,6 +162,28 @@ describe('codeburn serve --stdio', () => {
     const todayLabel = (JSON.parse(today['output'] as string) as { current: { label: string } }).current.label
     expect(monthLabel).not.toBe(todayLabel)
     expect(todayLabel).toContain('Today')
+  }, 60_000)
+
+  it('stamps every answer with the generation it was derived in', async () => {
+    const first = await request(40, ['status', '--format', 'menubar-json', '--period', 'today'])
+    const second = await request(41, ['status', '--format', 'menubar-json', '--period', 'week'])
+    const firstGen = first['generation'] as { n: number; at: string }
+    const secondGen = second['generation'] as { n: number; at: string }
+    expect(firstGen.n).toBeGreaterThan(0)
+    // A distinct derivation advances the counter, and says when it happened.
+    expect(secondGen.n).toBeGreaterThan(firstGen.n)
+    expect(Number.isNaN(Date.parse(secondGen.at))).toBe(false)
+    expect(Date.parse(secondGen.at)).toBeGreaterThanOrEqual(Date.parse(firstGen.at))
+
+    // A repeat of the first query is either re-derived (a new counter) or
+    // served from the memo, in which case it carries the SAME stamp it was
+    // derived under rather than the moment it was handed over.
+    const repeat = await request(42, ['status', '--format', 'menubar-json', '--period', 'today'])
+    const repeatGen = repeat['generation'] as { n: number; at: string }
+    if (repeat['output'] === first['output']) {
+      expect([firstGen.n, secondGen.n + 1]).toContain(repeatGen.n)
+    }
+    expect(repeatGen.n).toBeGreaterThan(0)
   }, 60_000)
 
   it('refuses commands outside the read allowlist', async () => {
@@ -527,5 +549,43 @@ describe('output memo key', () => {
     const day = ['report', '--format', 'json', '--day', '2026-08-20']
     const otherDay = ['report', '--format', 'json', '--day', '2026-08-21']
     expect(outputMemoKey(day, now)).not.toBe(outputMemoKey(otherDay, now))
+  })
+})
+
+describe('servedDayRange', () => {
+  const day = (d: Date): string => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+  it('reads an explicit day', () => {
+    expect(servedDayRange(['report', '--format', 'json', '--day', '2026-08-20']))
+      .toEqual({ from: '2026-08-20', to: '2026-08-20' })
+  })
+
+  it('reads an explicit from/to window', () => {
+    expect(servedDayRange(['status', '--format', 'menubar-json', '--from', '2026-08-01', '--to', '2026-08-31']))
+      .toEqual({ from: '2026-08-01', to: '2026-08-31' })
+  })
+
+  it('resolves a named period against today', () => {
+    const today = day(new Date())
+    expect(servedDayRange(['status', '--format', 'menubar-json', '--period', 'today']))
+      .toEqual({ from: today, to: today })
+    const week = servedDayRange(['status', '--format', 'menubar-json', '--period', 'week'])
+    expect(week?.to).toBe(today)
+    expect(week!.from < today).toBe(true)
+  })
+
+  it('accepts the short period flag and the inline form', () => {
+    expect(servedDayRange(['models', '--format', 'json', '-p', 'today']))
+      .toEqual(servedDayRange(['models', '--format', 'json', '--period', 'today']))
+    expect(servedDayRange(['models', '--format', 'json', '--period=today']))
+      .toEqual(servedDayRange(['models', '--format', 'json', '--period', 'today']))
+  })
+
+  it('says nothing rather than guessing a default or a bad value', () => {
+    // The command's own default period lives in main.ts; guessing it here would
+    // stamp a range the answer may not have used.
+    expect(servedDayRange(['status', '--format', 'menubar-json'])).toBeNull()
+    expect(servedDayRange(['status', '--format', 'menubar-json', '--period', 'fortnight'])).toBeNull()
+    expect(servedDayRange(['report', '--format', 'json', '--day', 'not-a-day'])).toBeNull()
   })
 })

@@ -788,13 +788,7 @@ function inRange(timestamp: string | undefined, range: DateRange | undefined): b
   return ts >= range.start && ts <= range.end
 }
 
-function isRecent(timestamp: string | undefined, cutoff: number): boolean {
-  if (!timestamp) return false
-  return new Date(timestamp).getTime() >= cutoff
-}
-
-// Same verdict from the already-parsed instant: an absent or unparseable
-// timestamp is not recent, exactly as NaN >= cutoff is false above.
+// An absent or unparseable timestamp is not recent: NaN >= cutoff is false.
 function isRecentAt(tsMs: number | undefined, cutoff: number): boolean {
   return tsMs !== undefined && tsMs >= cutoff
 }

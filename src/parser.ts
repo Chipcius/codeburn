@@ -2760,6 +2760,19 @@ function cachedCallToApiCall(call: CachedCall): ParsedApiCall {
   })
 }
 
+// NOT memoizable as it stands, though it looks pure and is the obvious next
+// place to cache: a resident process that reused one derived turn across two
+// parses accumulated state on it and over-reported PR-linked spend. Four places
+// write to a turn (or to the calls inside it) after it is built, so the second
+// parse sees the first parse's edits:
+//   - parser.ts, the cache builder seeding a turn's `prRefs` from its text
+//   - parser.ts, the Copilot fold replacing a turn's `assistantCalls`
+//   - parser.ts, `seedSessionPrLinks` writing `prRefs` onto a session's first turn
+//   - usage-aggregator.ts, the cache-read pass setting `hasCache` on a call
+// Removing those four writes - deriving the values instead of stamping them -
+// is the work that makes a classified-turn memo safe. Until then this stays a
+// fresh derivation per parse.
+//
 // `resolvedBranch` restores the turn's git branch after the cache's per-turn
 // dedup (branch stored only when it changes). Callers that serve a full session's
 // turns in order carry the last stored value forward and pass it here, so each
