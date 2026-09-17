@@ -708,9 +708,7 @@ function bucketDays(daily: DailyHistoryEntry[], size: number): DailyHistoryEntry
   return buckets
 }
 
-function DailyChart({ daily: allDays, dataStart = null, animateKey = '', onSelectDay }: { daily: DailyHistoryEntry[]; dataStart?: string | null; animateKey?: string; onSelectDay?: (date: string) => void }) {
-  const daily = bucketDays(allDays, barBucketDays(allDays.length))
-  const bucketed = daily.length !== allDays.length
+function DailyChart({ daily, dataStart = null, animateKey = '', onSelectDay, bucketed = false }: { daily: DailyHistoryEntry[]; dataStart?: string | null; animateKey?: string; onSelectDay?: (date: string) => void; bucketed?: boolean }) {
   const bars = barLayout(daily.length)
   const isNoData = (day: DailyHistoryEntry) => dataStart !== null && day.date < dataStart
   const max = Math.max(...daily.map(day => day.cost), 0)
@@ -812,15 +810,15 @@ function DailyChart({ daily: allDays, dataStart = null, animateKey = '', onSelec
 }
 
 /** The card header's right slot: the menubar's three daily figures, read off the drawn window. */
-function DailySummaries({ daily, anchorIsToday }: { daily: DailyHistoryEntry[]; anchorIsToday: boolean }) {
+function DailySummaries({ daily, anchorIsToday, bucketed = false }: { daily: DailyHistoryEntry[]; anchorIsToday: boolean; bucketed?: boolean }) {
   const peak = daily.reduce<DailyHistoryEntry | undefined>((best, day) => (best && best.cost >= day.cost ? best : day), undefined)
   const yesterday = daily.at(-2)
   const average = mean(daily.map(day => day.cost))
   return (
     <div className="ov-chart-summaries" aria-label="Daily spend summary">
-      <div className="ov-summary-chip"><span>Avg/day</span><strong>{formatUsd(average)}</strong></div>
+      <div className="ov-summary-chip"><span>{bucketed ? 'Avg/week' : 'Avg/day'}</span><strong>{formatUsd(average)}</strong></div>
       <div className="ov-summary-chip"><span>Peak</span><strong>{peak ? `${formatUsd(peak.cost)} · ${formatShortDay(peak.date)}` : '$0.00'}</strong></div>
-      <div className="ov-summary-chip"><span>{anchorIsToday ? 'Yesterday' : 'Previous day'}</span><strong>{formatUsd(yesterday?.cost ?? 0)}</strong></div>
+      <div className="ov-summary-chip"><span>{bucketed ? 'Previous week' : anchorIsToday ? 'Yesterday' : 'Previous day'}</span><strong>{formatUsd(yesterday?.cost ?? 0)}</strong></div>
     </div>
   )
 }
@@ -1021,6 +1019,11 @@ export function OverviewContent({
         periodDaily[0] && periodDaily[0].date < defaultChartStart ? periodDaily[0].date : defaultChartStart,
         localDateKey(now),
       )
+  // The chips read the same series the chart draws. Past the fit ceiling the
+  // chart folds days into weeks, and a Peak taken from the raw days then named a
+  // day the chart has no bar for, so the guide and the chip disagreed.
+  const chartBucketSize = barBucketDays(chartDaily.length)
+  const drawnDaily = bucketDays(chartDaily, chartBucketSize)
   // Provider-filtered history.daily has empty topModels, so source the models
   // table from current.topModels (already period/range/provider-scoped) instead.
   const models = provider !== 'all'
@@ -1138,8 +1141,8 @@ export function OverviewContent({
       )}
 
       <div className="ov-card ov-panel ov-chart-widget">
-        <div className="ov-panel-head"><Icon name="chart-column" /><h3>Daily spend</h3>{data.history.daily.length ? <span className="r"><DailySummaries daily={chartDaily} anchorIsToday={anchorIsToday} /></span> : null}</div>
-        <div className="ov-panel-body">{data.history.daily.length ? <DailyChart daily={chartDaily} dataStart={dataStartKey(data.history.daily)} animateKey={animateKey} onSelectDay={date => onInvestigate?.({ filters: dayFilters(date) })} /> : <EmptyNote>No spend yet.</EmptyNote>}</div>
+        <div className="ov-panel-head"><Icon name="chart-column" /><h3>Daily spend</h3>{data.history.daily.length ? <span className="r"><DailySummaries daily={drawnDaily} anchorIsToday={anchorIsToday} bucketed={chartBucketSize > 1} /></span> : null}</div>
+        <div className="ov-panel-body">{data.history.daily.length ? <DailyChart daily={drawnDaily} bucketed={chartBucketSize > 1} dataStart={dataStartKey(data.history.daily)} animateKey={animateKey} onSelectDay={date => onInvestigate?.({ filters: dayFilters(date) })} /> : <EmptyNote>No spend yet.</EmptyNote>}</div>
       </div>
 
       <WorkflowCard current={data.current} />
