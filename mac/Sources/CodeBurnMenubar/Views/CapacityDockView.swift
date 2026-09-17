@@ -102,9 +102,11 @@ enum CapacityDockMetrics {
                 : CapacityDockGlance.windowsHeight(for: quota)
         }
         height += CapacityDockConnectionAction.resolve(quota: quota) == nil ? 0 : 38
+        // The reconnect and disconnected blocks are padded sections like the
+        // notice band, so their reserve carries the same 6 top + 8 bottom.
         let connectionExtra: CGFloat = switch quota.connection {
-        case .terminalFailure: 90
-        case .disconnected: 18
+        case .terminalFailure: 104
+        case .disconnected: 32
         // The staleness line is a section like any other, so it needs a section's
         // height. It used to get 16, a bare 10pt line box with no padding, which is
         // why it sat crammed against the header with the blocks below pushed into it.
@@ -191,6 +193,17 @@ enum CapacityDockGlance {
     /// fitted, and an unreserved line squeezes every block below it.
     /// 6 top + a 10pt line box + 8 bottom.
     static let noticeHeight: CGFloat = 27
+    /// The plan to show beside the title, or nil when it only repeats the
+    /// provider's own name — several services use that name as their fallback.
+    static func headerPlanLabel(_ plan: String?, provider: CapacityDockProvider) -> String? {
+        guard let plan else { return nil }
+        let trimmed = plan.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty,
+              trimmed.caseInsensitiveCompare(provider.displayName) != .orderedSame
+        else { return nil }
+        return trimmed
+    }
+
     /// Whether the band is drawn as its own padded section. Disconnected and
     /// reconnect draw their own blocks with an action button instead.
     static func drawsNotice(_ connection: QuotaSummary.Connection) -> Bool {
@@ -782,17 +795,22 @@ struct CapacityDockDetailView: View {
         if let quota {
             glance(for: provider, quota: quota)
         } else {
-            VStack(alignment: .leading, spacing: 11 * model.detailScale) {
-                header(provider, plan: nil)
-                Text(
-                    provider == .copilot
-                        && CopilotExplicitDisconnect.isSet(defaults: store.copilotQuotaRuntime.defaults)
-                        ? CopilotQuotaPresentation.disconnectedSettingsDetail
-                        : ProviderConnectionGuidance.dockInstruction(for: provider)
-                )
-                    .font(.system(size: 12))
-                    .foregroundStyle(Color.capacityDockText.opacity(0.62))
-                    .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: 11 * model.detailScale) {
+                    header(provider, plan: nil)
+                    Text(
+                        provider == .copilot
+                            && CopilotExplicitDisconnect.isSet(defaults: store.copilotQuotaRuntime.defaults)
+                            ? CopilotQuotaPresentation.disconnectedSettingsDetail
+                            : ProviderConnectionGuidance.dockInstruction(for: provider)
+                    )
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.capacityDockText.opacity(0.62))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.top, CapacityDockGlance.contentInset * model.detailScale)
+                .padding(.horizontal, CapacityDockGlance.contentInset * model.detailScale)
+                Spacer(minLength: 11 * model.detailScale)
                 connectButton(provider, quota: nil)
             }
         }
@@ -806,9 +824,6 @@ struct CapacityDockDetailView: View {
         VStack(alignment: .leading, spacing: 0) {
             headerSection(provider, plan: quota.planLabel).dividerBelow()
             noticeSection(quota.connection, provider: provider)
-            if !CapacityDockGlance.drawsNotice(quota.connection) {
-                connectionLabel(quota.connection, provider: provider)
-            }
             if let sessions = store.capacityDockLiveSessions(for: provider) {
                 sessionsSection(sessions).dividerBelow()
             }
@@ -839,13 +854,19 @@ struct CapacityDockDetailView: View {
         provider: CapacityDockProvider
     ) -> some View {
         let s = model.detailScale
-        if CapacityDockGlance.drawsNotice(connection) {
-            connectionLabel(connection, provider: provider)
+        if case .connected = connection {
+            EmptyView()
+        } else {
+            let band = connectionLabel(connection, provider: provider)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.top, 6 * s)
                 .padding(.bottom, 8 * s)
                 .padding(.horizontal, CapacityDockGlance.contentInset * s)
-                .dividerBelow()
+            if CapacityDockGlance.drawsNotice(connection) {
+                band.dividerBelow()
+            } else {
+                band
+            }
         }
     }
 
@@ -865,7 +886,9 @@ struct CapacityDockDetailView: View {
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(Color.capacityDockText)
             Spacer(minLength: 6)
-            if let plan, !plan.isEmpty {
+            // Several providers fall back to their own name as the plan label
+            // when no plan is known, which draws the title twice in one row.
+            if let plan = CapacityDockGlance.headerPlanLabel(plan, provider: provider) {
                 Text(plan)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(Color.capacityDockText.opacity(0.6))
@@ -1029,7 +1052,7 @@ struct CapacityDockDetailView: View {
         let s = model.detailScale
         VStack(alignment: .leading, spacing: 0) {
             sectionCaption(L("Today"), trailing: nil)
-            HStack(alignment: .center, spacing: 8 * s) {
+            HStack(alignment: .firstTextBaseline, spacing: 8 * s) {
                 HStack(alignment: .firstTextBaseline, spacing: 5 * s) {
                     Text(today.cost.asUSD())
                         .font(.system(size: 17, weight: .semibold))
@@ -1250,6 +1273,8 @@ struct CapacityDockDetailView: View {
                 .tint(provider.ringColor)
                 .controlSize(.small)
                 .accessibilityLabel("\(title) \(provider.displayName)")
+                .padding(.horizontal, CapacityDockGlance.contentInset * model.detailScale)
+                .padding(.bottom, CapacityDockGlance.contentInset * model.detailScale)
         }
     }
 
