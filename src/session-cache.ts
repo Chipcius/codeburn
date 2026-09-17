@@ -440,7 +440,7 @@ export const PROVIDER_PARSE_VERSIONS: Record<string, string> = {
   'kilo-code': 'worktree-project-grouping-v1-session-model-v1',
   'roo-code': 'worktree-project-grouping-v1',
   warp: 'worktree-project-grouping-v1-est-cost',
-  antigravity: 'worktree-project-grouping-v5',
+  antigravity: 'worktree-project-grouping-v6',
 }
 
 function getLegacyCachePath(): string {
