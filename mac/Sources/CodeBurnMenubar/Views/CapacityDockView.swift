@@ -90,7 +90,13 @@ enum CapacityDockMetrics {
         tailEdge: CapacityDockEdge,
         scale: CGFloat
     ) -> CGFloat {
-        guard let quota else { return 186 * scale }
+        guard let quota else {
+            let card = CapacityDockGlance.connectCardHeight(
+                provider: provider,
+                width: baseDetailWidth - 2 * CapacityDockGlance.contentInset
+            )
+            return (card * scale).rounded()
+        }
         // Each section carries its own padding, so the panel adds none.
         var height = CapacityDockGlance.headerHeight
         // The tail only eats vertical room when it points up or down.
@@ -125,8 +131,12 @@ enum CapacityDockGlance {
     static let contentInset: CGFloat = 16
     static let tailAllowance: CGFloat = 18
 
+    /// The title row's own line box.
+    static let headerRow: CGFloat = 20
     /// 16 top + 20 title + 8 bottom.
-    static let headerHeight: CGFloat = 44
+    static let headerHeight: CGFloat = contentInset + headerRow + 8
+    /// Gap between the title and the guidance paragraph on the no-quota card.
+    static let connectGuidanceGap: CGFloat = 11
     static let sectionPadTop: CGFloat = 8
     static let sectionPadBottom: CGFloat = 10
     /// A 10.5pt caption's line box, shared by every section header.
@@ -198,6 +208,23 @@ enum CapacityDockGlance {
     /// 8 above the action row, the button's own line box, then the panel inset.
     static let actionRowHeight: CGFloat = sectionPadTop + 21 + contentInset
 
+    /// The no-quota card: title row, the guidance paragraph as it wraps, and the
+    /// action row. Measured for the same reason the reconnect block is — a
+    /// constant leaves its surplus as dead space above the button.
+    static func connectCardHeight(provider: CapacityDockProvider, width: CGFloat) -> CGFloat {
+        // The Copilot card swaps in a longer paragraph once the user has
+        // explicitly disconnected; the store is not in reach here, so reserve
+        // whichever of its two paragraphs is taller.
+        let paragraphs = [
+            ProviderConnectionGuidance.dockInstruction(for: provider),
+            provider == .copilot ? CopilotQuotaPresentation.disconnectedSettingsDetail : nil,
+        ].compactMap { $0 }
+        let guidance = paragraphs
+            .map { textHeight($0, size: 12, weight: .regular, width: width, maxLines: .max) }
+            .max() ?? 0
+        return contentInset + headerRow + connectGuidanceGap + guidance + actionRowHeight
+    }
+
     /// How tall the reconnect or disconnected block actually draws. The panel
     /// frame is computed rather than fitted, so a worst-case reserve does not
     /// shrink the panel — it parks its surplus above the action row as a gap.
@@ -242,14 +269,30 @@ enum CapacityDockGlance {
     ) -> CGFloat {
         guard !string.isEmpty, width > 0 else { return 0 }
         let font = NSFont.systemFont(ofSize: size, weight: weight)
-        let lineHeight = (font.ascender - font.descender + font.leading).rounded(.up)
+        // Two line boxes on purpose: `boundingRect` wraps by the font's own
+        // extent, so that is what counts the lines, but SwiftUI draws each line
+        // in the taller box `lineBox` returns.
+        let wrapLine = (font.ascender - font.descender + font.leading).rounded(.up)
         let measured = (string as NSString).boundingRect(
             with: CGSize(width: width, height: .greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: font]
         ).height
-        let lines = min(maxLines, max(1, Int((measured / lineHeight).rounded(.up))))
-        return CGFloat(lines) * lineHeight
+        let lines = min(maxLines, max(1, Int((measured / wrapLine).rounded(.up))))
+        return CGFloat(lines) * lineBox(font)
+    }
+
+    /// The height SwiftUI gives one line of `.system(size:)`, which is neither
+    /// the font's ceil'd extent nor `NSLayoutManager.defaultLineHeight` — at 10
+    /// and 11pt it is a point taller than both, because it rounds the ascent and
+    /// the descent up separately. The larger of the two formulas matches SwiftUI
+    /// exactly at every size the glance uses and stays an upper bound elsewhere,
+    /// so a measured reserve can never be shorter than what is drawn.
+    private static func lineBox(_ font: NSFont) -> CGFloat {
+        max(
+            (font.ascender - font.descender + font.leading).rounded(.up),
+            font.ascender.rounded(.up) + (-font.descender).rounded(.up)
+        )
     }
 
     /// The plan to show beside the title, or nil when it only repeats the
@@ -855,7 +898,7 @@ struct CapacityDockDetailView: View {
             glance(for: provider, quota: quota)
         } else {
             VStack(alignment: .leading, spacing: 0) {
-                VStack(alignment: .leading, spacing: 11 * model.detailScale) {
+                VStack(alignment: .leading, spacing: CapacityDockGlance.connectGuidanceGap * model.detailScale) {
                     header(provider, plan: nil)
                     Text(
                         provider == .copilot
@@ -869,7 +912,7 @@ struct CapacityDockDetailView: View {
                 }
                 .padding(.top, CapacityDockGlance.contentInset * model.detailScale)
                 .padding(.horizontal, CapacityDockGlance.contentInset * model.detailScale)
-                Spacer(minLength: 11 * model.detailScale)
+                Spacer(minLength: 0)
                 connectButton(provider, quota: nil)
             }
         }
