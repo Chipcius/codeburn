@@ -463,13 +463,20 @@ const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/
 /// totals less than the headline it sits under.
 export const CARRIED_MODEL_NAME = 'Unknown (carried)'
 
-const REMAINDER_KEYS = ['calls', 'cost', 'inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens'] as const
+const REMAINDER_KEYS = ['calls', 'cost', 'savingsUSD', 'inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens'] as const
+
+/// Money is compared at the cent every surface reports it in. Summing a day's
+/// model rows in a different order than its total was accumulated leaves a
+/// 1e-13 residue on most days; without this, every one of them would grow a
+/// carried row holding a fraction of a cent and no calls.
+const CENT = 0.005
 
 /// Credit whatever `totals` holds that its own model rows cannot explain to
 /// CARRIED_MODEL_NAME. Idempotent: the row it writes is part of the next sum,
-/// so a second pass sees a zero remainder. Only ever adds.
+/// so a second pass sees a zero remainder. Only ever adds: money with no calls
+/// against it (a slice that recorded cost but never a request) still gets a row.
 function creditCarriedRemainder(
-  totals: { calls: number; cost: number; inputTokens?: number; outputTokens?: number; cacheReadTokens?: number; cacheWriteTokens?: number },
+  totals: { calls: number; cost: number; savingsUSD?: number; inputTokens?: number; outputTokens?: number; cacheReadTokens?: number; cacheWriteTokens?: number },
   models: Record<string, ModelDayStats>,
 ): void {
   const rows = Object.values(models)
@@ -477,7 +484,7 @@ function creditCarriedRemainder(
   for (const key of REMAINDER_KEYS) {
     rest[key] = Math.max(0, num(totals[key]) - rows.reduce((sum, m) => sum + m[key], 0))
   }
-  if (rest.calls <= 0) return
+  if (rest.calls <= 0 && rest.cost < CENT && rest.savingsUSD < CENT) return
   const acc = Object.hasOwn(models, CARRIED_MODEL_NAME) ? models[CARRIED_MODEL_NAME]! : emptyModelStats()
   for (const key of REMAINDER_KEYS) acc[key] += rest[key]
   setOwn(models, CARRIED_MODEL_NAME, acc)
