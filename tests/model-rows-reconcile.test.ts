@@ -159,6 +159,52 @@ describe('carried days credit their unexplained remainder', () => {
     expect(sum(day.models, 'calls')).toBe(day.calls)
   })
 
+  it('credits cost that no row explains even when every call is accounted for', async () => {
+    await writeRawCache([{
+      ...MODELLESS_DAY,
+      calls: 100,
+      cost: 19,
+      carried: undefined,
+      // 100 calls, all named; $9 of the day's $19 belongs to no row.
+      providers: { codex: { ...MODELLESS_DAY.providers.codex, cost: 19 } },
+    }])
+    const [day] = (await loadDailyCache()).days as [DailyEntry]
+
+    expect(day.models[CARRIED_MODEL_NAME]).toEqual(expect.objectContaining({ calls: 0, cost: 9 }))
+    expect(day.providers['codex']!.models![CARRIED_MODEL_NAME]).toEqual(expect.objectContaining({ calls: 0, cost: 9 }))
+    expect(sum(day.models, 'cost')).toBeCloseTo(day.cost, 10)
+  })
+
+  it('credits savings that no row explains', async () => {
+    await writeRawCache([{
+      ...MODELLESS_DAY,
+      calls: 100,
+      cost: 10,
+      savingsUSD: 7,
+      carried: undefined,
+      providers: { codex: { ...MODELLESS_DAY.providers.codex, savingsUSD: 7 } },
+    }])
+    const [day] = (await loadDailyCache()).days as [DailyEntry]
+
+    expect(day.models[CARRIED_MODEL_NAME]).toEqual(expect.objectContaining({ calls: 0, cost: 0, savingsUSD: 7 }))
+    expect(day.providers['codex']!.models![CARRIED_MODEL_NAME]!.savingsUSD).toBe(7)
+    expect(sum(day.models, 'savingsUSD')).toBeCloseTo(day.savingsUSD, 10)
+  })
+
+  it('ignores a sub-cent float residue rather than growing a row for it', async () => {
+    await writeRawCache([{
+      ...MODELLESS_DAY,
+      calls: 100,
+      cost: 10 + 1e-13,
+      carried: undefined,
+      providers: { codex: { ...MODELLESS_DAY.providers.codex, cost: 10 + 1e-13 } },
+    }])
+    const [day] = (await loadDailyCache()).days as [DailyEntry]
+
+    expect(day.models[CARRIED_MODEL_NAME]).toBeUndefined()
+    expect(day.providers['codex']!.models![CARRIED_MODEL_NAME]).toBeUndefined()
+  })
+
   it('is stable when the credited cache is saved and loaded again', async () => {
     await writeRawCache([MODELLESS_DAY])
     const once = await loadDailyCache()
