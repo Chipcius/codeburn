@@ -683,6 +683,7 @@
 "%1$@'s %2$@ reset %3$@ early. %4$@" = "%1$@'s %2$@ reset %3$@ early. %4$@";
 "%1$@ cleared your %2$@ %3$@ before its reset. %4$@" = "%1$@ cleared your %2$@ %3$@ before its reset. %4$@";
 "%lldh" = "%lldh";
+"%@ limit" = "%@ limit";
 "5-hour limit" = "5-hour limit";
 "weekly limit" = "weekly limit";
 "Opus weekly limit" = "Opus weekly limit";

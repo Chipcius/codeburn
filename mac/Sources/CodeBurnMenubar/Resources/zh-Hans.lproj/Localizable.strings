@@ -674,6 +674,7 @@
 "%1$@'s %2$@ reset %3$@ early. %4$@" = "%1$@ 的%2$@提前 %3$@重置。%4$@";
 "%1$@ cleared your %2$@ %3$@ before its reset. %4$@" = "%1$@ 清空了你的%2$@，比其重置提前 %3$@。%4$@";
 "%lldh" = "%lld 小时";
+"%@ limit" = "%@ 限额";
 "5-hour limit" = "5 小时限额";
 "weekly limit" = "每周限额";
 "Opus weekly limit" = "Opus 每周限额";
