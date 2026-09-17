@@ -49,7 +49,10 @@ export function AnchoredSurface({
         top: flip ? Math.max(EDGE, rect.top - OFFSET - Math.min(surface.offsetHeight, maxHeight)) : rect.bottom + OFFSET,
         left: Math.max(EDGE, Math.min(rect.left, window.innerWidth - width - EDGE)),
         maxHeight,
-        ...(matchWidth ? { width } : {}),
+        // `.pop-menu` is content-box, so an inline width renders 10px wider
+        // than the figure the clamp above used. Border-box makes them agree and
+        // keeps the edge gutter intact.
+        ...(matchWidth ? { width, boxSizing: 'border-box' as const } : {}),
       })
     }
     place()
