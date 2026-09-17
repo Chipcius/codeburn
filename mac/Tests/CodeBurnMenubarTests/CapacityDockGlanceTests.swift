@@ -44,6 +44,7 @@ struct CapacityDockGlanceTests {
         func height(_ connection: QuotaSummary.Connection) -> CGFloat {
             CapacityDockMetrics.detailHeight(
                 quota: quota(windows, connection: connection),
+                provider: .claude,
                 sessionCount: 2,
                 hasToday: true,
                 tailEdge: .right,
@@ -65,6 +66,7 @@ struct CapacityDockGlanceTests {
         for scale in [0.9, 1.0, 1.25] {
             let h = CapacityDockMetrics.detailHeight(
                 quota: quota(windows, connection: .stale),
+                provider: .claude,
                 sessionCount: 2,
                 hasToday: true,
                 tailEdge: .right,
@@ -228,6 +230,7 @@ struct CapacityDockGlanceTests {
         func height(_ count: Int?, hasToday: Bool, windows: [QuotaSummary.Window]) -> CGFloat {
             CapacityDockMetrics.detailHeight(
                 quota: quota(windows),
+                provider: .claude,
                 sessionCount: count,
                 hasToday: hasToday,
                 tailEdge: .right,
@@ -283,6 +286,7 @@ struct CapacityDockGlanceTests {
         func height(_ tailEdge: CapacityDockEdge) -> CGFloat {
             CapacityDockMetrics.detailHeight(
                 quota: quota([window("5-hour", 0.2)]),
+                provider: .claude,
                 sessionCount: 2,
                 hasToday: true,
                 tailEdge: tailEdge,
@@ -304,6 +308,7 @@ struct CapacityDockGlanceTests {
                     window("Weekly · Opus", 0.7),
                     window("Weekly · Sonnet", 0.9),
                 ]),
+                provider: .claude,
                 sessionCount: 4,
                 hasToday: true,
                 tailEdge: .bottom,
