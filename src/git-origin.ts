@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 /// The `origin` remote of a checkout, read straight from .git/config. Two clones
 /// or worktrees of the same repository share it, which is what lets surfaces
@@ -60,15 +60,32 @@ function resolveGitCommonDir(gitDir: string): string {
 // restart (a resident `serve` child included).
 const originByRoot = new Map<string, string | null>()
 
-export function readGitOriginUrl(repoRoot: string): string | null {
-  const memo = originByRoot.get(repoRoot)
+export function readGitOriginUrl(path: string): string | null {
+  const memo = originByRoot.get(path)
   if (memo !== undefined) return memo
-  const url = readGitOriginUrlUncached(repoRoot)
-  originByRoot.set(repoRoot, url)
+  const url = readGitOriginUrlUncached(path)
+  originByRoot.set(path, url)
   return url
 }
 
-function readGitOriginUrlUncached(repoRoot: string): string | null {
+/// A recorded working directory is usually inside the checkout, not at its root
+/// (`<repo>/app`, `<repo>/src/lib`), so reading only `<path>/.git` found an
+/// origin for a handful of the identities on a real machine and left every
+/// other checkout of the same repository as its own picker row. Walk up to the
+/// first ancestor that has one.
+function readGitOriginUrlUncached(path: string): string | null {
+  let dir = path
+  for (let depth = 0; depth < 64; depth++) {
+    const url = originAt(dir)
+    if (url) return url
+    const parent = dirname(dir)
+    if (parent === dir) return null
+    dir = parent
+  }
+  return null
+}
+
+function originAt(repoRoot: string): string | null {
   try {
     let gitDir = join(repoRoot, '.git')
     const kind = entryKind(gitDir)
