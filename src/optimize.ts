@@ -814,32 +814,32 @@ export async function scanJsonlFile(
 type ScanFileRecord = {
   calls: ToolCall[]
   cwds: Array<{ value: string; tsMs: number }>
-  apiCalls: Array<{ call: ApiCallMeta; fullVersion: string; versionAnchor: string | null | undefined }>
+  apiCalls: Array<{ call: ApiCallMeta; versionIndex: number }>
+  /// The version each line carried, in order, one entry per CHANGE of version:
+  /// a run of lines repeating one version collapses to a single event whose
+  /// anchor is the easiest of them to qualify (an unskippable line, else the
+  /// latest timestamp), because whichever member of the run survives a range's
+  /// skip threshold yields the same version string. Replayed per range, so a
+  /// file that changed version partway through resolves exactly as a scan
+  /// carrying that range would have.
+  versionEvents: Array<{ version: string; anchor: string | null }>
   users: Array<{ tsMs: number; messages: string[]; opener: SessionOpener | null }>
   /// A line marking the file as a sidechain qualifies unless the range filter
   /// would have skipped it: `always` is one that can never be skipped, `maxTs`
   /// the latest timestamp among those that can.
   sidechainAlways: boolean
   sidechainMaxTs: string | null
-  /// Two different `version` values in one file make the carried version depend
-  /// on where the skip threshold falls, which one record cannot answer for
-  /// every range. Such a file is scanned per range instead.
-  multiVersion: boolean
 }
 
 /// What the line loop carries across lines, and therefore what a resumed read
 /// has to be handed to continue where the last one stopped.
-type ScanCarry = {
-  version: string
-  versionAnchor: string | null | undefined
-  distinctVersions: number
-}
+type ScanCarry = { version: string }
 type ScanPass = { record: ScanFileRecord; carry: ScanCarry; offset: number }
 
-const emptyCarry = (): ScanCarry => ({ version: '', versionAnchor: undefined, distinctVersions: 0 })
+const emptyCarry = (): ScanCarry => ({ version: '' })
 const emptyRecord = (): ScanFileRecord => ({
-  calls: [], cwds: [], apiCalls: [], users: [],
-  sidechainAlways: false, sidechainMaxTs: null, multiVersion: false,
+  calls: [], cwds: [], apiCalls: [], users: [], versionEvents: [],
+  sidechainAlways: false, sidechainMaxTs: null,
 })
 
 /// Can the range filter skip this line outright? Mirrors shouldSkipLine: only a
@@ -887,16 +887,17 @@ async function scanFileRecord(
     }
 
     if (entry.version && typeof entry.version === 'string') {
-      if (entry.version !== carry.version) carry.distinctVersions++
-      if (carry.distinctVersions > 1) record.multiVersion = true
-      carry.version = entry.version
-      // The anchor answers "was there still a version line here once the range
-      // filter had its way": an unskippable one always counts, otherwise the
-      // latest timestamp that carried one.
-      if (skipTs === null) carry.versionAnchor = null
-      else if (carry.versionAnchor !== null) {
-        carry.versionAnchor = carry.versionAnchor === undefined || skipTs > carry.versionAnchor ? skipTs : carry.versionAnchor
+      const last = record.versionEvents[record.versionEvents.length - 1]
+      if (last && last.version === entry.version) {
+        // Same version again: keep whichever of the run a range is likeliest to
+        // still see - an unskippable line beats any timestamp, otherwise the
+        // latest one.
+        if (skipTs === null) last.anchor = null
+        else if (last.anchor !== null && skipTs > last.anchor) last.anchor = skipTs
+      } else {
+        record.versionEvents.push({ version: entry.version, anchor: skipTs })
       }
+      carry.version = entry.version
     }
 
     const ts = typeof entry.timestamp === 'string' ? entry.timestamp : undefined
@@ -944,8 +945,7 @@ async function scanFileRecord(
       if (cacheCreate > 0) {
         record.apiCalls.push({
           call: { cacheCreationTokens: cacheCreate, version: carry.version, tsMs },
-          fullVersion: carry.version,
-          versionAnchor: carry.versionAnchor,
+          versionIndex: record.versionEvents.length,
         })
       }
     }
@@ -1023,12 +1023,21 @@ function projectRecord(record: ScanFileRecord, dateRange: DateRange | undefined)
   const cwds: string[] = []
   for (const cwd of record.cwds) if (within(cwd.tsMs)) cwds.push(cwd.value)
   const apiCalls: ApiCallMeta[] = []
+  // The version a call carried is the last version line before it that the
+  // range's own skip threshold would have left in place - walked back over the
+  // collapsed events, which for a file that never changed version is one step.
+  const versionAt = (index: number): string => {
+    for (let i = index - 1; i >= 0; i--) {
+      const event = record.versionEvents[i]!
+      if (qualifies(event.anchor)) return event.version
+    }
+    return ''
+  }
   const versions: string[] = []
   for (const entry of record.apiCalls) {
-    const { call, versionAnchor } = entry
-    if (!within(call.tsMs!)) continue
-    versions.push(versionAnchor === undefined ? '' : qualifies(versionAnchor) ? entry.fullVersion : '')
-    apiCalls.push(call)
+    if (!within(entry.call.tsMs!)) continue
+    versions.push(versionAt(entry.versionIndex))
+    apiCalls.push(entry.call)
   }
   const userMessages: string[] = []
   const openers: SessionOpener[] = []
@@ -1085,12 +1094,14 @@ const SCAN_MEMO_MAX_AGE_MS = 10 * 60 * 1000
 const SCAN_HEAD_BYTES = 4096
 type ScanMemoEntry = {
   record: ScanFileRecord
+  // Least-recently-used order; `bytes` below counts these too.
   projections: Map<string, ScanProjection>
   carry: ScanCarry
   offset: number
   size: number
   mtimeMs: number
   head: string
+  /// The record plus every selection currently held for it.
   bytes: number
   usedAt: number
 }
@@ -1162,20 +1173,40 @@ async function headDigest(filePath: string): Promise<string | null> {
   }
 }
 
-/// The view of a stored file for one range, built once and kept.
+/// What one range's selection costs to keep: slots holding references, not the
+/// items themselves, which is the whole reason a period can have its own.
+function projectionBytes(projection: ScanProjection): number {
+  const { calls, cwds, apiCalls, userMessages, openers } = projection.result
+  const slots = calls.length + cwds.length + apiCalls.length + userMessages.length
+    + openers.length + projection.versions.length
+  return slots * 24
+}
+
+/// The view of a stored file for one range, built once and kept. Selections are
+/// held least-recently-used, so a period the desktop has moved on from is the
+/// one dropped; the record itself stays, and rebuilding a selection is a walk,
+/// not a read.
 function rangeProjection(entry: ScanMemoEntry, dateRange: DateRange | undefined, recentCutoffMs: number): ScanFileResult {
   const rangeKey = dateRange ? `${dateRange.start.getTime()}-${dateRange.end.getTime()}` : 'all'
-  let projection = entry.projections.get(rangeKey)
-  if (!projection) {
-    projection = projectRecord(entry.record, dateRange)
-    // A period the desktop has moved on from is not worth keeping a selection
-    // for; the record itself stays and rebuilding one is a walk, not a read.
-    if (entry.projections.size >= MAX_PROJECTIONS_PER_FILE) {
-      const oldest = entry.projections.keys().next().value
-      if (oldest !== undefined) entry.projections.delete(oldest)
-    }
-    entry.projections.set(rangeKey, projection)
+  const existing = entry.projections.get(rangeKey)
+  if (existing) {
+    entry.projections.delete(rangeKey)
+    entry.projections.set(rangeKey, existing)
+    return useProjection(existing, recentCutoffMs)
   }
+  const projection = projectRecord(entry.record, dateRange)
+  while (entry.projections.size >= MAX_PROJECTIONS_PER_FILE) {
+    const oldest = entry.projections.entries().next().value
+    if (oldest === undefined) break
+    entry.projections.delete(oldest[0])
+    const freed = projectionBytes(oldest[1])
+    entry.bytes -= freed
+    scanFileMemoBytes -= freed
+  }
+  entry.projections.set(rangeKey, projection)
+  const held = projectionBytes(projection)
+  entry.bytes += held
+  scanFileMemoBytes += held
   return useProjection(projection, recentCutoffMs)
 }
 
@@ -1215,11 +1246,6 @@ export async function scanJsonlFileMemoized(
   }
 
   const pass = await scanFileRecord(filePath, project, resume)
-  // A file whose `version` changed partway through is the one case a single
-  // record cannot answer for every range: which version a call carries then
-  // depends on where the range's skip threshold falls. Serve it, but do not
-  // keep it - it is read per query, as it was before.
-  if (pass.record.multiVersion) return useProjection(projectRecord(pass.record, dateRange), recentCutoffMs)
   // Only a file that could still be written to is worth a head digest. Digesting
   // every file in the window meant opening the whole corpus a second time on
   // every scan, which cost more than the resume it enables; a file untouched for

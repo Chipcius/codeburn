@@ -147,6 +147,46 @@ describe('optimize scan-file memo', () => {
     expect(JSON.stringify(after)).toBe(JSON.stringify(full))
   })
 
+  // A file whose `version` changes partway through: which version a call
+  // carries depends on where the range's skip threshold falls, so the
+  // projection has to replay the version lines in order rather than pair the
+  // last version seen with the easiest-to-qualify anchor.
+  it('carries the version the range would have left in place', async () => {
+    const file = join(dir, 'versions.jsonl')
+    const line = (o: Record<string, unknown>): string => JSON.stringify(o)
+    // Out of order on purpose: the later line carries the EARLIER timestamp, so
+    // a threshold between them keeps 1.0.0 and drops 2.0.0.
+    writeFileSync(file, [
+      line({ type: 'assistant', version: '1.0.0', timestamp: '2026-08-20T10:00:00.000Z', message: { content: [] } }),
+      line({ type: 'assistant', version: '2.0.0', timestamp: '2026-08-10T10:00:00.000Z', message: { content: [] } }),
+      // No version of its own, so it inherits whichever survives above it.
+      line({
+        type: 'assistant', timestamp: '2026-08-25T10:00:00.000Z',
+        message: { usage: { cache_creation_input_tokens: 10 }, content: [] },
+      }),
+    ].join('\n') + '\n')
+
+    const from15 = await scanJsonlFileMemoized(file, 'app', {
+      start: new Date('2026-08-15T00:00:00.000Z'), end: new Date('2026-08-31T00:00:00.000Z'),
+    }, idOf(file))
+    // Threshold is 2026-08-14: the 2.0.0 line is below it and skipped, so the
+    // call carries the 1.0.0 the range can still see.
+    expect(from15.apiCalls.map(c => c.version)).toEqual(['1.0.0'])
+
+    const fromJanuary = await scanJsonlFileMemoized(file, 'app', {
+      start: new Date('2026-01-01T00:00:00.000Z'), end: new Date('2026-08-31T00:00:00.000Z'),
+    }, idOf(file))
+    // Nothing is skipped, so the last version line wins.
+    expect(fromJanuary.apiCalls.map(c => c.version)).toEqual(['2.0.0'])
+
+    const from22 = await scanJsonlFileMemoized(file, 'app', {
+      start: new Date('2026-08-22T00:00:00.000Z'), end: new Date('2026-08-31T00:00:00.000Z'),
+    }, idOf(file))
+    // Both version lines are below the threshold: nothing survives to carry.
+    expect(from22.apiCalls.map(c => c.version)).toEqual([''])
+    expect(scanFileMemoStats().entries).toBe(1)
+  })
+
   it('an unstattable file is scanned every time rather than memoized', async () => {
     const file = join(dir, 'c.jsonl')
     writeFileSync(file, transcript('2026-08-20T10:00:00.000Z'))
