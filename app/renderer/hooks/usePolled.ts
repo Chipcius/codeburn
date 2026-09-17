@@ -513,7 +513,9 @@ export function usePolled<T>(
   const keyMismatch = memoKey !== undefined && dataKey !== memoKey
   const renderedData = keyMismatch ? renderMemo?.value ?? null : data
   const renderedDataKey = keyMismatch ? (renderMemo ? memoKey : null) : dataKey
-  const renderedLastSuccessAt = keyMismatch && renderMemo ? renderMemo.at : lastSuccessAt
+  // A durable entry dates from an earlier app run, so it stamps no refresh time
+  // here either — same rule as `polledMemoTimestamp`.
+  const renderedLastSuccessAt = keyMismatch && renderMemo ? (renderMemo.durable ? null : renderMemo.at) : lastSuccessAt
   const renderedLoading = keyMismatch ? true : loading
   const renderedSwitching = keyMismatch ? renderMemo !== undefined : switching
   const renderedError = memoKey !== undefined && errorKey !== memoKey ? null : error
