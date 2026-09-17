@@ -55,21 +55,33 @@ describe('optimize scan-file memo', () => {
     writeFileSync(file, transcript('2026-08-20T10:00:00.000Z'))
     const identity = idOf(file)
     const first = await scanJsonlFileMemoized(file, 'app', undefined, identity)
+    // Gone from disk: anything that comes back now came from the memo.
     rmSync(file)
     const second = await scanJsonlFileMemoized(file, 'app', undefined, identity)
     expect(first.calls).toHaveLength(1)
-    expect(second).toBe(first)
+    expect(second).toEqual(first)
     expect(scanFileMemoStats().entries).toBe(1)
   })
 
-  it('keeps a separate result per range', async () => {
+  // The point of scanning without a range: three periods asked in turn used to
+  // hold three copies of every file and evict each other.
+  it('answers every range from one stored scan', async () => {
     const file = join(dir, 'b.jsonl')
-    writeFileSync(file, transcript('2026-08-20T10:00:00.000Z'))
+    writeFileSync(file, transcript('2026-08-20T10:00:00.000Z') + transcript('2026-09-10T10:00:00.000Z'))
     const identity = idOf(file)
-    const base = await scanJsonlFileMemoized(file, 'app', undefined, identity)
-    const range = { start: new Date('2026-08-20T00:00:00.000Z'), end: new Date('2026-08-21T00:00:00.000Z') }
-    expect(await scanJsonlFileMemoized(file, 'app', range, identity)).not.toBe(base)
-    expect(scanFileMemoStats().entries).toBe(2)
+    const both = await scanJsonlFileMemoized(file, 'app', undefined, identity)
+    rmSync(file)
+    const august = await scanJsonlFileMemoized(file, 'app', {
+      start: new Date('2026-08-01T00:00:00.000Z'), end: new Date('2026-08-31T23:59:59.999Z'),
+    }, identity)
+    const september = await scanJsonlFileMemoized(file, 'app', {
+      start: new Date('2026-09-01T00:00:00.000Z'), end: new Date('2026-09-30T23:59:59.999Z'),
+    }, identity)
+    expect(both.calls).toHaveLength(2)
+    expect(august.calls).toHaveLength(1)
+    expect(september.calls).toHaveLength(1)
+    expect(august.calls[0]!.tsMs).not.toBe(september.calls[0]!.tsMs)
+    expect(scanFileMemoStats().entries).toBe(1)
   })
 
   // The point of the offset: a live transcript is appended to between requests
@@ -166,6 +178,6 @@ describe('optimize scan-file memo', () => {
     evictScanFileMemo(Date.now(), scanFileMemoStats().bytes - 1)
     expect(scanFileMemoStats().entries).toBe(1)
     rmSync(older)
-    expect(await scanJsonlFileMemoized(older, 'app', undefined, olderId)).toBe(kept)
+    expect(await scanJsonlFileMemoized(older, 'app', undefined, olderId)).toEqual(kept)
   })
 })
