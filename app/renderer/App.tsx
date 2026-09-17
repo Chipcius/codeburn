@@ -332,7 +332,22 @@ function AppMain() {
   // Combined reports unfiltered paired-device usage, so a project filter would
   // come back inside the aggregate. The filter wins, from the first poll.
   const scope: Scope = projectFiltered ? 'local' : requestedScope
-  const [now, setNow] = useState(() => Date.now())
+  // Rolls the shell once per local calendar day: the overview memo keys bake in
+  // a today/month boundary, so midnight must produce a re-render — but ticking
+  // a wall clock every second would re-render the whole tree for a label one
+  // row wide, so the per-second "refreshed Ns ago" tick lives in RefreshedAt.
+  const dayRef = useRef(localDateKey(new Date()))
+  const [, bumpDay] = useState(0)
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const today = localDateKey(new Date())
+      if (today !== dayRef.current) {
+        dayRef.current = today
+        bumpDay(n => n + 1)
+      }
+    }, 15_000)
+    return () => window.clearInterval(id)
+  }, [])
   const [, setCurrencyTick] = useState(0)
   const [snapshotRevision, setSnapshotRevision] = useState(0)
   const configGenerationRef = useRef(0)
@@ -393,11 +408,11 @@ function AppMain() {
   // a provider/config filter, so onScopeChange forces provider='all' and clears
   // the config scope before this poll runs. Passing scope='local' produces the
   // same flag-free argv as before, so local users are unaffected.
-  const activeOverviewKey = overviewMemoKey(provider, period, customRange, claudeConfigSource, scope, new Date(now))
+  const activeOverviewKey = overviewMemoKey(provider, period, customRange, claudeConfigSource, scope, new Date())
   // Provider membership is period/range-specific. Keep the catalog tied to the
   // exact unscoped local overview that produced it so a scoped view cannot leak
   // providers from a different time horizon while its own payload is loading.
-  const allProviderOverviewKey = overviewMemoKey('all', period, customRange, null, 'local', new Date(now))
+  const allProviderOverviewKey = overviewMemoKey('all', period, customRange, null, 'local', new Date())
   const overview = usePolled<MenubarPayload>(
     () => scope === 'combined'
       ? codeburn.getOverview(period, 'all', customRange ?? undefined, undefined, undefined, 'combined')
@@ -675,11 +690,6 @@ function AppMain() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, period, provider, visibleProviderEntries, customRange, claudeConfigSource, scope, snapshotRevision, overview.data == null])
 
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 1000)
-    return () => window.clearInterval(id)
-  }, [])
-
   const refreshVisible = useCallback(() => {
     refreshOverview()
     setRefreshToken(token => token + 1)
@@ -953,12 +963,27 @@ function AppMain() {
               { k: shortcutLabel(','), label: 'Settings' },
               { k: shortcutLabel('R'), label: 'Refresh' },
             ]}
-            right={<RefreshMark refreshing={refreshing} label={refreshedLabel(selectedLastSuccessAt, refreshing, now)} />}
+            right={<RefreshedAt lastSuccessAt={selectedLastSuccessAt} refreshing={refreshing} />}
           />
         )}
       </div>
     </Window>
   )
+}
+
+/** The footer's "refreshed Ns ago" note. The only part of the shell that needs
+ *  a 1-second tick, so the tick lives here: a clock in AppMain would reconcile
+ *  the whole tree — sidebar, hero, chart, heatmap, tables — 60 times a minute
+ *  for a label one row wide. Props re-renders (a new lastSuccessAt) still land
+ *  immediately; the interval only repaints elapsed time. The RefreshMark it
+ *  renders keeps the fixed icon and screen-reader state main's footer added. */
+function RefreshedAt({ lastSuccessAt, refreshing }: { lastSuccessAt: number | null; refreshing: boolean }) {
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const id = window.setInterval(() => setTick(tick => tick + 1), 1000)
+    return () => window.clearInterval(id)
+  }, [])
+  return <RefreshMark refreshing={refreshing} label={refreshedLabel(lastSuccessAt, refreshing, Date.now())} />
 }
 
 /** Footer refresh state. The icon is always in the DOM at a fixed 12px so the
