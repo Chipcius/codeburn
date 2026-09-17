@@ -4,7 +4,7 @@ import { basename, dirname, join } from 'path'
 import { homedir } from 'os'
 
 import { readGitOriginUrl } from '../git-origin.js'
-import { calculateCost, getShortModelName } from '../models.js'
+import { calculateCost, getShortModelName, routeFromProviderField } from '../models.js'
 import { isUserHomeRoot } from '../path-privacy.js'
 import { isSqliteAvailable, getSqliteLoadError, openDatabase, isSqliteBusyError, type SqliteDatabase } from '../sqlite.js'
 import type { ProbeRoot, Provider, SessionSource, SessionParser, ParsedProviderCall } from './types.js'
@@ -460,6 +460,10 @@ function observationToCall(
     workingDirectory?: string
     prLinks?: string[]
     costIsEstimated: boolean
+    /// Route id from the session's `billing_provider` column, when it names a
+    /// non-direct door (see routeFromProviderField). Undefined for direct or
+    /// unknown, and for the vanished-DB cursor path, whose row is gone.
+    route?: string
   },
 ): ParsedProviderCall {
   const later = observation.index > 0
@@ -495,6 +499,7 @@ function observationToCall(
     workingDirectory: args.workingDirectory,
     ...(later || !args.prLinks?.length ? {} : { prLinks: args.prLinks }),
     ...(later ? { supplementaryAccounting: true } : {}),
+    ...(args.route ? { route: args.route } : {}),
   }
 }
 
@@ -727,6 +732,7 @@ function createParser(source: SessionSource, seenKeys: Set<string>, hermesHome: 
             workingDirectory: workspace.workingDirectory,
             prLinks,
             costIsEstimated: cost.costIsEstimated,
+            route: routeFromProviderField(row.billing_provider)?.id,
           })),
         }
         }

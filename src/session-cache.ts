@@ -72,6 +72,11 @@ export type CachedCall = {
   // depend on the `:obs:` key regex alone. Copilot still assigns the flag
   // at serve time and does not persist it.
   supplementaryAccounting?: boolean
+  // Billing route id the provider recorded (see ParsedProviderCall).
+  // Persisted so the row key survives the cache; a cached call without it is
+  // a direct-door call or one parsed before the provider carried the column
+  // (its parse version forces a re-parse).
+  route?: string
 }
 
 export type CachedTurn = {
@@ -396,7 +401,9 @@ export const PROVIDER_PARSE_VERSIONS: Record<string, string> = {
   // rebuild the provider section alongside the v3 lifetime ledger. The parse
   // bump is required with the ledger bump: seeding a new ledger from a section
   // produced under v2 can turn historical accounting deltas into today's use.
-  hermes: 'reasoning-output-accounting-v1-est-cost-routed-ids-workspace-pr-v5-cost-provenance-v3',
+  // billing-route-v1: the session's `billing_provider` column now rides on
+  // each call as `route`. Cached calls hold none, so they must re-parse.
+  hermes: 'reasoning-output-accounting-v1-est-cost-routed-ids-workspace-pr-v5-cost-provenance-v3-billing-route-v1',
   'lingtai-tui': 'token-ledger-registry-activity-v3',
   'ibm-bob': 'worktree-project-grouping-v1',
   // project-path-v1: the parser now records the session's full working
@@ -766,6 +773,7 @@ function validateCall(c: unknown): c is CachedCall {
     && isOptionalNum(o['toolErrors'])
     && isOptionalNum(o['editFailed'])
     && isOptionalBool(o['supplementaryAccounting'])
+    && isOptionalString(o['route'])
     && validateUsage(o['usage'])
 }
 
