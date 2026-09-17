@@ -1008,7 +1008,13 @@ async function loadShard(path: string): Promise<Record<string, CachedFile> | nul
 // and the retired one ages out below. This is what makes a period switch stop
 // re-parsing the months it already read - the whole-cache memo above is keyed
 // by scope and misses the moment the range widens.
-const SHARD_MEMO_MAX_BYTES = 192 * 1024 * 1024
+// Counted in shard text. A shard the current query scope also holds costs this
+// memo nothing extra - the same objects are already in the whole-cache memo
+// above - so this budget only bounds the months NOTHING else is holding, which
+// is why it is the smaller of the two. Both budgets together have to stay well
+// under SERVE_MAX_RSS_BYTES: reaching that guard drops every memo, and the next
+// request pays a cold parse and a cold scan.
+const SHARD_MEMO_MAX_BYTES = 64 * 1024 * 1024
 const SHARD_MEMO_MAX_AGE_MS = 10 * 60 * 1000
 type ShardMemoEntry = { files: Record<string, CachedFile>; bytes: number; usedAt: number }
 const shardMemo = new Map<string, ShardMemoEntry>()
@@ -1026,14 +1032,11 @@ export function shardMemoStats(): { entries: number; bytes: number } {
 /// Drop entries unused past the age bound, then least-recently-used entries
 /// until the byte budget holds. `now` is injected so the rule is testable.
 export function evictShardMemo(now: number, maxBytes: number = SHARD_MEMO_MAX_BYTES): void {
+  // Least-recently-used order is the map's own insertion order, because a hit
+  // reinserts its entry at the back; walking from the front therefore evicts the
+  // oldest first and stops as soon as the budget holds.
   for (const [name, entry] of shardMemo) {
-    if (now - entry.usedAt <= SHARD_MEMO_MAX_AGE_MS) continue
-    shardMemo.delete(name)
-    shardMemoBytes -= entry.bytes
-  }
-  if (shardMemoBytes <= maxBytes) return
-  for (const [name, entry] of [...shardMemo].sort((a, b) => a[1].usedAt - b[1].usedAt)) {
-    if (shardMemoBytes <= maxBytes) break
+    if (shardMemoBytes <= maxBytes && now - entry.usedAt <= SHARD_MEMO_MAX_AGE_MS) break
     shardMemo.delete(name)
     shardMemoBytes -= entry.bytes
   }
@@ -1045,6 +1048,8 @@ export async function loadShardMemoized(dir: string, name: string): Promise<Reco
   const hit = shardMemo.get(key)
   if (hit) {
     hit.usedAt = now
+    shardMemo.delete(key)
+    shardMemo.set(key, hit)
     return hit.files
   }
   let raw: string

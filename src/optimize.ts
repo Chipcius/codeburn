@@ -965,7 +965,16 @@ export function providerCoversClaude(provider?: string): boolean {
 // afterwards, so a kept result is not pinned to the cutoff it was first scanned
 // under. Bounded by bytes with age and least-recently-used eviction, like the
 // shard memo.
-const SCAN_MEMO_MAX_BYTES = 192 * 1024 * 1024
+// Held heap, not text: measured against a live heap on a 7GB corpus, the
+// objects a scanned file retains cost about 1.8x the text they carry, so a
+// budget counted in text alone lets the memo grow past the resident-set guard -
+// which then drops every memo and hands the next request a cold scan.
+const SCAN_RETAINED_FACTOR = 1.8
+const CALL_SAMPLE_STRIDE = 16
+// How recently a file must have been written to be worth the digest that lets a
+// later read resume from an offset.
+const SCAN_RESUMABLE_AGE_MS = 24 * 60 * 60 * 1000
+const SCAN_MEMO_MAX_BYTES = 160 * 1024 * 1024
 const SCAN_MEMO_MAX_AGE_MS = 10 * 60 * 1000
 // `head` is the digest of the file's first bytes as of the stored offset: the
 // cheapest proof that the bytes already consumed are still the same bytes, and
@@ -996,28 +1005,38 @@ export function scanFileMemoStats(): { entries: number; bytes: number } {
 /// Drop entries unused past the age bound, then least-recently-used entries
 /// until the byte budget holds. `now` is injected so the rule is testable.
 export function evictScanFileMemo(now: number, maxBytes: number = SCAN_MEMO_MAX_BYTES): void {
+  // The map is held in least-recently-used order - a hit reinserts its entry at
+  // the back - so the oldest and the least recently used are the same walk from
+  // the front, and it stops at the first entry that is both fresh and within
+  // budget. Sorting the whole map per insertion instead made a scan whose
+  // working set does not fit cost more than having no memo at all.
   for (const [key, entry] of scanFileMemo) {
-    if (now - entry.usedAt <= SCAN_MEMO_MAX_AGE_MS) continue
-    scanFileMemo.delete(key)
-    scanFileMemoBytes -= entry.bytes
-  }
-  if (scanFileMemoBytes <= maxBytes) return
-  for (const [key, entry] of [...scanFileMemo].sort((a, b) => a[1].usedAt - b[1].usedAt)) {
-    if (scanFileMemoBytes <= maxBytes) break
+    if (scanFileMemoBytes <= maxBytes && now - entry.usedAt <= SCAN_MEMO_MAX_AGE_MS) break
     scanFileMemo.delete(key)
     scanFileMemoBytes -= entry.bytes
   }
 }
 
-/// What one scanned file costs to keep. Tool inputs are already compacted by
-/// the scanner and user messages are capped, so counting their text plus a flat
-/// per-record overhead tracks the real footprint closely enough to bound it.
+/// What one scanned file costs to keep, in held heap. Tool inputs are already
+/// compacted by the scanner and user messages are capped, so the text they hold
+/// plus a flat per-record overhead, scaled by the measured retention factor,
+/// tracks the real footprint closely enough to bound it.
 function scanResultBytes(result: ScanFileResult): number {
   let bytes = result.apiCalls.length * 64 + result.cwds.length * 64
-  for (const call of result.calls) bytes += 128 + JSON.stringify(call.input).length
+  // Sampled, not exhaustive: measuring every tool input meant serializing the
+  // whole corpus on every scan, which cost more than the memo saved on a query
+  // whose working set does not fit anyway.
+  let sampled = 0
+  let sampledBytes = 0
+  for (let i = 0; i < result.calls.length; i += CALL_SAMPLE_STRIDE) {
+    sampledBytes += JSON.stringify(result.calls[i]!.input).length
+    sampled++
+  }
+  const averageInput = sampled > 0 ? sampledBytes / sampled : 0
+  bytes += result.calls.length * (128 + averageInput)
   for (const message of result.userMessages) bytes += message.length
   for (const opener of result.openers) bytes += opener.preview.length + 96
-  return bytes
+  return Math.round(bytes * SCAN_RETAINED_FACTOR)
 }
 
 /// Digest of a file's opening bytes, or null when they cannot be read.
@@ -1050,6 +1069,8 @@ export async function scanJsonlFileMemoized(
   const hit = scanFileMemo.get(key)
   if (hit && hit.size === identity.size && hit.mtimeMs === identity.mtimeMs) {
     hit.usedAt = now
+    scanFileMemo.delete(key)
+    scanFileMemo.set(key, hit)
     return hit.result
   }
 
@@ -1057,7 +1078,7 @@ export async function scanJsonlFileMemoized(
   // shrank, or whose offset now sits past its end, is a different file as far
   // as this scan is concerned and is read from the top.
   let resume: { fromOffset: number; carry: ScanCarry; into: ScanFileResult } | undefined
-  if (hit && identity.size > hit.size && hit.offset <= identity.size) {
+  if (hit && hit.head !== '' && identity.size > hit.size && hit.offset <= identity.size) {
     const head = await headDigest(filePath)
     if (head !== null && head === hit.head) {
       resume = { fromOffset: hit.offset, carry: hit.carry, into: hit.result }
@@ -1072,8 +1093,13 @@ export async function scanJsonlFileMemoized(
   // Taken after the read, so a file that grew while it was being read stores a
   // size no larger than what was actually consumed and the rest arrives as the
   // next append rather than being skipped.
-  const head = resume ? hit!.head : await headDigest(filePath)
-  if (head === null) return pass.result
+  // Only a file that could still be written to is worth a head digest. Digesting
+  // every file in the window meant opening the whole corpus a second time on
+  // every scan, which cost more than the resume it enables; a file untouched for
+  // a day that then grows simply gets a full read.
+  const mayGrow = now - identity.mtimeMs < SCAN_RESUMABLE_AGE_MS
+  const head = resume ? hit!.head : mayGrow ? await headDigest(filePath) : null
+  if (head === null && mayGrow) return pass.result
   const bytes = scanResultBytes(pass.result)
   scanFileMemo.set(key, {
     result: pass.result,
@@ -1081,7 +1107,7 @@ export async function scanJsonlFileMemoized(
     offset: pass.offset,
     size: identity.size,
     mtimeMs: identity.mtimeMs,
-    head,
+    head: head ?? '',
     bytes,
     usedAt: now,
   })
