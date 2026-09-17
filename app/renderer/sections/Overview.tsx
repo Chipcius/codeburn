@@ -690,16 +690,26 @@ export type InvestigateRequest = {
   sessionId?: string | null
 }
 
+/** A drawn column: a single day, or a bucket that also carries the first day it covers. */
+type ChartDay = DailyHistoryEntry & { spanStart?: string }
+
+/** The days a column stands for. A bucket sums a week, so naming only its last
+ *  day presents a weekly figure as a daily one. */
+function spanLabel(day: ChartDay, format: (date: string) => string = date => date): string {
+  return day.spanStart && day.spanStart !== day.date ? `${format(day.spanStart)} to ${format(day.date)}` : format(day.date)
+}
+
 /** Fold `size` consecutive days into one column, dated by the last day it covers
  *  so the axis label, the today highlight and the no-data cutoff stay truthful. */
-function bucketDays(daily: DailyHistoryEntry[], size: number): DailyHistoryEntry[] {
+function bucketDays(daily: DailyHistoryEntry[], size: number): ChartDay[] {
   if (size <= 1) return daily
-  const buckets: DailyHistoryEntry[] = []
+  const buckets: ChartDay[] = []
   for (let start = 0; start < daily.length; start += size) {
     const slice = daily.slice(start, start + size)
     const lead = slice.reduce((best, day) => (day.cost > best.cost ? day : best), slice[0])
     buckets.push({
       ...slice[slice.length - 1],
+      spanStart: slice[0].date,
       cost: slice.reduce((total, day) => total + day.cost, 0),
       calls: slice.reduce((total, day) => total + day.calls, 0),
       topModels: lead.topModels,
@@ -708,9 +718,9 @@ function bucketDays(daily: DailyHistoryEntry[], size: number): DailyHistoryEntry
   return buckets
 }
 
-function DailyChart({ daily, dataStart = null, animateKey = '', onSelectDay, bucketed = false }: { daily: DailyHistoryEntry[]; dataStart?: string | null; animateKey?: string; onSelectDay?: (date: string) => void; bucketed?: boolean }) {
+function DailyChart({ daily, dataStart = null, animateKey = '', onSelectDay, bucketed = false }: { daily: ChartDay[]; dataStart?: string | null; animateKey?: string; onSelectDay?: (date: string) => void; bucketed?: boolean }) {
   const bars = barLayout(daily.length)
-  const isNoData = (day: DailyHistoryEntry) => dataStart !== null && day.date < dataStart
+  const isNoData = (day: ChartDay) => dataStart !== null && day.date < dataStart
   const max = Math.max(...daily.map(day => day.cost), 0)
   // Bars are drawn against the top tick, not the raw peak, so a bar top and a
   // gridline mean the same number.
@@ -725,7 +735,7 @@ function DailyChart({ daily, dataStart = null, animateKey = '', onSelectDay, buc
   const tickIndexes = daily.map((_, index) => index).filter(index => index % tickStride === 0)
   if (daily.length > 45 && tickIndexes.at(-1) !== daily.length - 1) tickIndexes.push(daily.length - 1)
   const ticks = tickIndexes.map(index => daily[index])
-  const [tip, setTip] = useState<{ day: DailyHistoryEntry; x: number; y: number } | null>(null)
+  const [tip, setTip] = useState<{ day: ChartDay; x: number; y: number } | null>(null)
   const chartRef = useRef<HTMLDivElement>(null)
   useBarGrowIn(chartRef, '.col', [animateKey])
   const columnCentre = (index: number) => ((index + 0.5) / Math.max(1, daily.length)) * 100
@@ -750,7 +760,7 @@ function DailyChart({ daily, dataStart = null, animateKey = '', onSelectDay, buc
               return (
                 <button
                   type="button"
-                  aria-label={`${day.date}: ${noData ? 'no data recorded' : formatUsd(day.cost)}${drillable ? ' — view sessions' : ''}`}
+                  aria-label={`${spanLabel(day)}: ${noData ? 'no data recorded' : formatUsd(day.cost)}${drillable ? ' — view sessions' : ''}`}
                   className={`col${day.date === todayKey && !noData ? ' hi' : ''}${noData ? ' nodata' : ''}`}
                   key={day.date}
                   style={{ height: `${axisMax > 0 ? Math.max(2, (day.cost / axisMax) * 100) : 2}%`, minWidth: `${bars.minWidth}px` }}
@@ -786,7 +796,7 @@ function DailyChart({ daily, dataStart = null, animateKey = '', onSelectDay, buc
       </div>
       {tip && (
         <ChartTip x={tip.x} y={tip.y}>
-          <div className="chart-tip-d">{formatChartDate(tip.day.date)}</div>
+          <div className="chart-tip-d">{spanLabel(tip.day, formatChartDate)}</div>
           {isNoData(tip.day) ? (
             <div className="chart-tip-s">No data recorded</div>
           ) : (

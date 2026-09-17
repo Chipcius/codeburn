@@ -748,6 +748,33 @@ describe('Overview', () => {
     expect(within(kpis).getByText(/0 calls · 0 sessions/)).toBeInTheDocument()
   })
 
+  it('folds a long series into weekly buckets that keep the total, the peak and their date range', async () => {
+    const now = new Date()
+    // Past 520 days the chart draws whole weeks. The biggest single day ($500)
+    // sits in a quieter week than the biggest week (7 x $85 = $595), so a chip
+    // read off days and a guide read off buckets would disagree.
+    const daily = consecutiveDays(now, 800, index => (index === 100 ? 500 : index >= 700 && index <= 706 ? 85 : 5))
+    const payload = { ...makePayload(now), history: { daily } }
+
+    const { container } = render(<OverviewContent period="lifetime" provider="all" overview={polled(payload)} />)
+
+    const bars = Array.from(container.querySelectorAll('.chart .col')) as HTMLElement[]
+    const drawn = bars.reduce((total, bar) => total + Number(bar.dataset.cost), 0)
+    expect(bars.length).toBe(Math.ceil(800 / 7))
+    expect(drawn).toBeCloseTo(daily.reduce((total, day) => total + day.cost, 0), 6)
+
+    // Header chip and chart guide read the same series.
+    expect(container.querySelector('.chart-axis-peak')).toHaveTextContent('$595.00')
+    expect(container.querySelector('.ov-chart-summaries')).toHaveTextContent('$595.00')
+    expect(container.querySelector('.ov-chart-summaries')).not.toHaveTextContent('$500.00')
+
+    // A week's sum is never presented against one date.
+    const peakBar = bars.find(bar => Number(bar.dataset.cost) === 595) as HTMLElement
+    expect(peakBar.getAttribute('aria-label')).toMatch(/^\d{4}-\d{2}-\d{2} to \d{4}-\d{2}-\d{2}: \$595\.00/)
+    fireEvent.mouseEnter(peakBar, { clientX: 10, clientY: 10 })
+    expect(document.querySelector('.chart-tip-d')).toHaveTextContent(' to ')
+  })
+
   it('keeps local hero totals when scope is local even if a combined payload is present', async () => {
     const now = new Date()
     const payload = makePayload(now)
