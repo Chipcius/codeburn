@@ -326,6 +326,13 @@ function getFriendlyGptName(model: string): string {
   return reconstructed;
 }
 
+// Devin minor versions are always a single digit (gpt-5-3-codex). Restrict the
+// dash-to-dot rewrite to a single-digit minor at a token boundary so a dated
+// snapshot like gpt-4-1106-preview is not misread as version 4.1106.
+function normalizeDevinGptId(model: string): string {
+  return model.replace(/^gpt-(\d+)-(\d)(?=-|$)/, "gpt-$1.$2");
+}
+
 function getDevinDisplayModelName(
   generationModel: string | undefined,
   modelName: string,
@@ -335,10 +342,7 @@ function getDevinDisplayModelName(
   }
 
   if (generationModel.startsWith("gpt-")) {
-    // Devin minor versions are always a single digit (gpt-5-3-codex). Restrict
-    // the dash-to-dot rewrite to a single-digit minor at a token boundary so a
-    // dated snapshot like gpt-4-1106-preview is not misread as version 4.1106.
-    const normalized = generationModel.replace(/^gpt-(\d+)-(\d)(?=-|$)/, "gpt-$1.$2");
+    const normalized = normalizeDevinGptId(generationModel);
     const effortMatch = normalized.match(/-([^-]+)$/);
     const effort = effortMatch && DEVIN_EFFORT_TIERS.has(effortMatch[1]!)
       ? effortMatch[1]
@@ -369,7 +373,7 @@ function getModels(
   const pricingModel =
     !generationModel || /^MODEL_/.test(generationModel)
       ? modelName
-      : generationModel;
+      : normalizeDevinGptId(generationModel);
 
   return {
     pricingModel,

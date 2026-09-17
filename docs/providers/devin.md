@@ -75,7 +75,9 @@ Per step, from tokens and the model id, through `calculateCost()` — the same
 pricing tables every other provider uses. The pricing id is
 `metadata.generation_model` (or `extra.generation_model`), falling back to
 `step.model_name`, `agent.model_name`, then `sessions.model`; a `MODEL_*`
-placeholder is never used for pricing.
+placeholder is never used for pricing. `gpt-5-3-codex` style ids are rewritten
+to `gpt-5.3-codex` before lookup, so they hit their own row instead of
+collapsing to the base `gpt-5` price.
 
 Devin reports OpenAI-style `prompt_tokens` with the cached tokens counted
 inside it, so the cached share is subtracted from input rather than billed at

@@ -82,10 +82,10 @@ describe('codeburn report Devin model variants', () => {
       expect(report.models[0]).toMatchObject({
         name: 'GPT-5.3 Codex (xhigh)',
         calls: 1,
-        cost: calculateCost('gpt-5-3-codex-xhigh', 100, 25, 0, 0, 0),
+        cost: calculateCost('gpt-5.3-codex-xhigh', 100, 25, 0, 0, 0),
         editTurns: 1,
         oneShotTurns: 1,
-        costPerEdit: calculateCost('gpt-5-3-codex-xhigh', 100, 25, 0, 0, 0),
+        costPerEdit: calculateCost('gpt-5.3-codex-xhigh', 100, 25, 0, 0, 0),
       })
     } finally {
       await rm(home, { recursive: true, force: true })

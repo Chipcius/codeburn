@@ -296,6 +296,29 @@ describe('devin provider', () => {
     }
   })
 
+  it('prices a dashed gpt generation_model at its own row, not the base gpt-5 row', async () => {
+    const filePath = await writeTranscript('codex-id.json', {
+      session_id: 'codex-id-session',
+      steps: [
+        {
+          step_id: 1,
+          source: 'agent',
+          metadata: {
+            created_at: '2027-01-15T08:00:00.000Z',
+            generation_model: 'gpt-5-3-codex-xhigh',
+            metrics: { input_tokens: 1_000_000 },
+          },
+        },
+      ],
+    })
+
+    const calls = await parseTranscript(filePath)
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0]!.costUSD).toBe(calculateCost('gpt-5.3-codex-xhigh', 1_000_000, 0, 0, 0, 0))
+    expect(calls[0]!.costUSD).not.toBe(calculateCost('gpt-5-3-codex-xhigh', 1_000_000, 0, 0, 0, 0))
+  })
+
   it('leaves already-friendly Devin model display names unchanged', () => {
     const provider = createDevinProvider(tmpDir)
 
