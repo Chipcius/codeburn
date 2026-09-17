@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { spawn, type ChildProcess } from 'child_process'
 import { mkdir, readFile, writeFile } from 'fs/promises'
 import { join } from 'path'
-import { classifyRootReuse, createOutputMemoEntry, fileDaySpan } from '../src/serve.js'
+import { classifyRootReuse, createOutputMemoEntry, fileDaySpan, outputMemoKey } from '../src/serve.js'
 
 it('timestamps a completed output memo before parsing begins', () => {
   const parseStartedAt = 100
@@ -506,4 +506,26 @@ describe('codeburn serve --stdio', () => {
     // It waited for the request (not an instant return) but did not wait forever.
     expect(elapsed).toBeGreaterThanOrEqual(drainMs - 250)
   }, 30_000)
+})
+
+describe('output memo key', () => {
+  const args = ['status', '--format', 'menubar-json', '--period', 'today', '--no-timeline']
+
+  it('separates the same query asked on either side of local midnight', () => {
+    const before = outputMemoKey(args, new Date(2026, 8, 16, 23, 59))
+    const after = outputMemoKey(args, new Date(2026, 8, 17, 0, 1))
+    expect(before).not.toBe(after)
+  })
+
+  it('is stable for the same query within a day', () => {
+    expect(outputMemoKey(args, new Date(2026, 8, 16, 9, 0)))
+      .toBe(outputMemoKey(args, new Date(2026, 8, 16, 17, 30)))
+  })
+
+  it('separates queries whose resolved day range differs', () => {
+    const now = new Date(2026, 8, 16, 12, 0)
+    const day = ['report', '--format', 'json', '--day', '2026-08-20']
+    const otherDay = ['report', '--format', 'json', '--day', '2026-08-21']
+    expect(outputMemoKey(day, now)).not.toBe(outputMemoKey(otherDay, now))
+  })
 })

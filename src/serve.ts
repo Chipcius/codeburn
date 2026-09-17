@@ -80,6 +80,22 @@ export function createOutputMemoEntry(
   return { createdAt: parseCompletedAt, validatedFrom: parseStartedAt, output, configFingerprint, generation }
 }
 
+/// Today's date in the local zone, `YYYY-MM-DD`.
+export function localDateKey(now: Date = new Date()): string {
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}
+
+/// The key a served answer is memoized under. The argv alone is not enough:
+/// `--period today` resolves to a different day after local midnight, and every
+/// relative period shifts with it, so an answer built yesterday would be
+/// replayed as today's for the rest of the memo's life. The resolved day range
+/// rides along for the same reason, and because a period whose bounds moved is
+/// a different question even on the same date.
+export function outputMemoKey(args: string[], now: Date = new Date()): string {
+  const range = servedDayRange(args)
+  return [args.join('\u0000'), localDateKey(now), range?.from ?? '', range?.to ?? ''].join('\u0001')
+}
+
 /// The day range a served request answers for, as `YYYY-MM-DD` bounds. Only the
 /// explicit forms are read: a command's own default period lives in main.ts, and
 /// guessing it here would stamp a range the answer may not have used.
@@ -633,7 +649,7 @@ export async function runStdioServe(buildProgram: () => Command): Promise<void> 
           // the converged payload instead of re-deriving it.
           if (code === 0 && fingerprint !== null) {
             const dayRange = servedDayRange(args)
-            outputMemo.set(args.join('\u0000'), createOutputMemoEntry(startedAt, Date.now(), output, fingerprint, { n: ++generationCounter, from: dayRange?.from ?? null, to: dayRange?.to ?? null }))
+            outputMemo.set(outputMemoKey(args), createOutputMemoEntry(startedAt, Date.now(), output, fingerprint, { n: ++generationCounter, from: dayRange?.from ?? null, to: dayRange?.to ?? null }))
           }
         } catch {
           // Best effort. A failed fill leaves the cache incomplete, which is
@@ -680,7 +696,7 @@ export async function runStdioServe(buildProgram: () => Command): Promise<void> 
       // an old result look current.
       if (configFingerprint === null) outputMemo.clear()
 
-      const memoKey = request.args.join('\u0000')
+      const memoKey = outputMemoKey(request.args)
       const memoHit = outputMemo.get(memoKey)
       if (
         configFingerprint !== null
