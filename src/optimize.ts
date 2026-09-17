@@ -1024,19 +1024,20 @@ function projectRecord(record: ScanFileRecord, dateRange: DateRange | undefined)
   for (const cwd of record.cwds) if (within(cwd.tsMs)) cwds.push(cwd.value)
   const apiCalls: ApiCallMeta[] = []
   // The version a call carried is the last version line before it that the
-  // range's own skip threshold would have left in place - walked back over the
-  // collapsed events, which for a file that never changed version is one step.
-  const versionAt = (index: number): string => {
-    for (let i = index - 1; i >= 0; i--) {
-      const event = record.versionEvents[i]!
-      if (qualifies(event.anchor)) return event.version
-    }
-    return ''
+  // range's own skip threshold would have left in place. Resolved for every
+  // position once, in one forward pass, rather than walked back per call: a
+  // range that skips every version line in a file would otherwise re-walk the
+  // whole list for each of that file's calls.
+  const versionBefore: string[] = new Array(record.versionEvents.length + 1)
+  versionBefore[0] = ''
+  for (let i = 0; i < record.versionEvents.length; i++) {
+    const event = record.versionEvents[i]!
+    versionBefore[i + 1] = qualifies(event.anchor) ? event.version : versionBefore[i]!
   }
   const versions: string[] = []
   for (const entry of record.apiCalls) {
     if (!within(entry.call.tsMs!)) continue
-    versions.push(versionAt(entry.versionIndex))
+    versions.push(versionBefore[entry.versionIndex]!)
     apiCalls.push(entry.call)
   }
   const userMessages: string[] = []
