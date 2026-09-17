@@ -6,10 +6,11 @@ import type { Polled } from '../hooks/usePolled'
 import { setActiveCurrency } from '../lib/format'
 import type { OverviewHeadlineSnapshot } from '../lib/overviewSnapshot'
 import type { ActReportJson, DailyHistoryEntry, MenubarPayload, YieldJsonReport } from '../lib/types'
+import { __resetGeneration } from '../lib/generation'
 import { Overview, OverviewContent, deriveSignals, localDateKey } from './Overview'
 
-function polled(data: MenubarPayload): Polled<MenubarPayload> {
-  return { data, error: null, loading: false, switching: false, lastSuccessAt: Date.now(), refresh: vi.fn() }
+function polled(data: MenubarPayload, lastSuccessAt = Date.now()): Polled<MenubarPayload> {
+  return { data, error: null, loading: false, switching: false, lastSuccessAt, refresh: vi.fn() }
 }
 
 // Mock the typed bridge so the section fetches our payload instead of spawning
@@ -183,6 +184,7 @@ describe('Overview', () => {
   })
   afterEach(() => {
     vi.useRealTimers()
+    __resetGeneration()
   })
 
   it('counts the streak from yesterday when today has no spend yet', async () => {
@@ -721,6 +723,29 @@ describe('Overview', () => {
     const kpis = document.querySelector('.ov-hero-main') as HTMLElement
     expect(within(kpis).getByText(/At least 3 sessions/)).toBeInTheDocument()
     expect(within(kpis).getByTitle('Older session logs may be unavailable.')).toBeInTheDocument()
+  })
+
+  it('never serves the machine-wide generation as the hero under a provider filter', async () => {
+    const now = new Date()
+    const all = makePayload(now)
+    // The unfiltered payload alone carries periodTotals; the generation it
+    // leaves behind is machine-wide.
+    all.periodTotals = { '30days': { cost: 312.4, calls: 4200 } }
+    const { unmount } = render(<OverviewContent period="30days" provider="all" overview={polled(all, 2_000)} />)
+    expect(within(document.querySelector('.ov-hero-main') as HTMLElement).getByText('$312.40')).toBeInTheDocument()
+    unmount()
+
+    // Codex spent nothing: its payload carries no periodTotals, and it is older
+    // than the generation (a switch back onto a memoized filtered report).
+    const codex = makePayload(now)
+    codex.current = { ...codex.current, cost: 0, calls: 0, sessions: 0, sessionCountBasis: 'identity' }
+
+    const { container } = render(<OverviewContent period="30days" provider="codex" overview={polled(codex, 1_000)} />)
+
+    const kpis = container.querySelector('.ov-hero-main') as HTMLElement
+    expect(within(kpis).getByText('$0.00')).toBeInTheDocument()
+    expect(within(kpis).queryByText('$312.40')).not.toBeInTheDocument()
+    expect(within(kpis).getByText(/0 calls · 0 sessions/)).toBeInTheDocument()
   })
 
   it('keeps local hero totals when scope is local even if a combined payload is present', async () => {
