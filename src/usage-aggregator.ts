@@ -716,34 +716,18 @@ export type DurablePeriod = {
   todayAllDays: DailyEntry[]
   /// The scan range the live parse covered (today-only when the period is today).
   scanRange: DateRange
-  /// Every headline period's cost and calls, from THIS call's cache and today
-  /// set. Switching period in a client must not mix two aggregations taken
-  /// minutes apart, so the six numbers it can show all come from one generation.
-  /// Present only on the unscoped all-provider path with no project filter or
-  /// day selection; a scoped path must not scan what it does not display.
+  /// Cost and calls for every headline window this call's live scan covered,
+  /// from its own cache and today set. Switching period in a client must not mix
+  /// two aggregations taken minutes apart, so the windows it can show come from
+  /// one generation. Present only on the unscoped all-provider path with no
+  /// project filter or day selection; a scoped path must not scan what it does
+  /// not display.
   periodTotals?: PeriodTotals
 }
 
 export const HEADLINE_PERIODS = ['today', 'week', '30days', 'month', 'all', 'lifetime'] as const
 export type HeadlinePeriod = typeof HEADLINE_PERIODS[number]
-export type PeriodTotals = Record<HeadlinePeriod, { cost: number; calls: number }>
-
-/// Ascending by window width. `month` is left out: it is a calendar window, not
-/// a suffix of history, so it is not comparable with the others.
-const NESTED_PERIODS: HeadlinePeriod[] = ['today', 'week', '30days', 'all', 'lifetime']
-
-/** Each window contains the one before it, so its totals cannot be smaller.
- *  Returns the first pair that breaks, or null. */
-export function periodTotalsBreach(totals: PeriodTotals): string | null {
-  for (let i = 1; i < NESTED_PERIODS.length; i++) {
-    const narrow = totals[NESTED_PERIODS[i - 1]]
-    const wide = totals[NESTED_PERIODS[i]]
-    // A cent of float drift across two sums is not a breach.
-    if (wide.cost + 0.005 < narrow.cost) return `${NESTED_PERIODS[i]} cost ${wide.cost} < ${NESTED_PERIODS[i - 1]} ${narrow.cost}`
-    if (wide.calls < narrow.calls) return `${NESTED_PERIODS[i]} calls ${wide.calls} < ${NESTED_PERIODS[i - 1]} ${narrow.calls}`
-  }
-  return null
-}
+export type PeriodTotals = Partial<Record<HeadlinePeriod, { cost: number; calls: number }>>
 
 export async function buildDurablePeriod(periodInfo: PeriodInfo, opts: AggregateOpts = {}): Promise<DurablePeriod> {
   const pf = opts.provider ?? 'all'
@@ -892,16 +876,23 @@ export async function buildDurablePeriod(periodInfo: PeriodInfo, opts: Aggregate
 
   const carriedCostUSD = days.reduce((s, d) => s + (d.carried ? d.cost : 0), 0)
   const knownProjects = [...seenProjects, ...cachedProjectIdentities(cache, rangeStartStr, rangeEndStr)]
-  // Same cache, same today set, same reconciliation inputs as the headline
-  // above; only the window moves. The requested period's entry is therefore the
-  // headline's own number by construction, not a second opinion about it.
+  // Same cache, same today set, same live days as the headline above; only the
+  // window moves, so each entry is what a direct request for that period would
+  // return. A window that reaches back past `scanRange` is NOT emitted: the live
+  // parse never read those dates, so the cache would stand there unreconciled
+  // and the total would trail a direct request by whatever an under-read cached
+  // day is missing (#1217). A client falls back to the period's own payload for
+  // a window that is absent.
+  const scanStartStr = toDateString(scanRange.start)
   const periodTotals = pf === 'all' && !daysSelection && !hasProjectFilter
-    ? Object.fromEntries(HEADLINE_PERIODS.map(period => {
-      const info = getDateRange(period)
-      const windowDays = unionDaysForPeriod(cache, todayAllDays, info, null, undefined, liveHistoricalDays)
-      const windowData = buildPeriodDataFromDays(windowDays, info.label)
-      return [period, { cost: windowData.cost, calls: windowData.calls }]
-    })) as PeriodTotals
+    ? Object.fromEntries(HEADLINE_PERIODS
+      .map(period => [period, getDateRange(period)] as const)
+      .filter(([, info]) => toDateString(info.range.start) >= scanStartStr)
+      .map(([period, info]) => {
+        const windowDays = unionDaysForPeriod(cache, todayAllDays, info, null, undefined, liveHistoricalDays)
+        const windowData = buildPeriodDataFromDays(windowDays, info.label)
+        return [period, { cost: windowData.cost, calls: windowData.calls }]
+      })) as PeriodTotals
     : undefined
   return { data, days, carriedCostUSD, unattributedCostUSD, liveProjects, knownProjects, cache, todayAllDays, scanRange, periodTotals }
 }

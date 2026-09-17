@@ -866,8 +866,18 @@ function AppMain() {
   // The headline on screen is the generation's, so the clock describes the
   // generation. Without this the footer aged with whichever period's detail
   // payload happened to be oldest, which is not what the numbers came from.
-  const headlineFromGeneration = !customRange && scope === 'local' && !claudeConfigSource
-  const selectedLastSuccessAt = headlineFromGeneration ? generationAt() ?? reportLastSuccessAt : reportLastSuccessAt
+  // A filtered view shows its own payload, never the machine-wide generation, so
+  // its clock stays the report's.
+  const headlineFromGeneration = !customRange
+    && scope === 'local'
+    && !claudeConfigSource
+    && provider === 'all'
+    && !projectFiltered
+    && !!overview.data?.periodTotals
+  const generationClock = headlineFromGeneration ? generationAt() : null
+  const selectedLastSuccessAt = generationClock != null && (reportLastSuccessAt == null || generationClock > reportLastSuccessAt)
+    ? generationClock
+    : reportLastSuccessAt
 
   return (
     <Window>

@@ -8,15 +8,17 @@ export type Generation = { at: number; totals: PeriodTotals }
 const NESTED: Array<keyof PeriodTotals> = ['today', 'week', '30days', 'all', 'lifetime']
 
 /** Each window contains the one before it, so its totals cannot be smaller.
- *  Returns the first pair that breaks, or null. */
+ *  Returns the first pair that breaks, or null. Windows the generation does not
+ *  carry are skipped rather than compared against a neighbour they do not
+ *  bracket. */
 export function periodTotalsBreach(totals: PeriodTotals): string | null {
-  for (let index = 1; index < NESTED.length; index++) {
-    const narrow = totals[NESTED[index - 1]]
-    const wide = totals[NESTED[index]]
-    if (!narrow || !wide) continue
+  const present = NESTED.filter(period => totals[period])
+  for (let index = 1; index < present.length; index++) {
+    const narrow = totals[present[index - 1]]!
+    const wide = totals[present[index]]!
     // A cent of float drift across two sums is not a breach.
-    if (wide.cost + 0.005 < narrow.cost) return `${NESTED[index]} cost ${wide.cost} < ${NESTED[index - 1]} ${narrow.cost}`
-    if (wide.calls < narrow.calls) return `${NESTED[index]} calls ${wide.calls} < ${NESTED[index - 1]} ${narrow.calls}`
+    if (wide.cost + 0.005 < narrow.cost) return `${present[index]} cost ${wide.cost} < ${present[index - 1]} ${narrow.cost}`
+    if (wide.calls < narrow.calls) return `${present[index]} calls ${wide.calls} < ${present[index - 1]} ${narrow.calls}`
   }
   return null
 }
@@ -43,10 +45,19 @@ export function rememberGeneration(payload: MenubarPayload | null | undefined, a
   return current
 }
 
-/** Cost and calls for `period` from the newest generation, or null when the CLI
- *  did not supply them (a scoped or filtered request, or an older CLI). */
-export function generationHeadline(period: Period): { cost: number; calls: number } | null {
-  return current?.totals[period as keyof PeriodTotals] ?? null
+/**
+ * Cost and calls for `period` from the newest generation, or null to use the
+ * payload's own headline.
+ *
+ * A generation only stands in for a payload it is NEWER than: the payload's own
+ * `current` is what a direct request for its period returns, and nothing may
+ * replace a correct number with an estimate of it. It also only answers for
+ * windows it actually carries — the CLI omits the ones its live scan did not
+ * reach, because the cache alone trails a direct request there.
+ */
+export function generationHeadline(period: Period, payloadAt: number | null): { cost: number; calls: number } | null {
+  if (!current || payloadAt == null || current.at <= payloadAt) return null
+  return current.totals[period as keyof PeriodTotals] ?? null
 }
 
 export function generationAt(): number | null {

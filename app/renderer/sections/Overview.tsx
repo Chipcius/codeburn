@@ -989,10 +989,13 @@ export function OverviewContent({
   // the menubar. Only the hero totals are aggregated; the detailed panels below
   // (daily chart, models) stay local — the combined payload carries totals only.
   const combined = scope === 'combined' ? data.combined : undefined
-  // One generation behind every period the user can switch to. Only the
-  // unscoped local view has them; a custom range is not a headline period.
-  rememberGeneration(rangeActive || combined ? null : data, lastSuccessAt)
-  const headline = rangeActive || combined ? null : generationHeadline(period)
+  // One generation behind every period the user can switch to. `periodTotals`
+  // is emitted only for an unscoped, unfiltered request, so its presence on THIS
+  // payload is the gate: under a provider, project or config filter the machine-
+  // wide generation must never stand in for the filtered headline.
+  const unfiltered = !rangeActive && !combined && !!data.periodTotals
+  rememberGeneration(unfiltered ? data : null, lastSuccessAt)
+  const headline = unfiltered ? generationHeadline(period, lastSuccessAt) : null
   const heroCost = combined ? combined.combined.cost : headline?.cost ?? data.current.cost
   const heroCalls = combined ? combined.combined.calls : headline?.calls ?? data.current.calls
   const heroSessions = combined ? combined.combined.sessions : data.current.sessions
