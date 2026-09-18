@@ -435,7 +435,13 @@
 }
 
 .art .note {
-  min-height: 1.35em;
+  /* Two lines, reserved whether or not there is anything to say and clamped to that, so no
+     message can change the card's height. A longer one keeps its tail in the tooltip. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  min-height: 2.7em;
   margin-top: var(--sp-1);
   font-size: var(--fs-body);
   line-height: 1.35;

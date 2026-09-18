@@ -183,7 +183,7 @@ export function MenuBarCard({ art = menubarArt, artLight = menubarArtLight }: { 
         </div>
         {/* One note row, always present, so the card is the same height in every state. An
             error answers something the person just pressed, so it wins over the hint. */}
-        <div className={styles.note} data-kind={error ? 'error' : 'hint'}>
+        <div className={styles.note} data-kind={error ? 'error' : 'hint'} title={error ?? undefined}>
           {error ?? (status.outdated ? 'Update the menu bar to use this' : '')}
         </div>
       </div>
