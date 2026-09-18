@@ -4,9 +4,10 @@ import { showToast } from '../lib/toast'
 import { PluginDetailsModal } from './PluginDetails'
 import { InstallFlowModal } from './InstallFlow'
 import styles from './Plugins.module.css'
-import { isWindowsPlatform } from '../lib/platform'
+import { isMacPlatform, isWindowsPlatform } from '../lib/platform'
 import { Icon } from '../components/icons'
 import { BarNav } from '../components/TopBar'
+import { MenuBarCard } from './MenuBarCard'
 
 interface PluginInfo {
   name: string
@@ -111,6 +112,13 @@ function PluginsList() {
   return (
     <div className={styles.container}>
       {error && <div className={styles.error}>{error}</div>}
+      {/* The macOS menubar app is a companion, not a CLI plugin, so it sits above the list and
+          renders whether or not there are plugins. Nothing is rendered off darwin. */}
+      {isMacPlatform() && (
+        <div className={styles.list} style={{ marginBottom: 'var(--sp-5)' }}>
+          <MenuBarCard />
+        </div>
+      )}
       {plugins.length === 0 ? (
         <div className={`card ${styles.empty}`}>
           <h2 className={styles.emptyTitle}>Coming soon</h2>

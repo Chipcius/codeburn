@@ -294,3 +294,49 @@
   font-size: var(--fs-body);
   line-height: 1.55;
 }
+
+/* The macOS menu bar app's card (MenuBarCard.tsx). Same .row shell as a plugin; the switch
+   sits outside .actions because that rule repaints every button under it, which would strip
+   the shared .switch of its track and knob. */
+.dockToggle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-right: var(--sp-3);
+  font-size: var(--fs-label);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+/* `.caps span` paints every chip, so the dot has to opt out of being one. */
+.caps span.running {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--ok);
+}
+
+.caps span.runningDot {
+  width: 7px;
+  height: 7px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+.cardError {
+  margin-top: var(--sp-2);
+  font-size: var(--fs-body);
+  color: var(--color-error-text);
+}
+
+.website {
+  font-size: var(--fs-body);
+  color: var(--color-text-secondary);
+}
+
+.confirm {
+  font-size: var(--fs-body);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
