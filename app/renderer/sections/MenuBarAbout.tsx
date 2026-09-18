@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties } from 'react'
+import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
 import { Icon, type IconName } from '../components/icons'
@@ -43,9 +43,9 @@ function Column({ title, lines }: { title: string; lines: Line[] }) {
   )
 }
 
-/** What the menu bar app and its Capacity Dock actually do, as two columns of plain lines.
- *  Portaled out of the card so the card's own layout never has to make room for it. */
-export function MenuBarAboutModal({ onClose }: { onClose: () => void }) {
+/** What a plugin card's info dot opens: a centred, focus-trapped dialog portaled out of the
+ *  card so the card's own layout never has to make room for it. Both cards share this shell. */
+function AboutModalShell({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }) {
   const dialog = useRef<HTMLDivElement>(null)
   const close = useRef<HTMLButtonElement>(null)
 
@@ -81,17 +81,52 @@ export function MenuBarAboutModal({ onClose }: { onClose: () => void }) {
         className={styles.aboutModal}
         role="dialog"
         aria-modal="true"
-        aria-label="What the menu bar app does"
+        aria-label={label}
         onClick={event => event.stopPropagation()}
         onKeyDown={onKeyDown}
       >
         <button ref={close} className={styles.modalClose} onClick={onClose} aria-label="Close"><Icon name="x" /></button>
-        <div className={styles.aboutCols}>
-          <Column title="Menu bar" lines={MENU_BAR} />
-          <Column title="Capacity Dock" lines={CAPACITY_DOCK} />
-        </div>
+        {children}
       </div>
     </div>,
     document.body,
+  )
+}
+
+/** What the menu bar app and its Capacity Dock actually do, as two columns of plain lines. */
+export function MenuBarAboutModal({ onClose }: { onClose: () => void }) {
+  return (
+    <AboutModalShell label="What the menu bar app does" onClose={onClose}>
+      <div className={styles.aboutCols}>
+        <Column title="Menu bar" lines={MENU_BAR} />
+        <Column title="Capacity Dock" lines={CAPACITY_DOCK} />
+      </div>
+    </AboutModalShell>
+  )
+}
+
+const TEAMS_PLANNED: Line[] = [
+  { icon: 'layout-dashboard', text: "A shared team dashboard of everyone's session outcomes, retries and kind of work" },
+  { icon: 'lock', text: 'Only outcomes and counts leave each machine, never your code or prompts' },
+  { icon: 'chart-column', text: 'See where time and spend go across the team, per project and per model' },
+  { icon: 'shield', text: 'Per seat, each member keeps their own local data' },
+]
+
+/** What the Teams plugin will do, as one column of plain lines. */
+export function TeamsAboutModal({ onClose }: { onClose: () => void }) {
+  return (
+    <AboutModalShell label="Teams" onClose={onClose}>
+      <div className={styles.aboutCol}>
+        <h3 className={styles.aboutColTitle}>Teams</h3>
+        <ul className={styles.aboutLines}>
+          {TEAMS_PLANNED.map(line => (
+            <li key={line.text}>
+              <Icon name={line.icon} className={styles.aboutLineIcon} />
+              <span>{line.text}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </AboutModalShell>
   )
 }

@@ -9,8 +9,12 @@ import { isMacPlatform, isWindowsPlatform } from '../lib/platform'
 import { Icon } from '../components/icons'
 import { BarNav } from '../components/TopBar'
 import { MenuBarCard } from './MenuBarCard'
+import { TeamsAboutModal } from './MenuBarAbout'
 import teamsArt from '../assets/teams-card-art.jpg'
 import teamsArtLight from '../assets/teams-card-art-light.jpg'
+
+// Placeholder until the real signup URL lands; swap this one constant before merge.
+const TEAMS_BETA_URL = 'https://getagentseal.com/teams-beta'
 
 interface PluginInfo {
   name: string
@@ -45,24 +49,42 @@ function PluginsComingSoon() {
   )
 }
 
-/** The one plugin that is coming, as a card rather than a panel of prose. Nothing to press,
- *  so the slot the Menu bar card fills with buttons carries a label instead. */
+/** The one plugin that is coming, as a card rather than a panel of prose. Nothing to install
+ *  yet, so the control slot carries a label and the card explains itself instead. */
 function TeamsCard() {
+  const [about, setAbout] = useState(false)
+  const description = 'Shares your session outcomes, retries and kind of work with your team dashboard. Nothing else leaves the machine.'
   return (
     <div
       className={`${styles.row} ${styles.art}`}
       style={{ '--card-art': `url(${teamsArt})`, '--card-art-light': `url(${teamsArtLight})` } as CSSProperties}
       data-status="loaded"
     >
-      <div className={styles.info}>
-        <div className={styles.name}>Teams</div>
-        <div className={styles.reason} title="Shares session outcomes and retries with your team dashboard.">
-          Shares session outcomes and retries with your team dashboard.
+      <div className={`${styles.info} ${styles.teamsInfo}`}>
+        <div className={styles.nameRow}>
+          <div className={styles.name}>Teams</div>
+          <button
+            type="button"
+            className={`ov-info ${styles.infoDot}`}
+            aria-label="What Teams will do"
+            onClick={() => setAbout(true)}
+          >
+            <Icon name="info" />
+          </button>
         </div>
+        <div className={`${styles.reason} ${styles.reasonFull}`}>{description}</div>
+        <button
+          type="button"
+          className={`set-text-button ${styles.betaLink}`}
+          onClick={() => { void codeburn.openExternal(TEAMS_BETA_URL) }}
+        >
+          Register for beta testing
+        </button>
       </div>
       <div className={styles.controls}>
         <span className={styles.pill}>Coming soon</span>
       </div>
+      {about && <TeamsAboutModal onClose={() => setAbout(false)} />}
     </div>
   )
 }
