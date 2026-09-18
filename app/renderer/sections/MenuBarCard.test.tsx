@@ -15,6 +15,7 @@ const bridge = vi.hoisted(() => ({
   macMenubarSettings: vi.fn(),
   onMacMenubarProgress: vi.fn((_cb: (phase: string) => void) => () => {}),
   macMenubarUninstall: vi.fn(),
+  openExternal: vi.fn(),
   pluginList: vi.fn(),
 }))
 vi.mock('../lib/ipc', () => ({ codeburn: bridge, normalizeCliError: (err: unknown) => err }))
@@ -429,5 +430,29 @@ describe('the Plugins page', () => {
     await waitFor(() => expect(screen.getByText('Plugins are coming to Windows')).toBeTruthy())
     expect(screen.queryByText('Menu bar')).toBeNull()
     expect(bridge.macMenubarStatus).not.toHaveBeenCalled()
+  })
+})
+
+describe('the Teams card', () => {
+  beforeEach(() => {
+    ;(window as unknown as { codeburn?: { platform?: string } }).codeburn = { platform: 'darwin' }
+    bridge.pluginList.mockResolvedValue([])
+    bridge.macMenubarStatus.mockResolvedValue(status())
+  })
+
+  it('opens a Teams modal from its info button and closes it on Escape', async () => {
+    render(<PluginsSection />)
+    await userEvent.click(await screen.findByRole('button', { name: 'What Teams will do' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Teams' })
+    expect(within(dialog).getByText(/shared team dashboard/i)).toBeTruthy()
+    expect(within(dialog).getByText(/never your code or prompts/i)).toBeTruthy()
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+
+  it('opens the beta signup URL through the external opener', async () => {
+    render(<PluginsSection />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Register for beta testing' }))
+    expect(bridge.openExternal).toHaveBeenCalledWith('https://codeburn.app/teams')
   })
 })

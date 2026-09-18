@@ -343,7 +343,9 @@
    the bottom-right of the source stays where it was drawn and the flat left edge stretches. */
 .art {
   box-sizing: border-box;
-  height: 150px;
+  /* A floor, not a fixed height: the grid stretches both cards in a row to the taller one, so
+     a card whose copy runs long (Teams, shown in full) grows and its neighbour matches it. */
+  min-height: 150px;
   /* Text column top-left, controls pinned to the top-right rather than centred, so both cards'
      controls share one top and right offset (the card's own padding) and line up. */
   align-items: flex-start;
@@ -471,6 +473,26 @@
   overflow: hidden;
   margin-top: 2px;
   font-size: var(--fs-meta);
+}
+
+/* Teams shows its description in full rather than clipped to one line, and the card grows. */
+.art .reasonFull {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+
+/* The Teams column runs full height so its beta link can sit at the bottom of the card. */
+.teamsInfo {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+}
+
+.betaLink {
+  margin-top: auto;
+  align-self: flex-start;
+  padding-top: var(--sp-2);
 }
 
 /* Below this the switch's written label no longer fits beside the buttons and the text
