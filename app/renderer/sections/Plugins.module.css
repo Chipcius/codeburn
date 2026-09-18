@@ -334,11 +334,6 @@
   color: var(--color-text-secondary);
 }
 
-.confirm {
-  font-size: var(--fs-body);
-  color: var(--color-text-secondary);
-  white-space: nowrap;
-}
 
 /* Artwork cards (Menu bar, Teams). The art rides on .row's own background, so the radius,
    rim, padding and layout are untouched; only the paint under them changes. Each card sets
@@ -483,11 +478,6 @@
   opacity: .7;
 }
 
-.menuConfirmRow button {
-  height: var(--mb-ctl-h);
-  padding-top: 0;
-  padding-bottom: 0;
-}
 
 .art .actions button.primary {
   border-color: var(--accent);
@@ -500,6 +490,27 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
+}
+
+/* Nothing on this card moves when it is pressed. The shared button classes take a 2% dip and
+   ease their colours, and the menu grows out of its trigger; here every change is instant. */
+.art .actions button,
+.art .controls button,
+.art .pill,
+.art .infoDot,
+.art .controls :global(.switch),
+.art .controls :global(.switch-knob) {
+  transition: none;
+}
+
+.art .actions button:active,
+.art .controls button:active,
+.art .infoDot:active {
+  transform: none;
+}
+
+:global(.pop-menu).menu {
+  animation: none;
 }
 
 /* Teams has nothing to press, so the slot the other card fills with buttons carries a label. */
@@ -564,19 +575,6 @@
 .more .icon {
   width: 14px;
   height: 14px;
-}
-
-/* The confirm row, inside the menu the destructive action was chosen from. */
-.menuConfirm {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-  padding: var(--sp-2);
-}
-
-.menuConfirmRow {
-  display: flex;
-  gap: var(--sp-2);
 }
 
 /* The Menu bar card's info modal: two columns of plain lines, one hairline between them. */

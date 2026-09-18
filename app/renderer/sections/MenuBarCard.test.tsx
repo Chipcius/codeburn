@@ -111,8 +111,8 @@ describe('MenuBarCard actions', () => {
     expect(screen.getByRole('button', { name: 'Install' })).toBeTruthy()
   })
 
-  it('Open asks the main process to open, which focuses a copy already up', async () => {
-    bridge.macMenubarStatus.mockResolvedValue(status({ installed: true, version: '1.0.0', running: true }))
+  it('Open asks the main process to start it, and only while it is down', async () => {
+    bridge.macMenubarStatus.mockResolvedValue(status({ installed: true, version: '1.0.0', running: false }))
     bridge.macMenubarOpen.mockResolvedValue(status({ installed: true, version: '1.0.0', running: true }))
     render(<MenuBarCard />)
     await userEvent.click(await screen.findByRole('button', { name: 'Open' }))
@@ -246,8 +246,6 @@ describe('MenuBarCard with an outdated menubar', () => {
     await openMore()
     expect(screen.getByRole('menuitem', { name: 'Quit' })).toHaveProperty('disabled', true)
     expect(screen.getByRole('menuitem', { name: 'Uninstall' })).toHaveProperty('disabled', true)
-    // Open still works: it launches the bundle, which needs nothing of the app.
-    expect(screen.getByRole('button', { name: 'Open' })).toHaveProperty('disabled', false)
   })
 
   it('Update reinstalls and the card comes back current', async () => {
@@ -347,6 +345,19 @@ describe('MenuBarCard progress and timeouts', () => {
 })
 
 describe('MenuBarCard settings and the info modal', () => {
+  it('running: no Open, and Settings is the button carrying the emphasis', async () => {
+    bridge.macMenubarStatus.mockResolvedValue(status({ installed: true, version: '1.0.0', running: true }))
+    render(<MenuBarCard />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Settings' })).toBeTruthy())
+    expect(screen.queryByRole('button', { name: 'Open' })).toBeNull()
+  })
+
+  it('not running: Open comes back', async () => {
+    bridge.macMenubarStatus.mockResolvedValue(status({ installed: true, version: '1.0.0', running: false }))
+    render(<MenuBarCard />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Open' })).toBeTruthy())
+  })
+
   it('Settings asks the menubar to open its own Settings window', async () => {
     const running = status({ installed: true, version: '1.0.0', running: true })
     bridge.macMenubarStatus.mockResolvedValue(running)

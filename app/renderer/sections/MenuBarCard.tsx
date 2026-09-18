@@ -81,6 +81,12 @@ export function MenuBarCard({ art = menubarArt, artLight = menubarArtLight }: { 
 
   if (!status?.supported) return null
 
+  /** Exactly one button carries the emphasis, and which one depends on the state. */
+  const primary = status.outdated && status.canInstall ? 'update'
+    : !status.installed ? 'install'
+    : status.running ? 'settings'
+    : 'open'
+
   const act = async (kind: Action, call: () => Promise<void>) => {
     if (busy) return
     setBusy(kind)
@@ -211,20 +217,24 @@ export function MenuBarCard({ art = menubarArt, artLight = menubarArtLight }: { 
           {status.installed ? (
             <>
               <button
-                className="btnp"
+                className={primary === 'settings' ? `btnp ${styles.primary}` : 'btnp'}
                 onClick={settings}
                 disabled={busy !== null || status.outdated}
                 title={status.outdated ? 'Update the menu bar to use this' : "Open the menu bar app's own Settings window"}
               >
                 {busy === 'settings' ? 'Opening\u2026' : 'Settings'}
               </button>
-              <button
-                className={status.outdated ? 'btnp' : `btnp ${styles.primary}`}
-                onClick={open}
-                disabled={busy !== null}
-              >
-                {busy === 'open' ? 'Opening\u2026' : 'Open'}
-              </button>
+              {/* Nothing to bring forward while it is up: the menubar is its own status item,
+                  and Settings is the only window it has. */}
+              {!status.running && (
+                <button
+                  className={primary === 'open' ? `btnp ${styles.primary}` : 'btnp'}
+                  onClick={open}
+                  disabled={busy !== null}
+                >
+                  {busy === 'open' ? 'Opening\u2026' : 'Open'}
+                </button>
+              )}
               {status.outdated && status.canInstall && (
                 <button className={`btnp ${styles.primary}`} onClick={update} disabled={busy !== null}>
                   {busy === 'update' ? `${phase ?? 'Updating'}\u2026` : 'Update'}
@@ -245,18 +255,14 @@ export function MenuBarCard({ art = menubarArt, artLight = menubarArtLight }: { 
                 <Icon name="ellipsis" />
               </button>
               {menuOpen && (
-                <AnchoredSurface anchor={moreRef} surfaceRef={menuRef} className="pop-menu" role="menu" aria-label="More menu bar actions">
+                <AnchoredSurface anchor={moreRef} surfaceRef={menuRef} className={`pop-menu ${styles.menu}`} role="menu" aria-label="More menu bar actions">
                   {confirming ? (
-                    <div className={styles.menuConfirm}>
-                      <span className={styles.confirm}>
-                        {confirming === 'quit' ? 'Quit the menu bar app?' : 'Remove the menu bar app?'}
-                      </span>
-                      <div className={styles.menuConfirmRow}>
-                        <button className="btnp" onClick={confirming === 'quit' ? quit : uninstall} disabled={busy !== null}>
-                          {busy ? 'Working\u2026' : 'Yes'}
-                        </button>
-                        <button className="btnp" onClick={() => setConfirming(null)} disabled={busy !== null}>No</button>
-                      </div>
+                    <div className="pop-confirm">
+                      <span>{confirming === 'quit' ? 'Quit the menu bar app?' : 'Remove the menu bar app?'}</span>
+                      <button type="button" className="danger" onClick={confirming === 'quit' ? quit : uninstall} disabled={busy !== null}>
+                        {busy ? 'Working\u2026' : 'Yes'}
+                      </button>
+                      <button type="button" onClick={() => setConfirming(null)} disabled={busy !== null}>No</button>
                     </div>
                   ) : (
                     <>
@@ -275,7 +281,7 @@ export function MenuBarCard({ art = menubarArt, artLight = menubarArtLight }: { 
                       <button
                         type="button"
                         role="menuitem"
-                        className="pop-item"
+                        className="pop-item danger"
                         disabled={busy !== null || status.outdated}
                         title={status.outdated ? 'Update the menu bar to use this' : undefined}
                         onClick={() => setConfirming('uninstall')}
