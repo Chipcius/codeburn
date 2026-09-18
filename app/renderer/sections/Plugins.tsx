@@ -56,8 +56,8 @@ function TeamsCard() {
     >
       <div className={styles.info}>
         <div className={styles.name}>Teams</div>
-        <div className={`${styles.reason} ${styles.clamp2}`} title="Sends your session outcomes, retries and kind of work to your team dashboard. Nothing else leaves this machine.">
-          Sends your session outcomes, retries and kind of work to your team dashboard. Nothing else leaves this machine.
+        <div className={`${styles.reason} ${styles.clamp2}`} title="Shares session outcomes and retries with your team dashboard.">
+          Shares session outcomes and retries with your team dashboard.
         </div>
       </div>
       <div className={styles.actions}>
