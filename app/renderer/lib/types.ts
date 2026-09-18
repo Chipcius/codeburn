@@ -43,6 +43,10 @@ export type QuotaProvider = {
   footerLines: string[]
   /** True when the provider is in a 429 backoff window (upstream rate limit). */
   rateLimited?: boolean
+  /** Set when the error is an auth expiry a (re)connect can fix (a 401/403 or an
+   *  expired token), or when a stuck "waiting" is capped to an actionable state,
+   *  so the card shows the Connect affordance. */
+  connectable?: boolean
 }
 
 export type ProviderName = QuotaProvider['provider']

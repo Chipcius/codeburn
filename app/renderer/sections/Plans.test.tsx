@@ -355,4 +355,52 @@ describe('Plans', () => {
     expect(await screen.findByText('Keychain access needed: click Allow when macOS asks, then Refresh.')).toBeInTheDocument()
     expect(screen.getByText('locked')).toBeInTheDocument()
   })
+
+  it('adds the Connect affordance to a login-expired error, keeping its message', async () => {
+    getPlans.mockResolvedValue(baseStatus)
+    getQuota.mockReset()
+    getQuota.mockResolvedValue([
+      { provider: 'kimi', connection: 'terminalFailure', connectable: true, primary: null, details: [], planLabel: null, footerLines: ['Login expired. Run the Kimi CLI once, then refresh.'] },
+    ])
+
+    render(<Plans period="30days" />)
+
+    expect(await screen.findByText('Login expired. Run the Kimi CLI once, then refresh.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Connect' })).toBeInTheDocument()
+  })
+
+  it('leaves a genuinely terminal error (not auth) without a Connect affordance', async () => {
+    getPlans.mockResolvedValue(baseStatus)
+    getQuota.mockReset()
+    getQuota.mockResolvedValue([
+      { provider: 'gemini', connection: 'terminalFailure', primary: null, details: [], planLabel: null, footerLines: ['Your Gemini tier was retired.'] },
+    ])
+
+    render(<Plans period="30days" />)
+
+    expect(await screen.findByText('Your Gemini tier was retired.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Connect' })).not.toBeInTheDocument()
+  })
+
+  it('caps a stuck "waiting" state to an actionable Connect after the cap', async () => {
+    __resetPolledMemo()
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000_000)
+    getPlans.mockResolvedValue(baseStatus)
+    getQuota.mockReset()
+    const waiting = (): QuotaProvider[] => [
+      { provider: 'gemini', connection: 'transientFailure', rateLimited: false, primary: null, details: [], planLabel: null, footerLines: [] },
+    ]
+    getQuota.mockResolvedValueOnce(waiting()).mockResolvedValue(waiting())
+
+    const { rerender } = render(<Plans period="30days" refreshToken={0} />)
+    expect(await screen.findByText('Waiting on the CLI…')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Connect' })).not.toBeInTheDocument()
+
+    nowSpy.mockReturnValue(1_000_000 + 25_000) // past the 20s cap
+    rerender(<Plans period="30days" refreshToken={1} />)
+    await waitFor(() => expect(getQuota).toHaveBeenCalledTimes(2))
+    expect(await screen.findByText("Couldn't reach the Gemini CLI.")).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Connect' })).toBeInTheDocument()
+    nowSpy.mockRestore()
+  })
 })

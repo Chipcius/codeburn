@@ -157,7 +157,7 @@ export async function fetchGrokbotQuota(
         'User-Agent': 'CodeBurn',
       },
     })
-    if (response.status === 401 || response.status === 403) return { quota: empty('terminalFailure', REJECTED_FOOTER) }
+    if (response.status === 401 || response.status === 403) return { quota: { ...empty('terminalFailure', REJECTED_FOOTER), connectable: true } }
     if (response.status === 429) {
       const raw = response.headers.get('Retry-After')
       const seconds = raw === null ? NaN : Number(raw)
