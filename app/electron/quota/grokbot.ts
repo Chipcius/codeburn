@@ -62,6 +62,13 @@ export async function cursorAccessTokenFromDatabase(databasePath: string): Promi
   const { DatabaseSync } = await import('node:sqlite')
   const db = new DatabaseSync(databasePath, { readOnly: true })
   try {
+    // Cursor is usually running and holding a write lock; without this a read
+    // gets SQLITE_BUSY at once. Wait it out the same 1s the CLI opener does.
+    db.exec?.('PRAGMA busy_timeout = 1000')
+  } catch {
+    // Best effort. Some Node sqlite builds may not expose exec on DatabaseSync.
+  }
+  try {
     const rows = db.prepare('SELECT value FROM ItemTable WHERE key = ? LIMIT 1').all(ACCESS_TOKEN_KEY)
     const value = rows[0]?.['value']
     const text = typeof value === 'string'
