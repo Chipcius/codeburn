@@ -25,6 +25,11 @@ describe('Group Container preflight', () => {
     expect(probeDatabaseBlocked(file)).toBe(false)
   })
 
+  it('does not blame the file when the probe itself cannot run', () => {
+    const missingNode = join(tmpdir(), 'codeburn-no-such-node')
+    expect(probeDatabaseBlocked(groupContainerPath('spawn-fail.sqlite'), SLEEPS_FOREVER, missingNode)).toBe(false)
+  })
+
   it('warns once per run and leaves the error marked as blocked', () => {
     const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
     try {

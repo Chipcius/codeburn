@@ -428,22 +428,27 @@ export function isBlockedDatabaseError(err: unknown): boolean {
   return typeof err === 'object' && err !== null && 'codeburnBlocked' in err
 }
 
-/// `script` is only ever overridden by tests, which cannot make a real open()
-/// hang on demand.
-export function probeDatabaseBlocked(path: string, script = TCC_PROBE): boolean {
+/// `script` and `execPath` are only ever overridden by tests, which cannot make
+/// a real open() hang on demand nor break the spawn itself.
+export function probeDatabaseBlocked(path: string, script = TCC_PROBE, execPath = process.execPath): boolean {
   const now = Date.now()
-  const cached = tccProbeCache.get(path)
+  const key = `${script}\u0000${path}`
+  const cached = tccProbeCache.get(key)
   if (cached && now - cached.at < TCC_PROBE_CACHE_MS) return cached.blocked
 
-  const probe = spawnSync(process.execPath, ['-e', script, path], {
+  const probe = spawnSync(execPath, ['-e', script, path], {
     timeout: TCC_PROBE_TIMEOUT_MS,
     killSignal: 'SIGKILL',
     stdio: 'ignore',
+    // process.execPath is Electron's binary in the desktop app; without this it
+    // would launch a second app window instead of running the script.
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
   })
-  // 0 readable, 2 missing (let the real open report that); anything else,
-  // including the timeout kill, means we must not touch this file.
-  const blocked = probe.status !== 0 && probe.status !== 2
-  tccProbeCache.set(path, { blocked, at: now })
+  // 0 readable, 2 missing (let the real open report that); the timeout kill and
+  // any other exit mean we must not touch this file. A probe we could not run
+  // at all says nothing about the file, so it must not block it.
+  const blocked = probe.signal === 'SIGKILL' || (!probe.error && probe.status !== 0 && probe.status !== 2)
+  tccProbeCache.set(key, { blocked, at: now })
   return blocked
 }
 
