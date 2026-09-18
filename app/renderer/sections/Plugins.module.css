@@ -493,6 +493,15 @@
   border-color: var(--accent);
 }
 
+/* Two lines like the note row above, so a long line of copy cannot make the card tall at a
+   narrow window. The full sentence stays in the tooltip. */
+.clamp2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
 /* Teams has nothing to press, so the slot the other card fills with buttons carries a label. */
 .pill {
   display: inline-flex;
