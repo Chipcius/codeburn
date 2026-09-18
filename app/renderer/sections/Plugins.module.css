@@ -489,6 +489,19 @@
   flex-direction: column;
 }
 
+/* The menu bar column runs full height too: title and full description at the top, and the
+   status line (Running · version) pinned to the bottom-left, clear of the wordmark baked into
+   the artwork's bottom-right. The note row keeps its place just above the status. */
+.menubarInfo {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+}
+
+.menubarInfo .note {
+  margin-top: auto;
+}
+
 .betaLink {
   margin-top: auto;
   align-self: flex-start;

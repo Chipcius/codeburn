@@ -143,7 +143,7 @@ export function MenuBarCard({ art = menubarArt, artLight = menubarArtLight }: { 
       } as CSSProperties}
       data-status="loaded"
     >
-      <div className={styles.info}>
+      <div className={`${styles.info} ${styles.menubarInfo}`}>
         <div className={styles.nameRow}>
           <div className={styles.name}>Menu bar</div>
           <button
@@ -155,19 +155,21 @@ export function MenuBarCard({ art = menubarArt, artLight = menubarArtLight }: { 
             <Icon name="info" />
           </button>
         </div>
-        <div className={styles.reason}>
+        <div className={`${styles.reason} ${styles.reasonFull}`}>
           Spend and quotas in your Mac&apos;s menu bar.
-        </div>
-        <div className={styles.caps}>
-          {status.running && (
-            <span className={styles.running}><span className={styles.runningDot} />Running</span>
-          )}
-          {status.version && <span>v{status.version}</span>}
         </div>
         {/* One note row, always present, so the card is the same height in every state. An
             error answers something the person just pressed, so it wins over the hint. */}
         <div className={styles.note} data-kind={error ? 'error' : 'hint'} title={error ?? undefined}>
           {error ?? (status.outdated ? 'Update the menu bar to use this' : '')}
+        </div>
+        {/* The status line rides the bottom-left of the card, clear of the wordmark baked into
+            the artwork's bottom-right. */}
+        <div className={styles.caps}>
+          {status.running && (
+            <span className={styles.running}><span className={styles.runningDot} />Running</span>
+          )}
+          {status.version && <span>v{status.version}</span>}
         </div>
       </div>
       <div className={styles.controls}>

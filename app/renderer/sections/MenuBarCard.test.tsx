@@ -55,6 +55,12 @@ describe('MenuBarCard states', () => {
     expect(screen.queryByText('Running')).toBeNull()
   })
 
+  it('shows the whole description, not a clipped line', async () => {
+    bridge.macMenubarStatus.mockResolvedValue(status())
+    render(<MenuBarCard />)
+    await waitFor(() => expect(screen.getByText("Spend and quotas in your Mac's menu bar.")).toBeTruthy())
+  })
+
   it('installed but not running: Open plus the version, switch disabled', async () => {
     bridge.macMenubarStatus.mockResolvedValue(status({ installed: true, path: '/Applications/CodeBurnMenubar.app', version: '0.9.18' }))
     render(<MenuBarCard />)
