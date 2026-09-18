@@ -169,7 +169,13 @@ export async function fetchGeminiQuota(options: Partial<GeminiDeps> & { signal?:
     let response = await post(token, 'loadCodeAssist', { metadata: { ideType: 'GEMINI_CLI', pluginType: 'GEMINI' } }, deps, options.signal)
     if (response.status === 401) {
       const reread = await credentialFromFile(deps)
-      if (!reread || reread.access_token === credential.access_token) return { quota: empty('transientFailure') }
+      // Gemini has no keychain and no in-process refresh without the CLI's env
+      // overrides, so a 401 whose re-read token is unchanged is an expired login
+      // only the Gemini CLI can fix — a terminal, actionable state (matching the
+      // menubar's .tokenExpired), never an open-ended "waiting".
+      if (!reread || reread.access_token === credential.access_token) {
+        return { quota: { ...empty('terminalFailure', ['Gemini login expired. Run the Gemini CLI once to refresh, then try again.']), connectable: true } }
+      }
       credential = reread
       response = await post(credential.access_token!, 'loadCodeAssist', { metadata: { ideType: 'GEMINI_CLI', pluginType: 'GEMINI' } }, deps, options.signal)
     }
