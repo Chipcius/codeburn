@@ -143,11 +143,7 @@ function PluginsList() {
         {isMacPlatform() && <MenuBarCard />}
         <TeamsCard />
       </div>
-      {plugins.length === 0 ? (
-        <p className={styles.emptyFooter}>
-          Have a plugin file already? <button type="button" className="set-text-button" onClick={() => setShowInstallFlow(true)}>Install it</button>
-        </p>
-      ) : (
+      {plugins.length > 0 && (
         <div className={styles.list}>
           {plugins.map(plugin => (
             <div key={plugin.name} className={styles.row} data-status={plugin.status}>
