@@ -26,6 +26,9 @@ function harness(opts: {
 } = {}) {
   const present = new Set(opts.present ?? [])
   let running = Boolean(opts.running)
+  // The command the menubar has not taken out of its defaults yet. A menubar that watches the
+  // key consumes it as it acts, which is what settings() waits for.
+  let pendingCommand: string | null = null
   const calls: RunCall[] = []
   const cliCalls: string[][] = []
   const run = vi.fn(async (command: string, args: string[]) => {
@@ -34,12 +37,20 @@ function harness(opts: {
     if (command.endsWith('PlistBuddy')) return opts.version ?? '9.9.9'
     if (command.endsWith('pgrep')) return running ? '4242' : null
     if (command.endsWith('pkill')) { running = false; return '' }
-    if (command.endsWith('defaults') && args[0] === 'read') return opts.dock ?? null
+    if (command.endsWith('defaults') && args[0] === 'read') {
+      return args[2] === REMOTE_COMMAND_KEY ? pendingCommand : (opts.dock ?? null)
+    }
     if (command.endsWith('defaults') && args[0] === 'write') {
-      if (args[2] === REMOTE_COMMAND_KEY && opts.honoursRemoteCommand !== false) running = false
+      if (args[2] === REMOTE_COMMAND_KEY) {
+        if (opts.honoursRemoteCommand === false) pendingCommand = args[4]
+        else if (args[4] !== 'settings') running = false
+      }
       return ''
     }
-    if (command.endsWith('defaults') && args[0] === 'delete') return ''
+    if (command.endsWith('defaults') && args[0] === 'delete') {
+      if (args[2] === REMOTE_COMMAND_KEY) pendingCommand = null
+      return ''
+    }
     if (command.endsWith('open')) return ''
     return null
   })
@@ -260,6 +271,38 @@ describe('MacMenubar.quit', () => {
     const { menubar, calls } = harness()
     await menubar.quit()
     expect(calls.some(([cmd]) => cmd.endsWith('pkill') || cmd.endsWith('defaults') && cmd.includes('write'))).toBe(false)
+  })
+})
+
+describe('MacMenubar.settings', () => {
+  it('asks for the Settings window and leaves the app up', async () => {
+    const { menubar, calls, isRunning } = harness({ present: [USER_APP], running: true })
+    const result = await menubar.settings()
+    const write = calls.find(([cmd, args]) => cmd.endsWith('defaults') && args[0] === 'write' && args[2] === REMOTE_COMMAND_KEY)
+    expect(write?.[1]).toEqual(['write', MENUBAR_BUNDLE_ID, REMOTE_COMMAND_KEY, '-string', 'settings'])
+    expect(result).toMatchObject({ ok: true, error: null })
+    expect(isRunning()).toBe(true)
+  })
+
+  // A menubar that is down answers the key at its own launch, so the bundle is opened too.
+  it('opens the bundle so a menubar that is not running still answers', async () => {
+    const { menubar, calls } = harness({ present: [USER_APP], running: false })
+    await menubar.settings()
+    expect(calls.some(([cmd, args]) => cmd.endsWith('open') && args[0] === USER_APP)).toBe(true)
+  })
+
+  it('says so and takes the command back when nobody consumes it', async () => {
+    const { menubar, calls } = harness({ present: [USER_APP], running: true, honoursRemoteCommand: false })
+    const result = await menubar.settings()
+    expect(result).toMatchObject({ ok: false, error: NO_ANSWER })
+    expect(calls.some(([cmd, args]) => cmd.endsWith('defaults') && args[0] === 'delete' && args[2] === REMOTE_COMMAND_KEY)).toBe(true)
+  })
+
+  it('does nothing when nothing is installed', async () => {
+    const { menubar, calls } = harness()
+    const result = await menubar.settings()
+    expect(result.ok).toBe(false)
+    expect(calls.some(([cmd, args]) => cmd.endsWith('defaults') && args[0] === 'write')).toBe(false)
   })
 })
 

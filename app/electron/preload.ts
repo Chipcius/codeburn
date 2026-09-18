@@ -94,6 +94,7 @@ const bridge = {
   macMenubarInstall: () => invoke('codeburn:macMenubarInstall'),
   macMenubarOpen: () => invoke('codeburn:macMenubarOpen'),
   macMenubarSetDock: (enabled: boolean) => invoke('codeburn:macMenubarSetDock', enabled),
+  macMenubarSettings: () => invoke('codeburn:macMenubarSettings'),
   macMenubarQuit: () => invoke('codeburn:macMenubarQuit'),
   macMenubarUninstall: () => invoke('codeburn:macMenubarUninstall'),
   onMacMenubarProgress: (cb: (phase: string) => void) => {

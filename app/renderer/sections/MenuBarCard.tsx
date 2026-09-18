@@ -1,13 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
+import { AnchoredSurface } from '../components/AnchoredSurface'
+import { Icon } from '../components/icons'
+import { useEscape } from '../hooks/useEscape'
 import { codeburn } from '../lib/ipc'
 import type { MacMenubarStatus } from '../lib/types'
+import { MenuBarAboutModal } from './MenuBarAbout'
 import styles from './Plugins.module.css'
+import menubarArt from '../assets/menubar-card-art.jpg'
+import menubarArtLight from '../assets/menubar-card-art-light.jpg'
 
 /** The menubar app and the desktop app already share the CLI, the cache and the config, so the
  *  card has no link step: install, open, and the one switch the app draws a window for. */
 const POLL_MS = 4000
 
-type Action = 'install' | 'open' | 'dock' | 'quit' | 'uninstall' | 'update'
+type Action = 'install' | 'open' | 'dock' | 'quit' | 'uninstall' | 'update' | 'settings'
 
 /**
  * Polls only while this card is mounted (the Plugins page unmounts on navigation) and only
@@ -45,7 +52,7 @@ function useMacMenubarStatus(): [MacMenubarStatus | null, (next: MacMenubarStatu
   return [status, apply, refresh]
 }
 
-export function MenuBarCard() {
+export function MenuBarCard({ art = menubarArt, artLight = menubarArtLight }: { art?: string; artLight?: string } = {}) {
   const [status, apply, refresh] = useMacMenubarStatus()
   const [busy, setBusy] = useState<Action | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -55,6 +62,22 @@ export function MenuBarCard() {
   // half a minute, most of it an 8 MB download, and a button that only says "Installing…" for
   // that long reads as a hang.
   const [phase, setPhase] = useState<string | null>(null)
+  const [about, setAbout] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const moreRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEscape(menuOpen, () => setMenuOpen(false))
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target as Node
+      if (!moreRef.current?.contains(target) && !menuRef.current?.contains(target)) setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    return () => document.removeEventListener('mousedown', onPointerDown)
+  }, [menuOpen])
 
   if (!status?.supported) return null
 
@@ -71,6 +94,7 @@ export function MenuBarCard() {
       setBusy(null)
       setPhase(null)
       setConfirming(null)
+      setMenuOpen(false)
       refresh()
     }
   }
@@ -92,6 +116,13 @@ export function MenuBarCard() {
   const install = () => runInstall('install')
 
   const update = () => runInstall('update')
+
+  const settings = () => act('settings', async () => {
+    const result = await codeburn.macMenubarSettings?.()
+    if (!result) return
+    apply(result.status)
+    if (!result.ok) setError(result.error ?? 'The menu bar app could not open its settings.')
+  })
 
   const open = () => act('open', async () => {
     const next = await codeburn.macMenubarOpen?.()
@@ -118,9 +149,29 @@ export function MenuBarCard() {
   })
 
   return (
-    <div className={styles.row} data-status="loaded">
+    <div
+      className={`${styles.row} ${styles.art}`}
+      style={{
+        '--card-art': `url(${art})`,
+        '--card-art-light': `url(${artLight})`,
+        // The light wordmark was drawn near-black; this holds it back to roughly the
+        // contrast the dark art gives it, without flattening the apricot haze behind it.
+        '--art-light-wash': .84,
+      } as CSSProperties}
+      data-status="loaded"
+    >
       <div className={styles.info}>
-        <div className={styles.name}>Menu bar</div>
+        <div className={styles.nameRow}>
+          <div className={styles.name}>Menu bar</div>
+          <button
+            type="button"
+            className={`ov-info ${styles.infoDot}`}
+            aria-label="What the menu bar app does"
+            onClick={() => setAbout(true)}
+          >
+            <Icon name="info" />
+          </button>
+        </div>
         <div className={styles.reason}>
           CodeBurn in the macOS menu bar, with the Capacity Dock rail on the screen edge.
         </div>
@@ -130,66 +181,122 @@ export function MenuBarCard() {
           )}
           {status.version && <span>v{status.version}</span>}
         </div>
-        {status.outdated && <div className={styles.reason}>Update the menu bar to use this</div>}
-        {error && <div className={styles.cardError}>{error}</div>}
+        {/* One note row, always present, so the card is the same height in every state. An
+            error answers something the person just pressed, so it wins over the hint. */}
+        <div className={styles.note} data-kind={error ? 'error' : 'hint'}>
+          {error ?? (status.outdated ? 'Update the menu bar to use this' : '')}
+        </div>
       </div>
-      {status.installed && (
-        <label className={styles.dockToggle}>
-          <span>Capacity Dock</span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={status.dock}
-            aria-label="Capacity Dock"
-            disabled={busy !== null || !status.running || status.outdated}
-            title={status.outdated
-              ? 'Update the menu bar to use this'
-              : status.running ? 'Show the Capacity Dock rail on the screen edge' : 'Open the menu bar app to use the Capacity Dock'}
-            className={status.dock ? 'switch sm on' : 'switch sm'}
-            onClick={toggleDock}
-          >
-            <span className="switch-knob" />
-          </button>
-        </label>
-      )}
-      <div className={styles.actions}>
-        {confirming ? (
-          <>
-            <span className={styles.confirm}>
-              {confirming === 'quit' ? 'Quit the menu bar app?' : 'Remove the menu bar app?'}
-            </span>
+      <div className={styles.controls}>
+        {status.installed && (
+          <label className={styles.dockToggle}>
+            <span>Capacity Dock</span>
             <button
-              className="btnp"
-              onClick={confirming === 'quit' ? quit : uninstall}
-              disabled={busy !== null}
+              type="button"
+              role="switch"
+              aria-checked={status.dock}
+              aria-label="Capacity Dock"
+              disabled={busy !== null || !status.running || status.outdated}
+              title={status.outdated
+                ? 'Update the menu bar to use this'
+                : status.running ? 'Show the Capacity Dock rail on the screen edge' : 'Open the menu bar app to use the Capacity Dock'}
+              className={status.dock ? 'switch sm on' : 'switch sm'}
+              onClick={toggleDock}
             >
-              {busy ? 'Working\u2026' : 'Yes'}
+              <span className="switch-knob" />
             </button>
-            <button className="btnp" onClick={() => setConfirming(null)} disabled={busy !== null}>No</button>
-          </>
-        ) : status.installed ? (
-          <>
-            <button className="btnp" onClick={open} disabled={busy !== null}>
-              {busy === 'open' ? 'Opening\u2026' : 'Open'}
-            </button>
-            {status.outdated && status.canInstall && (
-              <button className="btnp btnp-primary" onClick={update} disabled={busy !== null}>
-                {busy === 'update' ? `${phase ?? 'Updating'}\u2026` : 'Update'}
-              </button>
-            )}
-            {status.running && (
-              <button className="btnp" onClick={() => setConfirming('quit')} disabled={busy !== null || status.outdated} title={status.outdated ? 'Update the menu bar to use this' : undefined}>Quit</button>
-            )}
-            <button className="btnp" onClick={() => setConfirming('uninstall')} disabled={busy !== null || status.outdated} title={status.outdated ? 'Update the menu bar to use this' : undefined}>Uninstall</button>
-          </>
-        ) : status.canInstall ? (
-          <button className="btnp btnp-primary" onClick={install} disabled={busy !== null}>
-            {busy === 'install' ? `${phase ?? 'Installing'}\u2026` : 'Install'}
-          </button>
-        ) : (
-          <span className={styles.website}>Get the menu bar from the website</span>
+          </label>
         )}
+        <div className={styles.actions}>
+          {status.installed ? (
+            <>
+              <button
+                className="btnp"
+                onClick={settings}
+                disabled={busy !== null || status.outdated}
+                title={status.outdated ? 'Update the menu bar to use this' : "Open the menu bar app's own Settings window"}
+              >
+                {busy === 'settings' ? 'Opening\u2026' : 'Settings'}
+              </button>
+              <button
+                className={status.outdated ? 'btnp' : `btnp ${styles.primary}`}
+                onClick={open}
+                disabled={busy !== null}
+              >
+                {busy === 'open' ? 'Opening\u2026' : 'Open'}
+              </button>
+              {status.outdated && status.canInstall && (
+                <button className={`btnp ${styles.primary}`} onClick={update} disabled={busy !== null}>
+                  {busy === 'update' ? `${phase ?? 'Updating'}\u2026` : 'Update'}
+                </button>
+              )}
+              {/* Quit and Uninstall live behind the dots so a mis-click next to Open cannot
+                  take the app away. Their confirm rows stay inside the menu. */}
+              <button
+                ref={moreRef}
+                type="button"
+                className={`btnp ${styles.more}`}
+                aria-label="More menu bar actions"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                disabled={busy !== null}
+                onClick={() => setMenuOpen(value => !value)}
+              >
+                <Icon name="ellipsis" />
+              </button>
+              {menuOpen && (
+                <AnchoredSurface anchor={moreRef} surfaceRef={menuRef} className="pop-menu" role="menu" aria-label="More menu bar actions">
+                  {confirming ? (
+                    <div className={styles.menuConfirm}>
+                      <span className={styles.confirm}>
+                        {confirming === 'quit' ? 'Quit the menu bar app?' : 'Remove the menu bar app?'}
+                      </span>
+                      <div className={styles.menuConfirmRow}>
+                        <button className="btnp" onClick={confirming === 'quit' ? quit : uninstall} disabled={busy !== null}>
+                          {busy ? 'Working\u2026' : 'Yes'}
+                        </button>
+                        <button className="btnp" onClick={() => setConfirming(null)} disabled={busy !== null}>No</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {status.running && (
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="pop-item"
+                          disabled={busy !== null || status.outdated}
+                          title={status.outdated ? 'Update the menu bar to use this' : undefined}
+                          onClick={() => setConfirming('quit')}
+                        >
+                          Quit
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="pop-item"
+                        disabled={busy !== null || status.outdated}
+                        title={status.outdated ? 'Update the menu bar to use this' : undefined}
+                        onClick={() => setConfirming('uninstall')}
+                      >
+                        Uninstall
+                      </button>
+                    </>
+                  )}
+                </AnchoredSurface>
+              )}
+            </>
+          ) : status.canInstall ? (
+            <button className={`btnp ${styles.primary}`} onClick={install} disabled={busy !== null}>
+              {busy === 'install' ? `${phase ?? 'Installing'}\u2026` : 'Install'}
+            </button>
+          ) : (
+            <span className={styles.website}>Get the menu bar from the website</span>
+          )}
+        </div>
       </div>
+      {about && <MenuBarAboutModal onClose={() => setAbout(false)} />}
     </div>
   )
 }

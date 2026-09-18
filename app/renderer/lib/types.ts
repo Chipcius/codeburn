@@ -1175,6 +1175,7 @@ export interface CodeburnBridge {
   macMenubarInstall?(): Promise<MacMenubarInstall>
   macMenubarOpen?(): Promise<MacMenubarStatus>
   macMenubarSetDock?(enabled: boolean): Promise<MacMenubarStatus>
+  macMenubarSettings?(): Promise<MacMenubarInstall>
   macMenubarQuit?(): Promise<MacMenubarInstall>
   macMenubarUninstall?(): Promise<MacMenubarInstall>
   /** Named steps of a running install: Downloading, Verifying, Installing, Starting. */

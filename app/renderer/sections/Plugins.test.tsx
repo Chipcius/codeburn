@@ -154,7 +154,7 @@ describe('PluginsSection', () => {
 })
 
 describe('PluginsSection empty state', () => {
-  it('shows the coming-soon card and opens the install flow from the link', async () => {
+  it('shows the Teams card and opens the install flow from the link', async () => {
     setPlatform('darwin')
     bridge.pluginList.mockResolvedValue([])
 
@@ -162,7 +162,8 @@ describe('PluginsSection empty state', () => {
     render(<PluginsSection />)
 
     await waitFor(() => expect(bridge.pluginList).toHaveBeenCalled())
-    expect(screen.getByRole('heading', { name: 'Coming soon' })).toBeInTheDocument()
+    expect(screen.getByText('Teams')).toBeInTheDocument()
+    expect(screen.getByText('Coming soon')).toBeInTheDocument()
     expect(screen.queryByText('No plugins installed')).toBeNull()
     expect(screen.queryByText('Refresh')).toBeNull()
 

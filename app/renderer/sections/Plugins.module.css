@@ -302,7 +302,6 @@
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  margin-right: var(--sp-3);
   font-size: var(--fs-label);
   color: var(--color-text-secondary);
   white-space: nowrap;
@@ -339,4 +338,308 @@
   font-size: var(--fs-body);
   color: var(--color-text-secondary);
   white-space: nowrap;
+}
+
+/* Artwork cards (Menu bar, Teams). The art rides on .row's own background, so the radius,
+   rim, padding and layout are untouched; only the paint under them changes. Each card sets
+   `--card-art` and `--card-art-light` (and, where its own light wordmark needs holding back,
+   `--art-light-wash`); the theme picks which one paints. Layers, top down: the scrim that
+   keeps the controls legible, the artwork. Right-bottom anchored so the wordmark baked into
+   the bottom-right of the source stays where it was drawn and the flat left edge stretches. */
+.art {
+  background-image:
+    linear-gradient(to right, var(--art-scrim-0) 0%, var(--art-scrim-0) var(--art-scrim-start), var(--art-scrim-1) var(--art-scrim-end), var(--art-scrim-1) 100%),
+    var(--art-src);
+  background-repeat: no-repeat;
+  background-size: auto, cover;
+  background-position: center, right bottom;
+  /* Light is the default here, the same way plain.css orders it. */
+  --art-src: var(--card-art-light);
+  --art-scrim-0: rgba(230, 230, 232, 0);
+  --art-scrim-1: rgba(230, 230, 232, var(--art-light-wash, .25));
+  /* The light wash is at full strength across the whole wordmark rather than only at the card
+     edge, so a light artwork whose wordmark came out too dark is held back over every letter. */
+  --art-scrim-start: 45%;
+  --art-scrim-end: 56%;
+  --art-btn-line: rgba(0, 0, 0, .14);
+}
+
+@media (prefers-color-scheme: dark) {
+  .art {
+    --art-src: var(--card-art);
+    --art-scrim-0: rgba(0, 0, 0, 0);
+    --art-scrim-1: rgba(0, 0, 0, .55);
+    --art-scrim-start: 55%;
+    --art-scrim-end: 100%;
+    --art-btn-line: rgba(255, 255, 255, .22);
+  }
+}
+
+:root[data-theme='dark'] .art {
+  --art-src: var(--card-art);
+  --art-scrim-0: rgba(0, 0, 0, 0);
+  --art-scrim-1: rgba(0, 0, 0, .55);
+  --art-scrim-start: 55%;
+  --art-scrim-end: 100%;
+  --art-btn-line: rgba(255, 255, 255, .22);
+}
+
+:root[data-theme='light'] .art {
+  --art-src: var(--card-art-light);
+  --art-scrim-0: rgba(230, 230, 232, 0);
+  --art-scrim-1: rgba(230, 230, 232, var(--art-light-wash, .25));
+  --art-scrim-start: 45%;
+  --art-scrim-end: 56%;
+  --art-btn-line: rgba(0, 0, 0, .14);
+}
+
+/* Same button, firmer edge: --line is a hairline meant for a flat panel and disappears
+   against the haze. One height for all of them, so the row is a row. */
+.art .actions button {
+  height: var(--mb-ctl-h);
+  padding-top: 0;
+  padding-bottom: 0;
+  border-color: var(--art-btn-line);
+}
+
+.art .dockToggle {
+  height: var(--mb-ctl-h);
+}
+
+/* The card is the same height in every state: the text column keeps its width whatever the
+   controls need, and the chip row and the note line keep their row whether or not they have
+   anything in them. */
+.art .info {
+  flex: 0 0 48%;
+}
+
+.art .caps {
+  min-height: 22px;
+}
+
+.art .caps span {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: 22px;
+  padding: 0 var(--sp-2);
+}
+
+.art .caps span.runningDot {
+  height: 7px;
+  padding: 0;
+}
+
+.art .note {
+  min-height: 1.35em;
+  margin-top: var(--sp-1);
+  font-size: var(--fs-body);
+  line-height: 1.35;
+  color: var(--color-error-text);
+}
+
+.art .note[data-kind="hint"] {
+  color: var(--mut);
+}
+
+/* The text column stops short of the wordmark baked into the right of the artwork. */
+.art .info {
+  max-width: 48%;
+}
+
+/* Below this the switch's written label no longer fits beside the buttons and the text
+   column. Wrapping the controls onto their own row was the other option and is worse: it
+   makes the card tall, and `cover` then blows the artwork's wordmark up to fill it. The
+   switch keeps its name in aria-label and in its tooltip. Driven by the window width, never
+   by how many buttons a state has, so the card is still one height across every state. */
+@media (max-width: 1100px) {
+  .art .dockToggle > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* Disabled still has to be readable over the haze; the shared .6 lands at 4.1:1 there. */
+.art .actions button:disabled {
+  opacity: .7;
+}
+
+.menuConfirmRow button {
+  height: var(--mb-ctl-h);
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.art .actions button.primary {
+  border-color: var(--accent);
+}
+
+/* Teams has nothing to press, so the slot the other card fills with buttons carries a label. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  height: var(--mb-ctl-h);
+  box-sizing: border-box;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--mut);
+  font-size: var(--fs-meta);
+  white-space: nowrap;
+}
+
+/* One height for every control in an art card's right-hand row, and for the Yes/No of a
+   confirm row that opens out of it. Declared on :root because the overflow menu is portaled
+   to the body and so cannot inherit it from the card. */
+:root {
+  --mb-ctl-h: 28px;
+}
+
+/* Title plus the info dot that opens the two-column modal below. */
+.nameRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.infoDot {
+  cursor: pointer;
+}
+
+/* One right-aligned row: the Capacity Dock switch, then the buttons. The switch stays out of
+   `.actions` because that rule repaints every button under it, which would strip the shared
+   `.switch` of its track and knob. */
+.controls {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-left: auto;
+}
+
+/* The one button that carries the action. `.btnp-primary` fills with the accent and puts
+   white on it, which is 2.9:1 — under this card's own floor — so the emphasis is the accent
+   edge and label instead, on the same button body as its neighbours. */
+.primary {
+  border-color: var(--accent);
+  color: var(--accent-text);
+  font-weight: var(--fw-subhead);
+}
+
+.more {
+  display: inline-flex;
+  align-items: center;
+  padding-left: var(--sp-2);
+  padding-right: var(--sp-2);
+}
+
+.more .icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* The confirm row, inside the menu the destructive action was chosen from. */
+.menuConfirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+}
+
+.menuConfirmRow {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+/* The Menu bar card's info modal: two columns of plain lines, one hairline between them. */
+.aboutModal {
+  position: relative;
+  box-sizing: border-box;
+  width: min(720px, 100%);
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: var(--sp-6);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card-inner);
+  color: var(--ink);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28), 0 3px 12px rgba(0, 0, 0, 0.16);
+}
+
+.aboutCols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-6);
+}
+
+.aboutCols > .aboutCol + .aboutCol {
+  padding-left: var(--sp-6);
+  border-left: 1px solid var(--line);
+}
+
+/* At a narrow window the two columns stack and the hairline turns with them. */
+@media (max-width: 900px) {
+  .aboutCols {
+    grid-template-columns: 1fr;
+    gap: var(--sp-5);
+  }
+  .aboutCols > .aboutCol + .aboutCol {
+    padding-left: 0;
+    padding-top: var(--sp-5);
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+}
+
+.aboutColTitle {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-subhead);
+  font-weight: var(--fw-subhead);
+  color: var(--ink);
+}
+
+.aboutLines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.aboutLines li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  font-size: var(--fs-body);
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.aboutLineIcon {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+  color: var(--mut);
+}
+
+.aboutWorks {
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--line2);
+  font-size: var(--fs-body);
+  line-height: 1.5;
+  color: var(--mut);
+}
+
+.aboutWorksLabel {
+  display: block;
+  margin-bottom: var(--sp-1);
+  color: var(--ink);
+  font-weight: var(--fw-medium);
 }

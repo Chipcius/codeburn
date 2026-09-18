@@ -271,6 +271,23 @@ export class MacMenubar {
     return this.status()
   }
 
+  /**
+   * Ask the app to show its own Settings window. Unlike quit and uninstall the app stays up,
+   * so what is waited for is the command being consumed: the menubar clears the key as it
+   * acts, and a key still sitting there after the timeout means nobody was listening. `open`
+   * first so a command written while the app is down is answered at its launch rather than
+   * timing out (CodeBurnApp answers the key on startup too).
+   */
+  async settings(): Promise<{ ok: boolean; error: string | null; status: MacMenubarStatus }> {
+    const path = await this.locate()
+    if (!path) return { ok: false, error: NO_ANSWER, status: await this.status() }
+    await this.run('/usr/bin/defaults', ['write', MENUBAR_BUNDLE_ID, REMOTE_COMMAND_KEY, '-string', 'settings'])
+    await this.run('/usr/bin/open', [path])
+    if (await this.waitForConsumed(EXIT_TIMEOUT_MS)) return { ok: true, error: null, status: await this.status() }
+    await this.run('/usr/bin/defaults', ['delete', MENUBAR_BUNDLE_ID, REMOTE_COMMAND_KEY])
+    return { ok: false, error: NO_ANSWER, status: await this.status() }
+  }
+
   async quit(): Promise<{ ok: boolean; error: string | null; status: MacMenubarStatus }> {
     const path = await this.locate()
     const answered = path ? await this.requestExit('quit', path) : true
@@ -349,6 +366,16 @@ export class MacMenubar {
     await mkdir(dirname(record), { recursive: true })
     await writeFile(record, `${launcher}\n`, { mode: 0o600 })
     return launcher
+  }
+
+  /** True once the menubar has taken the command out of its defaults. */
+  private async waitForConsumed(timeoutMs: number): Promise<boolean> {
+    const deadline = this.now() + timeoutMs
+    for (;;) {
+      if (!(await this.run('/usr/bin/defaults', ['read', MENUBAR_BUNDLE_ID, REMOTE_COMMAND_KEY]))) return true
+      if (this.now() >= deadline) return false
+      await new Promise(resolve => setTimeout(resolve, EXIT_POLL_MS))
+    }
   }
 
   private async waitForExit(executable: string, timeoutMs: number): Promise<boolean> {

@@ -334,10 +334,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSM
     @MainActor
     private func handleRemoteCommand() {
         let defaults = UserDefaults.standard
-        guard let command = defaults.string(forKey: Self.remoteCommandKey), !command.isEmpty else { return }
+        guard let raw = defaults.string(forKey: Self.remoteCommandKey), !raw.isEmpty else { return }
         // Cleared before acting, so a command that outlives this process cannot quit the next one.
         defaults.removeObject(forKey: Self.remoteCommandKey)
-        if command == "uninstall" {
+        guard let command = MenubarRemoteCommand(rawValue: raw) else { return }
+        if command.unregistersLoginItem {
             do {
                 if SMAppService.mainApp.status == .enabled { try SMAppService.mainApp.unregister() }
             } catch {
@@ -345,7 +346,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSM
             }
             defaults.removeObject(forKey: Self.loginItemRegisteredKey)
         }
-        guard command == "quit" || command == "uninstall" else { return }
+        if command == .settings {
+            openSettings()
+            return
+        }
+        guard command.terminates else { return }
         NSApp.terminate(nil)
     }
 

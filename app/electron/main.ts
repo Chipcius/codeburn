@@ -419,7 +419,7 @@ type Deps = {
     'status' | 'setMenuBarEnabled' | 'setSidebarEnabled' | 'trayPrefs' | 'setTrayAppPref' | 'setTrayDockPref' | 'setLaunchAtLogin'
   > | null
   /** The macOS menubar app, as the Plugins page sees it; absent off darwin and under tests. */
-  macMenubar?: Pick<MacMenubar, 'status' | 'install' | 'open' | 'setDockEnabled' | 'quit' | 'uninstall'> | null
+  macMenubar?: Pick<MacMenubar, 'status' | 'install' | 'open' | 'setDockEnabled' | 'quit' | 'uninstall' | 'settings'> | null
 }
 
 type Handler = (...args: any[]) => Promise<Envelope>
@@ -777,6 +777,8 @@ export function createBridgeHandlers(deps: Deps = { spawnCli, spawnCliAction, re
     'codeburn:macMenubarOpen': async () => ({ ok: true, value: deps.macMenubar ? await deps.macMenubar.open() : NO_MAC_MENUBAR }),
     'codeburn:macMenubarSetDock': async (enabled?: boolean) =>
       ({ ok: true, value: deps.macMenubar ? await deps.macMenubar.setDockEnabled(Boolean(enabled)) : NO_MAC_MENUBAR }),
+    'codeburn:macMenubarSettings': async () =>
+      ({ ok: true, value: deps.macMenubar ? await deps.macMenubar.settings() : { ok: false, error: 'The menu bar app is macOS only.', status: NO_MAC_MENUBAR } }),
     'codeburn:macMenubarQuit': async () =>
       ({ ok: true, value: deps.macMenubar ? await deps.macMenubar.quit() : { ok: false, error: 'The menu bar app is macOS only.', status: NO_MAC_MENUBAR } }),
     'codeburn:macMenubarUninstall': async () =>

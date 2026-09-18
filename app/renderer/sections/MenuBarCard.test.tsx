@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
+import { MENUBAR_QUOTA_PROVIDERS } from '../lib/menubarProviders'
 import type { MacMenubarStatus } from '../lib/types'
 
 const bridge = vi.hoisted(() => ({
@@ -11,6 +12,7 @@ const bridge = vi.hoisted(() => ({
   macMenubarOpen: vi.fn(),
   macMenubarSetDock: vi.fn(),
   macMenubarQuit: vi.fn(),
+  macMenubarSettings: vi.fn(),
   onMacMenubarProgress: vi.fn((_cb: (phase: string) => void) => () => {}),
   macMenubarUninstall: vi.fn(),
   pluginList: vi.fn(),
@@ -30,6 +32,11 @@ function status(patch: Partial<MacMenubarStatus> = {}): MacMenubarStatus {
 beforeEach(() => {
   vi.useRealTimers()
 })
+
+/** Quit and Uninstall live behind the dots now, so every test that presses one opens it. */
+async function openMore(): Promise<void> {
+  await userEvent.click(await screen.findByRole('button', { name: 'More menu bar actions' }))
+}
 
 afterEach(() => {
   delete (window as unknown as { codeburn?: unknown }).codeburn
@@ -155,14 +162,16 @@ describe('MenuBarCard quit and uninstall', () => {
   it('running: Open, Quit and Uninstall; not running: no Quit', async () => {
     bridge.macMenubarStatus.mockResolvedValue(status({ installed: true, version: '1.0.0', running: true }))
     const view = render(<MenuBarCard />)
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Quit' })).toBeTruthy())
-    expect(screen.getByRole('button', { name: 'Uninstall' })).toBeTruthy()
+    await openMore()
+    await waitFor(() => expect(screen.getByRole('menuitem', { name: 'Quit' })).toBeTruthy())
+    expect(screen.getByRole('menuitem', { name: 'Uninstall' })).toBeTruthy()
     view.unmount()
 
     bridge.macMenubarStatus.mockResolvedValue(status({ installed: true, version: '1.0.0', running: false }))
     render(<MenuBarCard />)
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Uninstall' })).toBeTruthy())
-    expect(screen.queryByRole('button', { name: 'Quit' })).toBeNull()
+    await openMore()
+    await waitFor(() => expect(screen.getByRole('menuitem', { name: 'Uninstall' })).toBeTruthy())
+    expect(screen.queryByRole('menuitem', { name: 'Quit' })).toBeNull()
   })
 
   it('Quit confirms in the card and only then quits', async () => {
@@ -173,7 +182,8 @@ describe('MenuBarCard quit and uninstall', () => {
       return { ok: true, error: null, status: current }
     })
     render(<MenuBarCard />)
-    await userEvent.click(await screen.findByRole('button', { name: 'Quit' }))
+    await openMore()
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Quit' }))
     expect(bridge.macMenubarQuit).not.toHaveBeenCalled()
     expect(screen.getByText('Quit the menu bar app?')).toBeTruthy()
     await userEvent.click(screen.getByRole('button', { name: 'Yes' }))
@@ -184,10 +194,11 @@ describe('MenuBarCard quit and uninstall', () => {
   it('No backs out of a confirmation without doing anything', async () => {
     bridge.macMenubarStatus.mockResolvedValue(status({ installed: true, version: '1.0.0', running: true }))
     render(<MenuBarCard />)
-    await userEvent.click(await screen.findByRole('button', { name: 'Uninstall' }))
+    await openMore()
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Uninstall' }))
     await userEvent.click(screen.getByRole('button', { name: 'No' }))
     expect(bridge.macMenubarUninstall).not.toHaveBeenCalled()
-    expect(screen.getByRole('button', { name: 'Uninstall' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'Uninstall' })).toBeTruthy()
   })
 
   it('Uninstall returns the card to Not installed', async () => {
@@ -198,7 +209,8 @@ describe('MenuBarCard quit and uninstall', () => {
       return { ok: true, error: null, status: current }
     })
     render(<MenuBarCard />)
-    await userEvent.click(await screen.findByRole('button', { name: 'Uninstall' }))
+    await openMore()
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Uninstall' }))
     await userEvent.click(screen.getByRole('button', { name: 'Yes' }))
     await waitFor(() => expect(screen.getByRole('button', { name: 'Install' })).toBeTruthy())
     expect(screen.queryByRole('switch')).toBeNull()
@@ -212,10 +224,12 @@ describe('MenuBarCard quit and uninstall', () => {
       status: status({ installed: true, version: '1.0.0', running: true }),
     })
     render(<MenuBarCard />)
-    await userEvent.click(await screen.findByRole('button', { name: 'Uninstall' }))
+    await openMore()
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Uninstall' }))
     await userEvent.click(screen.getByRole('button', { name: 'Yes' }))
     await waitFor(() => expect(screen.getByText('CodeBurn could not remove the menu bar app. Check its permissions in Finder.')).toBeTruthy())
-    expect(screen.getByRole('button', { name: 'Uninstall' })).toBeTruthy()
+    await openMore()
+    expect(screen.getByRole('menuitem', { name: 'Uninstall' })).toBeTruthy()
   })
 })
 
@@ -228,8 +242,10 @@ describe('MenuBarCard with an outdated menubar', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Update' })).toBeTruthy())
     expect(screen.getByText('Update the menu bar to use this')).toBeTruthy()
     expect(screen.getByRole('switch')).toHaveProperty('disabled', true)
-    expect(screen.getByRole('button', { name: 'Quit' })).toHaveProperty('disabled', true)
-    expect(screen.getByRole('button', { name: 'Uninstall' })).toHaveProperty('disabled', true)
+    expect(screen.getByRole('button', { name: 'Settings' })).toHaveProperty('disabled', true)
+    await openMore()
+    expect(screen.getByRole('menuitem', { name: 'Quit' })).toHaveProperty('disabled', true)
+    expect(screen.getByRole('menuitem', { name: 'Uninstall' })).toHaveProperty('disabled', true)
     // Open still works: it launches the bundle, which needs nothing of the app.
     expect(screen.getByRole('button', { name: 'Open' })).toHaveProperty('disabled', false)
   })
@@ -246,7 +262,8 @@ describe('MenuBarCard with an outdated menubar', () => {
     expect(bridge.macMenubarInstall).toHaveBeenCalledTimes(1)
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Update' })).toBeNull())
     expect(screen.getByRole('switch')).toHaveProperty('disabled', false)
-    expect(screen.getByRole('button', { name: 'Quit' })).toHaveProperty('disabled', false)
+    await openMore()
+    expect(screen.getByRole('menuitem', { name: 'Quit' })).toHaveProperty('disabled', false)
   })
 
   it('an App Store build has no Update button either, only the line', async () => {
@@ -293,7 +310,8 @@ describe('MenuBarCard progress and timeouts', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Install' }))
     await waitFor(() => expect(screen.getByRole('button', { name: 'Update' })).toBeTruthy())
     expect(screen.getByText('Update the menu bar to use this')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Quit' })).toHaveProperty('disabled', true)
+    await openMore()
+    expect(screen.getByRole('menuitem', { name: 'Quit' })).toHaveProperty('disabled', true)
   })
 
   it('a Quit nobody answered says so and leaves the card running', async () => {
@@ -303,11 +321,13 @@ describe('MenuBarCard progress and timeouts', () => {
       ok: false, error: 'The menu bar app did not respond. Update it and try again.', status: running,
     })
     render(<MenuBarCard />)
-    await userEvent.click(await screen.findByRole('button', { name: 'Quit' }))
+    await openMore()
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Quit' }))
     await userEvent.click(screen.getByRole('button', { name: 'Yes' }))
     await waitFor(() => expect(screen.getByText('The menu bar app did not respond. Update it and try again.')).toBeTruthy())
     expect(screen.getByText('Running')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Quit' })).toBeTruthy()
+    await openMore()
+    expect(screen.getByRole('menuitem', { name: 'Quit' })).toBeTruthy()
   })
 
   it('an Uninstall nobody answered says the same and keeps the bundle', async () => {
@@ -317,10 +337,64 @@ describe('MenuBarCard progress and timeouts', () => {
       ok: false, error: 'The menu bar app did not respond. Update it and try again.', status: running,
     })
     render(<MenuBarCard />)
-    await userEvent.click(await screen.findByRole('button', { name: 'Uninstall' }))
+    await openMore()
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Uninstall' }))
     await userEvent.click(screen.getByRole('button', { name: 'Yes' }))
     await waitFor(() => expect(screen.getByText('The menu bar app did not respond. Update it and try again.')).toBeTruthy())
-    expect(screen.getByRole('button', { name: 'Uninstall' })).toBeTruthy()
+    await openMore()
+    expect(screen.getByRole('menuitem', { name: 'Uninstall' })).toBeTruthy()
+  })
+})
+
+describe('MenuBarCard settings and the info modal', () => {
+  it('Settings asks the menubar to open its own Settings window', async () => {
+    const running = status({ installed: true, version: '1.0.0', running: true })
+    bridge.macMenubarStatus.mockResolvedValue(running)
+    bridge.macMenubarSettings.mockResolvedValue({ ok: true, error: null, status: running })
+    render(<MenuBarCard />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Settings' }))
+    expect(bridge.macMenubarSettings).toHaveBeenCalledTimes(1)
+  })
+
+  it('a Settings nobody answered says so in the card', async () => {
+    const running = status({ installed: true, version: '1.0.0', running: true })
+    bridge.macMenubarStatus.mockResolvedValue(running)
+    bridge.macMenubarSettings.mockResolvedValue({
+      ok: false, error: 'The menu bar app did not respond. Update it and try again.', status: running,
+    })
+    render(<MenuBarCard />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Settings' }))
+    await waitFor(() => expect(screen.getByText('The menu bar app did not respond. Update it and try again.')).toBeTruthy())
+  })
+
+  it('the info dot opens a modal with both columns and the real provider list', async () => {
+    bridge.macMenubarStatus.mockResolvedValue(status({ installed: true, version: '1.0.0', running: true }))
+    render(<MenuBarCard />)
+    await userEvent.click(await screen.findByRole('button', { name: 'What the menu bar app does' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByRole('heading', { name: 'Menu bar' })).toBeTruthy()
+    expect(within(dialog).getByRole('heading', { name: 'Capacity Dock' })).toBeTruthy()
+    // The names come from the menubar's own catalog, never from copy written here.
+    expect(within(dialog).getAllByText(MENUBAR_QUOTA_PROVIDERS.join(', ')).length).toBe(2)
+  })
+
+  it('the modal closes on the close button, on the backdrop and on Escape', async () => {
+    bridge.macMenubarStatus.mockResolvedValue(status({ installed: true, version: '1.0.0', running: true }))
+    render(<MenuBarCard />)
+    const dot = await screen.findByRole('button', { name: 'What the menu bar app does' })
+
+    await userEvent.click(dot)
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+
+    await userEvent.click(dot)
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+
+    await userEvent.click(dot)
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.click(dialog.parentElement!)
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   })
 })
 

@@ -92,6 +92,7 @@ const CHANNELS = [
   'codeburn:macMenubarOpen',
   'codeburn:macMenubarSetDock',
   'codeburn:macMenubarQuit',
+  'codeburn:macMenubarSettings',
   'codeburn:macMenubarUninstall',
   'codeburn:pluginList',
   'codeburn:pluginInfo',
