@@ -174,6 +174,37 @@ describe('MenuBarCard quit and uninstall', () => {
     expect(screen.queryByRole('menuitem', { name: 'Quit' })).toBeNull()
   })
 
+  it('opens on the two action rows, and Quit swaps in a visible Yes and No', async () => {
+    bridge.macMenubarStatus.mockResolvedValue(status({ installed: true, version: '1.0.0', running: true }))
+    render(<MenuBarCard />)
+    await openMore()
+    // Both actions on open, no confirm yet.
+    expect(screen.getByRole('menuitem', { name: 'Quit' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'Uninstall' })).toBeTruthy()
+    expect(screen.queryByText('Quit the menu bar app?')).toBeNull()
+    // Quit swaps the rows for the inline confirm, with both answers present.
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Quit' }))
+    expect(screen.getByText('Quit the menu bar app?')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Yes' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'No' })).toBeTruthy()
+    expect(screen.queryByRole('menuitem', { name: 'Uninstall' })).toBeNull()
+  })
+
+  it('a confirm never outlives the menu: reopening returns to the action rows', async () => {
+    bridge.macMenubarStatus.mockResolvedValue(status({ installed: true, version: '1.0.0', running: true }))
+    render(<MenuBarCard />)
+    await openMore()
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Quit' }))
+    expect(screen.getByText('Quit the menu bar app?')).toBeTruthy()
+    // Dismiss the menu with the question still up (Escape), then reopen.
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByText('Quit the menu bar app?')).toBeNull())
+    await openMore()
+    expect(screen.getByRole('menuitem', { name: 'Quit' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'Uninstall' })).toBeTruthy()
+    expect(screen.queryByText('Quit the menu bar app?')).toBeNull()
+  })
+
   it('Quit confirms in the card and only then quits', async () => {
     let current = status({ installed: true, version: '1.0.0', running: true })
     bridge.macMenubarStatus.mockImplementation(async () => current)

@@ -67,16 +67,22 @@ export function MenuBarCard({ art = menubarArt, artLight = menubarArtLight }: { 
   const moreRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
-  useEscape(menuOpen, () => setMenuOpen(false))
+  // A confirm is a step inside the menu, not a state of the card, so it never outlives the
+  // menu: dismissing mid-confirm and reopening must land back on the two action rows, not on a
+  // stranded question with nothing to answer it.
+  const closeMenu = () => { setMenuOpen(false); setConfirming(null) }
+
+  useEscape(menuOpen, closeMenu)
 
   useEffect(() => {
     if (!menuOpen) return
     const onPointerDown = (event: MouseEvent) => {
       const target = event.target as Node
-      if (!moreRef.current?.contains(target) && !menuRef.current?.contains(target)) setMenuOpen(false)
+      if (!moreRef.current?.contains(target) && !menuRef.current?.contains(target)) closeMenu()
     }
     document.addEventListener('mousedown', onPointerDown)
     return () => document.removeEventListener('mousedown', onPointerDown)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [menuOpen])
 
   if (!status?.supported) return null
@@ -222,7 +228,7 @@ export function MenuBarCard({ art = menubarArt, artLight = menubarArtLight }: { 
                 disabled={busy !== null || status.outdated}
                 title={status.outdated ? 'Update the menu bar to use this' : "Open the menu bar app's own Settings window"}
               >
-                {busy === 'settings' ? 'Opening\u2026' : 'Settings'}
+                Settings
               </button>
               {/* Nothing to bring forward while it is up: the menubar is its own status item,
                   and Settings is the only window it has. */}
@@ -250,7 +256,7 @@ export function MenuBarCard({ art = menubarArt, artLight = menubarArtLight }: { 
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
                 disabled={busy !== null}
-                onClick={() => setMenuOpen(value => !value)}
+                onClick={() => { setConfirming(null); setMenuOpen(value => !value) }}
               >
                 <Icon name="ellipsis" />
               </button>
