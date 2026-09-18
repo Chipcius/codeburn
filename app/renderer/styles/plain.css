@@ -336,14 +336,6 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
 .pop-item:hover, .pop-item:focus-visible { background: var(--hover); }
 .pop-item.on { color: var(--accent-text); font-weight: 560; }
 .pop-item.muted { color: var(--mut); }
-.pop-item.danger { color: var(--bad); }
-/* A menu row that asks something instead of doing it: the row metrics of a .pop-item, no
-   hover of its own, and the two answers as plain text beside the question. */
-.pop-confirm { box-sizing: border-box; display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 4px 10px; font-size: var(--fs-body); line-height: 1.5; color: var(--mut); white-space: nowrap; }
-.pop-confirm button { padding: 0; border: 0; background: transparent; font: inherit; color: var(--ink); cursor: pointer; }
-.pop-confirm button.danger { color: var(--bad); }
-.pop-confirm button:hover:not(:disabled) { text-decoration: underline; }
-.pop-confirm button:disabled { opacity: .45; cursor: default; }
 /* Token breakdown behind a dollar amount: the pop-menu surface, small mono counts. */
 [data-usd] { cursor: help; }
 .usd-pop { min-width: 0; padding: 7px 9px; }

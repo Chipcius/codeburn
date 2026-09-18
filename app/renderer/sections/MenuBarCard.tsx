@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
+import { useEffect, useRef } from 'react'
 import type { CSSProperties } from 'react'
-import { AnchoredSurface } from '../components/AnchoredSurface'
 import { Icon } from '../components/icons'
-import { useEscape } from '../hooks/useEscape'
 import { codeburn } from '../lib/ipc'
 import type { MacMenubarStatus } from '../lib/types'
 import { MenuBarAboutModal } from './MenuBarAbout'
@@ -63,35 +62,8 @@ export function MenuBarCard({ art = menubarArt, artLight = menubarArtLight }: { 
   // that long reads as a hang.
   const [phase, setPhase] = useState<string | null>(null)
   const [about, setAbout] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
-  const moreRef = useRef<HTMLButtonElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  // A confirm is a step inside the menu, not a state of the card, so it never outlives the
-  // menu: dismissing mid-confirm and reopening must land back on the two action rows, not on a
-  // stranded question with nothing to answer it.
-  const closeMenu = () => { setMenuOpen(false); setConfirming(null) }
-
-  useEscape(menuOpen, closeMenu)
-
-  useEffect(() => {
-    if (!menuOpen) return
-    const onPointerDown = (event: MouseEvent) => {
-      const target = event.target as Node
-      if (!moreRef.current?.contains(target) && !menuRef.current?.contains(target)) closeMenu()
-    }
-    document.addEventListener('mousedown', onPointerDown)
-    return () => document.removeEventListener('mousedown', onPointerDown)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [menuOpen])
 
   if (!status?.supported) return null
-
-  /** Exactly one button carries the emphasis, and which one depends on the state. */
-  const primary = status.outdated && status.canInstall ? 'update'
-    : !status.installed ? 'install'
-    : status.running ? 'settings'
-    : 'open'
 
   const act = async (kind: Action, call: () => Promise<void>) => {
     if (busy) return
@@ -106,7 +78,6 @@ export function MenuBarCard({ art = menubarArt, artLight = menubarArtLight }: { 
       setBusy(null)
       setPhase(null)
       setConfirming(null)
-      setMenuOpen(false)
       refresh()
     }
   }
@@ -222,82 +193,63 @@ export function MenuBarCard({ art = menubarArt, artLight = menubarArtLight }: { 
         <div className={styles.actions}>
           {status.installed ? (
             <>
-              <button
-                className={primary === 'settings' ? `btnp ${styles.primary}` : 'btnp'}
-                onClick={settings}
-                disabled={busy !== null || status.outdated}
-                title={status.outdated ? 'Update the menu bar to use this' : "Open the menu bar app's own Settings window"}
-              >
-                Settings
-              </button>
-              {/* Nothing to bring forward while it is up: the menubar is its own status item,
-                  and Settings is the only window it has. */}
-              {!status.running && (
-                <button
-                  className={primary === 'open' ? `btnp ${styles.primary}` : 'btnp'}
-                  onClick={open}
-                  disabled={busy !== null}
-                >
-                  {busy === 'open' ? 'Opening\u2026' : 'Open'}
-                </button>
-              )}
               {status.outdated && status.canInstall && (
                 <button className={`btnp ${styles.primary}`} onClick={update} disabled={busy !== null}>
                   {busy === 'update' ? `${phase ?? 'Updating'}\u2026` : 'Update'}
                 </button>
               )}
-              {/* Quit and Uninstall live behind the dots so a mis-click next to Open cannot
-                  take the app away. Their confirm rows stay inside the menu. */}
-              <button
-                ref={moreRef}
-                type="button"
-                className={`btnp ${styles.more}`}
-                aria-label="More menu bar actions"
-                aria-haspopup="menu"
-                aria-expanded={menuOpen}
-                disabled={busy !== null}
-                onClick={() => { setConfirming(null); setMenuOpen(value => !value) }}
-              >
-                <Icon name="ellipsis" />
-              </button>
-              {menuOpen && (
-                <AnchoredSurface anchor={moreRef} surfaceRef={menuRef} className={`pop-menu ${styles.menu}`} role="menu" aria-label="More menu bar actions">
-                  {confirming ? (
-                    <div className="pop-confirm">
-                      <span>{confirming === 'quit' ? 'Quit the menu bar app?' : 'Remove the menu bar app?'}</span>
-                      <button type="button" className="danger" onClick={confirming === 'quit' ? quit : uninstall} disabled={busy !== null}>
-                        {busy ? 'Working\u2026' : 'Yes'}
-                      </button>
-                      <button type="button" onClick={() => setConfirming(null)} disabled={busy !== null}>No</button>
-                    </div>
-                  ) : (
-                    <>
-                      {status.running && (
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className="pop-item"
-                          disabled={busy !== null || status.outdated}
-                          title={status.outdated ? 'Update the menu bar to use this' : undefined}
-                          onClick={() => setConfirming('quit')}
-                        >
-                          Quit
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="pop-item danger"
-                        disabled={busy !== null || status.outdated}
-                        title={status.outdated ? 'Update the menu bar to use this' : undefined}
-                        onClick={() => setConfirming('uninstall')}
-                      >
-                        Uninstall
-                      </button>
-                    </>
-                  )}
-                </AnchoredSurface>
+              {/* Icon-only, all visible: no window to bring forward while it is up, so Open
+                  shows only while it is down; Settings, Quit and Uninstall while it is up. */}
+              {!status.running && (
+                <button
+                  type="button"
+                  className={`btnp ${styles.iconBtn}`}
+                  aria-label="Open"
+                  title="Open the menu bar app"
+                  disabled={busy !== null}
+                  onClick={open}
+                >
+                  <Icon name="arrow-up-right" />
+                </button>
               )}
+              {status.running && (
+                <button
+                  type="button"
+                  className={`btnp ${styles.iconBtn}`}
+                  aria-label="Settings"
+                  title={status.outdated ? 'Update the menu bar to use this' : "Open the menu bar app's own Settings window"}
+                  disabled={busy !== null || status.outdated}
+                  onClick={settings}
+                >
+                  <Icon name="settings" />
+                </button>
+              )}
+              {/* Destructive, so a light guard: the first click arms the icon (it swaps to a
+                  check), a second confirms, and moving focus away disarms it. */}
+              {status.running && (
+                <button
+                  type="button"
+                  className={confirming === 'quit' ? `btnp ${styles.iconBtn} ${styles.confirming}` : `btnp ${styles.iconBtn}`}
+                  aria-label={confirming === 'quit' ? 'Confirm quit' : 'Quit'}
+                  title={status.outdated ? 'Update the menu bar to use this' : confirming === 'quit' ? 'Click again to quit' : 'Quit'}
+                  disabled={busy !== null || status.outdated}
+                  onClick={() => (confirming === 'quit' ? quit() : setConfirming('quit'))}
+                  onBlur={() => setConfirming(current => (current === 'quit' ? null : current))}
+                >
+                  <Icon name={confirming === 'quit' ? 'circle-check' : 'x'} />
+                </button>
+              )}
+              <button
+                type="button"
+                className={confirming === 'uninstall' ? `btnp ${styles.iconBtn} ${styles.confirming}` : `btnp ${styles.iconBtn}`}
+                aria-label={confirming === 'uninstall' ? 'Confirm uninstall' : 'Uninstall'}
+                title={status.outdated ? 'Update the menu bar to use this' : confirming === 'uninstall' ? 'Click again to uninstall' : 'Uninstall'}
+                disabled={busy !== null || status.outdated}
+                onClick={() => (confirming === 'uninstall' ? uninstall() : setConfirming('uninstall'))}
+                onBlur={() => setConfirming(current => (current === 'uninstall' ? null : current))}
+              >
+                <Icon name={confirming === 'uninstall' ? 'circle-check' : 'trash-2'} />
+              </button>
             </>
           ) : status.canInstall ? (
             <button className={`btnp ${styles.primary}`} onClick={install} disabled={busy !== null}>

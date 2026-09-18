@@ -496,10 +496,6 @@
   animation: none;
 }
 
-:global(.pop-menu).menu {
-  animation: none;
-}
-
 /* Teams has nothing to press, so the slot the other card fills with buttons carries a label. */
 .pill {
   display: inline-flex;
@@ -552,16 +548,27 @@
   font-weight: var(--fw-subhead);
 }
 
-.more {
+/* The running-state actions are icon-only, all visible: a square button per action, the same
+   28px as the text buttons and the switch beside them, matching their border and no motion. */
+.iconBtn {
+  width: var(--mb-ctl-h);
+  padding-left: 0;
+  padding-right: 0;
   display: inline-flex;
   align-items: center;
-  padding-left: var(--sp-2);
-  padding-right: var(--sp-2);
+  justify-content: center;
 }
 
-.more .icon {
-  width: 14px;
-  height: 14px;
+.iconBtn .icon {
+  width: 15px;
+  height: 15px;
+}
+
+/* Armed: the icon has swapped to a check and one more click carries the destructive action
+   out, so the button reads in the danger colour until focus leaves it. */
+.art .actions button.confirming {
+  color: var(--bad);
+  border-color: var(--bad);
 }
 
 /* The Menu bar card's info modal: two columns of plain lines, one hairline between them. */
