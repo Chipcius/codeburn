@@ -11,6 +11,7 @@ const bridge = vi.hoisted(() => ({
   macMenubarOpen: vi.fn(),
   macMenubarSetDock: vi.fn(),
   macMenubarQuit: vi.fn(),
+  onMacMenubarProgress: vi.fn((_cb: (phase: string) => void) => () => {}),
   macMenubarUninstall: vi.fn(),
   pluginList: vi.fn(),
 }))
@@ -169,7 +170,7 @@ describe('MenuBarCard quit and uninstall', () => {
     bridge.macMenubarStatus.mockImplementation(async () => current)
     bridge.macMenubarQuit.mockImplementation(async () => {
       current = status({ installed: true, version: '1.0.0', running: false })
-      return current
+      return { ok: true, error: null, status: current }
     })
     render(<MenuBarCard />)
     await userEvent.click(await screen.findByRole('button', { name: 'Quit' }))
@@ -253,6 +254,73 @@ describe('MenuBarCard with an outdated menubar', () => {
     render(<MenuBarCard />)
     await waitFor(() => expect(screen.getByText('Update the menu bar to use this')).toBeTruthy())
     expect(screen.queryByRole('button', { name: 'Update' })).toBeNull()
+  })
+})
+
+describe('MenuBarCard progress and timeouts', () => {
+  it('names each install step as the main process reports it', async () => {
+    let push: ((phase: string) => void) | null = null
+    bridge.onMacMenubarProgress.mockImplementation((cb: (phase: string) => void) => { push = cb; return () => { push = null } })
+    let current = status()
+    bridge.macMenubarStatus.mockImplementation(async () => current)
+    let settle: (() => void) | null = null
+    bridge.macMenubarInstall.mockImplementation(() => new Promise(resolve => {
+      settle = () => {
+        current = status({ installed: true, version: '0.9.25', running: true })
+        resolve({ ok: true, error: null, status: current })
+      }
+    }))
+    render(<MenuBarCard />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Install' }))
+    // Until the first phase arrives the button names the action itself.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Installing…' })).toBeTruthy())
+    for (const phase of ['Downloading', 'Verifying', 'Installing', 'Starting']) {
+      act(() => push!(phase))
+      expect(screen.getByRole('button', { name: `${phase}…` })).toBeTruthy()
+    }
+    await act(async () => { settle!() })
+    await waitFor(() => expect(screen.getByText('Running')).toBeTruthy())
+  })
+
+  it('an install that lands an older release shows the outdated state, not Running', async () => {
+    let current = status()
+    bridge.macMenubarStatus.mockImplementation(async () => current)
+    bridge.macMenubarInstall.mockImplementation(async () => {
+      current = status({ installed: true, version: '0.9.24', running: true, outdated: true })
+      return { ok: true, error: null, status: current }
+    })
+    render(<MenuBarCard />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Install' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Update' })).toBeTruthy())
+    expect(screen.getByText('Update the menu bar to use this')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Quit' })).toHaveProperty('disabled', true)
+  })
+
+  it('a Quit nobody answered says so and leaves the card running', async () => {
+    const running = status({ installed: true, version: '0.9.24', running: true })
+    bridge.macMenubarStatus.mockResolvedValue(running)
+    bridge.macMenubarQuit.mockResolvedValue({
+      ok: false, error: 'The menu bar app did not respond. Update it and try again.', status: running,
+    })
+    render(<MenuBarCard />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Quit' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Yes' }))
+    await waitFor(() => expect(screen.getByText('The menu bar app did not respond. Update it and try again.')).toBeTruthy())
+    expect(screen.getByText('Running')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Quit' })).toBeTruthy()
+  })
+
+  it('an Uninstall nobody answered says the same and keeps the bundle', async () => {
+    const running = status({ installed: true, version: '0.9.24', running: true })
+    bridge.macMenubarStatus.mockResolvedValue(running)
+    bridge.macMenubarUninstall.mockResolvedValue({
+      ok: false, error: 'The menu bar app did not respond. Update it and try again.', status: running,
+    })
+    render(<MenuBarCard />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Uninstall' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Yes' }))
+    await waitFor(() => expect(screen.getByText('The menu bar app did not respond. Update it and try again.')).toBeTruthy())
+    expect(screen.getByRole('button', { name: 'Uninstall' })).toBeTruthy()
   })
 })
 

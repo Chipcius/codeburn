@@ -6,7 +6,7 @@ import path from 'node:path'
 
 import { CliError, DESKTOP_COLD_TIMEOUT_MS, PROGRESS_LINE_PREFIX, reapOrphanServe, resolveCodeburnPath, shutdownAll, spawnCli, spawnCliAction, startServe, type ActionResult, type SpawnPriority } from './cli'
 import { MenubarCompanion, STARTUP_APPS_SETTINGS_URL, type CompanionStatus } from './menubar'
-import { MacMenubar, NO_MAC_MENUBAR } from './mac-menubar'
+import { MacMenubar, NO_MAC_MENUBAR, type InstallPhase } from './mac-menubar'
 import { getQuota, sanitizeError } from './quota'
 import { Telemetry } from './telemetry'
 import { createUpdateChecker, type UpdateChecker, type UpdateStatus } from './updates'
@@ -95,6 +95,8 @@ export type Envelope<T = unknown> = { ok: true; value: T } | { ok: false; error:
 const WARMUP_TIMEOUT_MS = DESKTOP_COLD_TIMEOUT_MS
 // IPC channel carrying cold-start scan-progress events to the splash.
 export const PROGRESS_CHANNEL = 'codeburn:progress'
+/** Named steps of a running menubar install, pushed while the card waits on one. */
+export const MAC_MENUBAR_PROGRESS_CHANNEL = 'codeburn:macMenubarProgress'
 // IPC channel pushing update-availability status to open windows (launch + 24h).
 export const UPDATE_CHANNEL = 'codeburn:update'
 
@@ -775,7 +777,8 @@ export function createBridgeHandlers(deps: Deps = { spawnCli, spawnCliAction, re
     'codeburn:macMenubarOpen': async () => ({ ok: true, value: deps.macMenubar ? await deps.macMenubar.open() : NO_MAC_MENUBAR }),
     'codeburn:macMenubarSetDock': async (enabled?: boolean) =>
       ({ ok: true, value: deps.macMenubar ? await deps.macMenubar.setDockEnabled(Boolean(enabled)) : NO_MAC_MENUBAR }),
-    'codeburn:macMenubarQuit': async () => ({ ok: true, value: deps.macMenubar ? await deps.macMenubar.quit() : NO_MAC_MENUBAR }),
+    'codeburn:macMenubarQuit': async () =>
+      ({ ok: true, value: deps.macMenubar ? await deps.macMenubar.quit() : { ok: false, error: 'The menu bar app is macOS only.', status: NO_MAC_MENUBAR } }),
     'codeburn:macMenubarUninstall': async () =>
       ({ ok: true, value: deps.macMenubar ? await deps.macMenubar.uninstall() : { ok: false, error: 'The menu bar app is macOS only.', status: NO_MAC_MENUBAR } }),
     // Plugin management reads (all return parsed JSON)
@@ -1038,6 +1041,9 @@ function bootstrap(): void {
       execPath: process.execPath,
       bundledCli: process.env.CODEBURN_BUNDLED_CLI,
       stateDir: app.getPath('userData'),
+      onPhase: (phase: InstallPhase) => {
+        for (const win of BrowserWindow.getAllWindows()) win.webContents.send(MAC_MENUBAR_PROGRESS_CHANNEL, phase)
+      },
     })
     registerHandlers()
     installApplicationMenu()

@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, existsSync, readFileSync, statSync, writeFileSy
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { DOCK_ENABLED_KEY, MENUBAR_BUNDLE_ID, OLDEST_ASKABLE, REMOTE_COMMAND_KEY, MacMenubar, installErrorMessage, isOlderThan } from './mac-menubar'
+import { DOCK_ENABLED_KEY, MENUBAR_BUNDLE_ID, NO_ANSWER, OLDEST_ASKABLE, REMOTE_COMMAND_KEY, MacMenubar, installErrorMessage, installPhase, isOlderThan } from './mac-menubar'
 
 const HOME = '/Users/tester'
 const USER_APP = `${HOME}/Applications/CodeBurnMenubar.app`
@@ -84,6 +84,8 @@ describe('MacMenubar.status', () => {
 
   it('marks a menubar older than the one that answers as outdated, and a newer one as not', async () => {
     expect((await harness({ present: [USER_APP], version: '0.9.18' }).menubar.status()).outdated).toBe(true)
+    // The published 0.9.24 predates the remote-command key; it must not be driven from here.
+    expect((await harness({ present: [USER_APP], version: '0.9.24' }).menubar.status()).outdated).toBe(true)
     expect((await harness({ present: [USER_APP], version: OLDEST_ASKABLE }).menubar.status()).outdated).toBe(false)
     expect((await harness({ present: [USER_APP], version: '1.0.0' }).menubar.status()).outdated).toBe(false)
     expect((await harness({ present: [USER_APP], version: 'dev' }).menubar.status()).outdated).toBe(true)
@@ -225,18 +227,21 @@ describe('installErrorMessage', () => {
 describe('MacMenubar.quit', () => {
   it('asks the menubar to quit itself and does not signal when it does', async () => {
     const { menubar, calls, isRunning } = harness({ present: [USER_APP], running: true })
-    const status = await menubar.quit()
+    const result = await menubar.quit()
     const write = calls.find(([cmd, args]) => cmd.endsWith('defaults') && args[0] === 'write' && args[2] === REMOTE_COMMAND_KEY)
     expect(write?.[1]).toEqual(['write', MENUBAR_BUNDLE_ID, REMOTE_COMMAND_KEY, '-string', 'quit'])
     expect(calls.some(([cmd]) => cmd.endsWith('pkill'))).toBe(false)
     expect(isRunning()).toBe(false)
-    expect(status.running).toBe(false)
-    expect(status.installed).toBe(true)
+    expect(result).toMatchObject({ ok: true, error: null })
+    expect(result.status.running).toBe(false)
+    expect(result.status.installed).toBe(true)
   })
 
-  it('never signals a menubar that does not answer, and takes the command back', async () => {
+  it('never signals a menubar that does not answer: it says so and takes the command back', async () => {
     const { menubar, calls, isRunning } = harness({ present: [USER_APP], running: true, honoursRemoteCommand: false })
-    await menubar.quit()
+    const result = await menubar.quit()
+    expect(result).toMatchObject({ ok: false, error: NO_ANSWER })
+    expect(result.status.running).toBe(true)
     // No pkill at all: a SIGTERM skips applicationWillTerminate, and on an uninstall it would
     // strand the login item. An unanswering menubar is `outdated`, which the card will not drive.
     expect(calls.some(([cmd]) => cmd.endsWith('pkill'))).toBe(false)
@@ -248,7 +253,7 @@ describe('MacMenubar.quit', () => {
     const { menubar } = harness({ present: [USER_APP], running: true, honoursRemoteCommand: false })
     const result = await menubar.uninstall()
     expect(result.ok).toBe(false)
-    expect(result.error).toBe('The menu bar app did not quit, so it was left in place. Quit it from its menu and try again.')
+    expect(result.error).toBe(NO_ANSWER)
   })
 
   it('does nothing when nothing is installed', async () => {
@@ -339,7 +344,7 @@ describe('MacMenubar.uninstall', () => {
 
 describe('isOlderThan', () => {
   it.each([
-    ['0.9.18', true], ['0.9.23', true], ['0.9.24', false], ['0.10.0', false],
+    ['0.9.18', true], ['0.9.24', true], ['0.9.25', false], ['0.10.0', false],
     ['1.0.0', false], ['v1.0.0', false], ['dev', true], ['', true],
   ])('%s -> outdated %s', (version, expected) => {
     expect(isOlderThan(version || null, OLDEST_ASKABLE)).toBe(expected)
@@ -407,5 +412,45 @@ describe('MacMenubar.writeCliLauncher', () => {
     await menubar.install()
     expect(order).toEqual(['record-first'])
     delete process.env.CODEBURN_CLI_PATH_FILE
+  })
+})
+
+describe('installPhase', () => {
+  it.each([
+    ['Downloading CodeBurnMenubar-v0.9.25.zip...', 'Downloading'],
+    ['Verifying checksum...', 'Verifying'],
+    ['Unpacking...', 'Installing'],
+    ['Verifying app bundle...', 'Installing'],
+    ['Launching CodeBurn Menubar...', 'Starting'],
+  ])('%s -> %s', (line, phase) => {
+    expect(installPhase(line)).toBe(phase)
+  })
+
+  it.each([
+    'Resolving CodeBurn Menubar v0.9.25...',
+    'Download hit a network error (fetch failed), retrying in 500ms (attempt 2 of 3)...',
+    '',
+  ])('leaves the phase where it was for %s', line => {
+    expect(installPhase(line)).toBeNull()
+  })
+})
+
+describe('install progress', () => {
+  it('names each step as the CLI prints it, across chunks that split a line', async () => {
+    const seen: string[] = []
+    const menubar = new MacMenubar({
+      platform: 'darwin', mas: false, home: HOME,
+      run: async () => null,
+      exists: () => false,
+      onPhase: p => seen.push(p),
+      runCli: async (_args, opts) => {
+        opts?.onStdout?.('Resolving CodeBurn Menubar v0.9.25...\nDownloa')
+        opts?.onStdout?.('ding CodeBurnMenubar-v0.9.25.zip...\nVerifying checksum...\n')
+        opts?.onStdout?.('Unpacking...\nVerifying app bundle...\nLaunching CodeBurn Menubar...\n')
+        return { ok: true, stdout: '', stderr: '', code: 0 }
+      },
+    })
+    await menubar.install()
+    expect(seen).toEqual(['Downloading', 'Downloading', 'Verifying', 'Installing', 'Installing', 'Starting'])
   })
 })

@@ -22,6 +22,25 @@ export const DOCK_ENABLED_KEY = 'CodeBurnCapacityDockEnabled'
  *  older menubar that does not watch the key is killed instead, which is what the CLI's own
  *  installer already does before it replaces a bundle. */
 export const REMOTE_COMMAND_KEY = 'CodeBurnMenubarRemoteCommand'
+/** What the card says when a menubar was asked to go and never answered. */
+export const NO_ANSWER = 'The menu bar app did not respond. Update it and try again.'
+
+/** The steps of an install worth naming while a person waits ~30s for it. */
+export type InstallPhase = 'Downloading' | 'Verifying' | 'Installing' | 'Starting'
+
+/**
+ * The CLI narrates its own install on stdout (src/menubar-installer.ts). Reading those lines
+ * beats inventing a second progress protocol, and a line this does not know simply keeps the
+ * phase where it was. The order below is the order they are printed, so the phase only moves
+ * forwards.
+ */
+export function installPhase(line: string): InstallPhase | null {
+  if (/^Downloading /.test(line)) return 'Downloading'
+  if (/^Verifying checksum/.test(line)) return 'Verifying'
+  if (/^Unpacking/.test(line) || /^Verifying app bundle/.test(line)) return 'Installing'
+  if (/^Launching /.test(line)) return 'Starting'
+  return null
+}
 /** How long the app is given to answer a quit or uninstall. Nothing is signalled after it:
  *  a menubar that cannot be asked is one the card refuses to drive at all (see OLDEST_ASKABLE). */
 const EXIT_TIMEOUT_MS = 5000
@@ -31,9 +50,10 @@ const EXIT_POLL_MS = 250
  * The first menubar version that watches its own defaults: it acts on a Capacity Dock change
  * made from outside and answers the quit and uninstall requests. Anything older cannot be
  * driven from here at all, so the card offers an update instead of switches that do nothing.
- * This is the desktop version the two shipped in.
+ * The release these ship in, compared against literally: a dev desktop built at 0.9.24 must
+ * still treat a published 0.9.24 menubar as too old, so this never reads the desktop version.
  */
-export const OLDEST_ASKABLE = '0.9.24'
+export const OLDEST_ASKABLE = '0.9.25'
 
 /** Numeric-component compare, with anything unparseable (a `dev` build) sorting oldest. */
 export function isOlderThan(version: string | null, floor: string): boolean {
@@ -74,7 +94,9 @@ export type MacMenubarDeps = {
   /** `process.mas` is true only inside a Mac App Store build. */
   mas: boolean
   home?: string
-  runCli?: (args: string[], opts?: { timeoutMs?: number }) => Promise<ActionResult>
+  runCli?: (args: string[], opts?: { timeoutMs?: number; onStdout?: (chunk: string) => void }) => Promise<ActionResult>
+  /** Named steps of a running install, pushed to the card so a 30-second wait says something. */
+  onPhase?: (phase: InstallPhase) => void
   /** The desktop app's own executable, which is also the Node that runs the CLI it carries. */
   execPath?: string
   /** `resources/cli/dist/launch.js` in a packaged build, absent in dev. */
@@ -216,7 +238,21 @@ export class MacMenubar {
     // menubar and refuses to go on without one, and a desktop-only user has none on PATH.
     await this.writeCliLauncher()
     const already = Boolean(await this.locate())
-    const result = await runCli(already ? ['menubar', '--force'] : ['menubar'], { timeoutMs: INSTALL_TIMEOUT_MS })
+    this.deps.onPhase?.('Downloading')
+    let pending = ''
+    const result = await runCli(already ? ['menubar', '--force'] : ['menubar'], {
+      timeoutMs: INSTALL_TIMEOUT_MS,
+      onStdout: chunk => {
+        // Chunks split mid-line, so only whole lines are read and the tail is kept.
+        pending += chunk
+        const lines = pending.split('\n')
+        pending = lines.pop() ?? ''
+        for (const line of lines) {
+          const phase = installPhase(line.trim())
+          if (phase) this.deps.onPhase?.(phase)
+        }
+      },
+    })
     const status = await this.status()
     if (result.ok && status.installed) return { ok: true, error: null, status }
     return { ok: false, error: installErrorMessage(result), status }
@@ -235,10 +271,11 @@ export class MacMenubar {
     return this.status()
   }
 
-  async quit(): Promise<MacMenubarStatus> {
+  async quit(): Promise<{ ok: boolean; error: string | null; status: MacMenubarStatus }> {
     const path = await this.locate()
-    if (path) await this.requestExit('quit', path)
-    return this.status()
+    const answered = path ? await this.requestExit('quit', path) : true
+    const status = await this.status()
+    return answered ? { ok: true, error: null, status } : { ok: false, error: NO_ANSWER, status }
   }
 
   /**
@@ -254,7 +291,7 @@ export class MacMenubar {
       return { ok: false, error: 'CodeBurn could not find the menu bar app to remove.', status: await this.status() }
     }
     if (!(await this.requestExit('uninstall', path))) {
-      return { ok: false, error: 'The menu bar app did not quit, so it was left in place. Quit it from its menu and try again.', status: await this.status() }
+      return { ok: false, error: NO_ANSWER, status: await this.status() }
     }
     try {
       await rm(path, { recursive: true, force: true })

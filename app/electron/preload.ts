@@ -96,6 +96,11 @@ const bridge = {
   macMenubarSetDock: (enabled: boolean) => invoke('codeburn:macMenubarSetDock', enabled),
   macMenubarQuit: () => invoke('codeburn:macMenubarQuit'),
   macMenubarUninstall: () => invoke('codeburn:macMenubarUninstall'),
+  onMacMenubarProgress: (cb: (phase: string) => void) => {
+    const listener = (_e: unknown, phase: string) => cb(phase)
+    ipcRenderer.on('codeburn:macMenubarProgress', listener)
+    return () => { ipcRenderer.removeListener('codeburn:macMenubarProgress', listener) }
+  },
   // Plugin management
   pluginList: () => invoke('codeburn:pluginList'),
   pluginInfo: (name: string) => invoke('codeburn:pluginInfo', name),

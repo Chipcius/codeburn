@@ -51,6 +51,10 @@ export function MenuBarCard() {
   const [error, setError] = useState<string | null>(null)
   // Quit and Uninstall confirm in the card, the same way removing a plugin does on this page.
   const [confirming, setConfirming] = useState<'quit' | 'uninstall' | null>(null)
+  // What the install is doing right now, from the CLI's own narration. An install takes about
+  // half a minute, most of it an 8 MB download, and a button that only says "Installing…" for
+  // that long reads as a hang.
+  const [phase, setPhase] = useState<string | null>(null)
 
   if (!status?.supported) return null
 
@@ -58,30 +62,36 @@ export function MenuBarCard() {
     if (busy) return
     setBusy(kind)
     setError(null)
+    setPhase(null)
     try {
       await call()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Try again.')
     } finally {
       setBusy(null)
+      setPhase(null)
       setConfirming(null)
       refresh()
     }
   }
 
-  const install = () => act('install', async () => {
-    const result = await codeburn.macMenubarInstall?.()
-    if (!result) return
-    apply(result.status)
-    if (!result.ok) setError(result.error ?? 'The menu bar app could not be installed.')
+  const runInstall = (kind: 'install' | 'update') => act(kind, async () => {
+    const stop = codeburn.onMacMenubarProgress?.(setPhase)
+    try {
+      const result = await codeburn.macMenubarInstall?.()
+      if (!result) return
+      // What landed decides the card, so a release older than this build can drive still comes
+      // back as the outdated state rather than a cheerful Running.
+      apply(result.status)
+      if (!result.ok) setError(result.error ?? 'The menu bar app could not be installed.')
+    } finally {
+      stop?.()
+    }
   })
 
-  const update = () => act('update', async () => {
-    const result = await codeburn.macMenubarInstall?.()
-    if (!result) return
-    apply(result.status)
-    if (!result.ok) setError(result.error ?? 'The menu bar app could not be updated.')
-  })
+  const install = () => runInstall('install')
+
+  const update = () => runInstall('update')
 
   const open = () => act('open', async () => {
     const next = await codeburn.macMenubarOpen?.()
@@ -94,8 +104,10 @@ export function MenuBarCard() {
   })
 
   const quit = () => act('quit', async () => {
-    const next = await codeburn.macMenubarQuit?.()
-    if (next) apply(next)
+    const result = await codeburn.macMenubarQuit?.()
+    if (!result) return
+    apply(result.status)
+    if (!result.ok) setError(result.error ?? 'The menu bar app could not be quit.')
   })
 
   const uninstall = () => act('uninstall', async () => {
@@ -162,7 +174,7 @@ export function MenuBarCard() {
             </button>
             {status.outdated && status.canInstall && (
               <button className="btnp btnp-primary" onClick={update} disabled={busy !== null}>
-                {busy === 'update' ? 'Updating\u2026' : 'Update'}
+                {busy === 'update' ? `${phase ?? 'Updating'}\u2026` : 'Update'}
               </button>
             )}
             {status.running && (
@@ -172,7 +184,7 @@ export function MenuBarCard() {
           </>
         ) : status.canInstall ? (
           <button className="btnp btnp-primary" onClick={install} disabled={busy !== null}>
-            {busy === 'install' ? 'Installing\u2026' : 'Install'}
+            {busy === 'install' ? `${phase ?? 'Installing'}\u2026` : 'Install'}
           </button>
         ) : (
           <span className={styles.website}>Get the menu bar from the website</span>

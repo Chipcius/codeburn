@@ -1095,7 +1095,7 @@ export function spawnCli(
 /** Spawn a config-mutating CLI command and return its text output verbatim.
  *  Mutations count as interactive, so they take a run slot ahead of any queued
  *  background warm — a Settings save is never stuck behind speculative prefetch. */
-export function spawnCliAction(args: string[], opts: { timeoutMs?: number; extraEnv?: NodeJS.ProcessEnv } = {}): Promise<ActionResult> {
+export function spawnCliAction(args: string[], opts: { timeoutMs?: number; extraEnv?: NodeJS.ProcessEnv; onStdout?: (chunk: string) => void } = {}): Promise<ActionResult> {
   if (shuttingDown) return Promise.resolve({ ok: false, stdout: '', stderr: 'codeburn is shutting down', code: null })
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const target = resolveTarget()
@@ -1114,7 +1114,7 @@ export function spawnCliAction(args: string[], opts: { timeoutMs?: number; extra
     }
     try {
       if (shuttingDown) return { ok: false, stdout: '', stderr: 'codeburn is shutting down', code: null }
-      return await runAction(spec, args, timeoutMs)
+      return await runAction(spec, args, timeoutMs, opts.onStdout)
     } finally {
       releaseSlot()
     }
@@ -1124,7 +1124,7 @@ export function spawnCliAction(args: string[], opts: { timeoutMs?: number; extra
 // Mutations keep a plain total-runtime cap and no progress env: they are short
 // by design (a config write, an export), never a full-history parse, so there is
 // no long silent stretch for a watchdog to misread.
-function runAction(spec: SpawnSpec, args: string[], timeoutMs: number): Promise<ActionResult> {
+function runAction(spec: SpawnSpec, args: string[], timeoutMs: number, onStdout?: (chunk: string) => void): Promise<ActionResult> {
   return new Promise<ActionResult>(resolve => {
     const child = spawn(spec.bin, spec.args, { stdio: ['ignore', 'pipe', 'pipe'], ...spawnOptionsFor(spec) })
     activeChildren.add(child)
@@ -1152,7 +1152,7 @@ function runAction(spec: SpawnSpec, args: string[], timeoutMs: number): Promise<
       finish({ ok: false, stdout, stderr: `codeburn ${args[0] ?? ''} timed out after ${timeoutMs}ms`, code: null })
     }, timeoutMs)
 
-    child.stdout.on('data', chunk => { stdout += chunk })
+    child.stdout.on('data', chunk => { stdout += chunk; onStdout?.(String(chunk)) })
     child.stderr.on('data', chunk => { stderr += chunk })
     child.on('error', err => finish({ ok: false, stdout, stderr: err.message, code: null }))
     child.on('close', code => finish({ ok: code === 0, stdout, stderr, code }))
