@@ -453,6 +453,6 @@ describe('the Teams card', () => {
   it('opens the beta signup URL through the external opener', async () => {
     render(<PluginsSection />)
     await userEvent.click(await screen.findByRole('button', { name: 'Register for beta testing' }))
-    expect(bridge.openExternal).toHaveBeenCalledWith('https://getagentseal.com/teams-beta')
+    expect(bridge.openExternal).toHaveBeenCalledWith('https://codeburn.app/teams')
   })
 })

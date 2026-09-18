@@ -14,7 +14,7 @@ import teamsArt from '../assets/teams-card-art.jpg'
 import teamsArtLight from '../assets/teams-card-art-light.jpg'
 
 // Placeholder until the real signup URL lands; swap this one constant before merge.
-const TEAMS_BETA_URL = 'https://getagentseal.com/teams-beta'
+const TEAMS_BETA_URL = 'https://codeburn.app/teams'
 
 interface PluginInfo {
   name: string
