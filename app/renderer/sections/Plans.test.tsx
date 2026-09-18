@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { setActiveCurrency } from '../lib/format'
@@ -280,10 +280,11 @@ describe('Plans', () => {
       { provider: 'claude', connection: 'transientFailure', rateLimited: false, primary: null, details: [], planLabel: null, footerLines: [] },
     ])
 
-    render(<Plans period="30days" />)
+    const { container } = render(<Plans period="30days" />)
+    const q = within(container)
 
-    expect(await screen.findByText('Waiting on the CLI…')).toBeInTheDocument()
-    expect(screen.queryByText(/rate limited the quota endpoint/)).not.toBeInTheDocument()
+    expect(await q.findByText('Waiting on the CLI…')).toBeInTheDocument()
+    expect(q.queryByText(/rate limited the quota endpoint/)).not.toBeInTheDocument()
   })
 
   const connectedClaude: QuotaProvider = {
@@ -363,10 +364,11 @@ describe('Plans', () => {
       { provider: 'kimi', connection: 'terminalFailure', connectable: true, primary: null, details: [], planLabel: null, footerLines: ['Login expired. Run the Kimi CLI once, then refresh.'] },
     ])
 
-    render(<Plans period="30days" />)
+    const { container } = render(<Plans period="30days" />)
+    const q = within(container)
 
-    expect(await screen.findByText('Login expired. Run the Kimi CLI once, then refresh.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Connect' })).toBeInTheDocument()
+    expect(await q.findByText('Login expired. Run the Kimi CLI once, then refresh.')).toBeInTheDocument()
+    expect(q.getByRole('button', { name: 'Connect' })).toBeInTheDocument()
   })
 
   it('leaves a genuinely terminal error (not auth) without a Connect affordance', async () => {
@@ -376,10 +378,11 @@ describe('Plans', () => {
       { provider: 'gemini', connection: 'terminalFailure', primary: null, details: [], planLabel: null, footerLines: ['Your Gemini tier was retired.'] },
     ])
 
-    render(<Plans period="30days" />)
+    const { container } = render(<Plans period="30days" />)
+    const q = within(container)
 
-    expect(await screen.findByText('Your Gemini tier was retired.')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Connect' })).not.toBeInTheDocument()
+    expect(await q.findByText('Your Gemini tier was retired.')).toBeInTheDocument()
+    expect(q.queryByRole('button', { name: 'Connect' })).not.toBeInTheDocument()
   })
 
   it('keeps a connected provider\'s bars through a transient "waiting" poll (manual refresh race)', async () => {
