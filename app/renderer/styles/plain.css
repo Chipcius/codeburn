@@ -637,7 +637,16 @@ td:first-child { font-size: var(--fs-body); font-weight: var(--fw-medium); }
 .quota-footer { display: flex; flex-direction: column; gap: 3px; margin-top: 13px; padding-top: 10px; border-top: 1px solid var(--line2); color: var(--mut); font-size: var(--fs-label); }
 .plans-section-heading { margin: 2px 0 8px; color: var(--mut); font-size: var(--fs-meta); font-weight: var(--fw-subhead); letter-spacing: .04em; text-transform: uppercase; }
 .budget-plans { display: grid; width: 100%; gap: 12px; }
-.budget-plans > .panel { width: 100%; }
+/* Provider cards side by side: the Overview grid's intrinsic auto-fit — two or
+   three per row by width, one column when narrow — no media query. */
+.plans-grid { display: grid; width: 100%; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 12px; align-items: stretch; }
+/* The card's own logo embossed large, faint, bottom-right (menu-bar plugin-card
+   wordmark treatment): low contrast in both themes, clipped to the card, never
+   over the text (content stays on z-index 1). */
+.quota-card .pbody, .plan-card .pbody { position: relative; overflow: hidden; }
+.quota-card .pbody > :not(.plan-card-art), .plan-card .pbody > :not(.plan-card-art) { position: relative; z-index: 1; }
+.plan-card-art { position: absolute; right: -12px; bottom: -16px; z-index: 0; pointer-events: none; opacity: .06; filter: grayscale(1); }
+.plan-card-art .provider-logo { width: 132px; height: 132px; border-radius: 0; }
 
 .ov-dashboard { display: grid; width: 100%; gap: 12px; }
 .ov-kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); overflow: hidden; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--card-shadow); }

@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { setActiveCurrency } from '../lib/format'
+import { __resetPolledMemo } from '../hooks/usePolled'
 import type { JsonPlanSummary, QuotaProvider, StatusJson } from '../lib/types'
 import { Plans } from './Plans'
 
@@ -283,6 +284,63 @@ describe('Plans', () => {
 
     expect(await screen.findByText('Waiting on the CLI…')).toBeInTheDocument()
     expect(screen.queryByText(/rate limited the quota endpoint/)).not.toBeInTheDocument()
+  })
+
+  const connectedClaude: QuotaProvider = {
+    provider: 'claude',
+    connection: 'connected',
+    primary: { label: 'Weekly', percent: 0.1, resetsAt: null },
+    details: [{ label: 'Weekly', percent: 0.1, resetsAt: null }],
+    planLabel: 'Max 20x',
+    footerLines: [],
+  }
+  const disconnectedClaude: QuotaProvider = {
+    provider: 'claude', connection: 'disconnected', primary: null, details: [], planLabel: null, footerLines: [],
+  }
+
+  it('never flips a connected provider to disconnected across connected → empty → connected polls', async () => {
+    __resetPolledMemo()
+    getPlans.mockResolvedValue(baseStatus)
+    getQuota.mockReset()
+    getQuota
+      .mockResolvedValueOnce([connectedClaude]) // poll 1: connected
+      .mockResolvedValueOnce([]) // poll 2: empty/slow serve — a transient miss
+      .mockResolvedValue([connectedClaude]) // poll 3+: connected again
+
+    const { rerender } = render(<Plans period="30days" refreshToken={0} />)
+    await screen.findByText('Max 20x')
+    expect(screen.queryByText(/Not connected/)).not.toBeInTheDocument()
+
+    rerender(<Plans period="30days" refreshToken={1} />) // empty poll
+    await waitFor(() => expect(getQuota).toHaveBeenCalledTimes(2))
+    // The row must survive an empty poll — no disconnect flicker, plan still shown.
+    expect(screen.queryByText(/Not connected/)).not.toBeInTheDocument()
+    expect(screen.getByText('Max 20x')).toBeInTheDocument()
+
+    rerender(<Plans period="30days" refreshToken={2} />) // connected again
+    await waitFor(() => expect(getQuota).toHaveBeenCalledTimes(3))
+    expect(screen.queryByText(/Not connected/)).not.toBeInTheDocument()
+  })
+
+  it('debounces a single disconnected poll but still surfaces a sustained disconnect', async () => {
+    __resetPolledMemo()
+    getPlans.mockResolvedValue(baseStatus)
+    getQuota.mockReset()
+    getQuota
+      .mockResolvedValueOnce([connectedClaude]) // poll 1: connected
+      .mockResolvedValueOnce([disconnectedClaude]) // poll 2: one anomalous disconnect
+      .mockResolvedValue([disconnectedClaude]) // poll 3+: sustained disconnect
+
+    const { rerender } = render(<Plans period="30days" refreshToken={0} />)
+    await screen.findByText('Max 20x')
+
+    rerender(<Plans period="30days" refreshToken={1} />) // single disconnect — debounced
+    await waitFor(() => expect(getQuota).toHaveBeenCalledTimes(2))
+    expect(screen.queryByText(/Not connected/)).not.toBeInTheDocument()
+
+    rerender(<Plans period="30days" refreshToken={2} />) // second consecutive disconnect — real
+    await waitFor(() => expect(getQuota).toHaveBeenCalledTimes(3))
+    expect(await screen.findByText(/Not connected/)).toBeInTheDocument()
   })
 
   it('renders the keychain access-denied state with recovery copy and a locked indicator', async () => {

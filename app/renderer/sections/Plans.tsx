@@ -3,6 +3,7 @@ import { useRef, useState } from 'react'
 import { CliErrorPanel } from '../components/CliErrorPanel'
 import { ConnectAffordance } from '../components/ConnectAffordance'
 import { Panel } from '../components/Panel'
+import { ProviderLogo, hasProviderLogo } from '../components/ProviderLogo'
 import { SectionSkeleton } from '../components/Skeleton'
 import type { Section } from '../components/Sidebar'
 import { StaleBanner } from '../components/StaleBanner'
@@ -71,6 +72,60 @@ function manualPlanSummaries(status: StatusJson): JsonPlanSummary[] {
   return planSummaries(status).filter(plan => plan.provider !== 'claude' && plan.provider !== 'codex')
 }
 
+// A single anomalous poll must not flip a live provider to "disconnected". A
+// slow/empty serve drops the provider from the array, and a cold or aborted
+// read can momentarily report `disconnected`; either one, rendered verbatim,
+// flickers a connected row to the Connect affordance and back. So we hold the
+// last known status per provider and require `disconnected` to be reported this
+// many consecutive polls before the row actually shows it. Other honest states
+// (transientFailure/stale/rate-limited/accessDenied) pass through unchanged.
+const DISCONNECT_DEBOUNCE = 2
+
+type QuotaKnown = { last: QuotaProvider; strikes: number }
+
+export function stabilizeQuota(raw: QuotaProvider[], known: Map<QuotaProvider['provider'], QuotaKnown>): QuotaProvider[] {
+  const out: QuotaProvider[] = []
+  const seen = new Set<QuotaProvider['provider']>()
+  for (const provider of raw) {
+    seen.add(provider.provider)
+    const prev = known.get(provider.provider)
+    if (provider.connection === 'connected') {
+      known.set(provider.provider, { last: provider, strikes: 0 })
+      out.push(provider)
+      continue
+    }
+    // Only debounce a provider we last saw connected reporting `disconnected`;
+    // a provider that was never connected shows disconnected immediately.
+    if (provider.connection === 'disconnected' && prev?.last.connection === 'connected') {
+      const strikes = prev.strikes + 1
+      if (strikes < DISCONNECT_DEBOUNCE) {
+        known.set(provider.provider, { last: prev.last, strikes })
+        out.push(prev.last)
+        continue
+      }
+    }
+    known.set(provider.provider, { last: provider, strikes: 0 })
+    out.push(provider)
+  }
+  // A provider missing from this poll (empty/slow serve) is a transient miss,
+  // never a disconnect: keep its last known row.
+  for (const [provider, entry] of known) {
+    if (!seen.has(provider)) out.push(entry.last)
+  }
+  return out
+}
+
+function useStableQuota(raw: QuotaProvider[] | null): QuotaProvider[] | null {
+  const known = useRef(new Map<QuotaProvider['provider'], QuotaKnown>())
+  const lastRaw = useRef<QuotaProvider[] | null | undefined>(undefined)
+  const stable = useRef<QuotaProvider[] | null>(null)
+  if (raw !== lastRaw.current) {
+    lastRaw.current = raw
+    if (raw) stable.current = stabilizeQuota(raw, known.current)
+  }
+  return raw === null ? null : stable.current
+}
+
 export function Plans({ period, refreshToken = 0, onNavigate, ready = true }: { period: Period; refreshToken?: number; onNavigate?: (section: Section, pane?: SettingsPane) => void; ready?: boolean }) {
   // Force a fresh fetch (bypassing QuotaService's 5-min cache, and its keychain
   // guard) when the user hits ⌘R or clicks Refresh in the Connect affordance;
@@ -91,6 +146,7 @@ export function Plans({ period, refreshToken = 0, onNavigate, ready = true }: { 
     memoKey: reportMemoKey('plans', period),
   })
   const manualPlans = budgetReport.data ? manualPlanSummaries(budgetReport.data) : []
+  const stableQuota = useStableQuota(quota.data)
 
   return (
     <>
@@ -104,7 +160,7 @@ export function Plans({ period, refreshToken = 0, onNavigate, ready = true }: { 
       </div>
       <div className={motionClass('body', 'section-fade')}>
         {budgetReport.data && budgetReport.error && <StaleBanner error={budgetReport.error} />}
-        {renderQuota(quota.data, quota.error, reconnect)}
+        {renderQuota(stableQuota, quota.error, reconnect)}
         {renderBudgetPlans(budgetReport.data, budgetReport.error, manualPlans)}
       </div>
     </>
@@ -131,7 +187,19 @@ function renderQuota(data: QuotaProvider[] | null, error: ReturnType<typeof useP
     )
   }
 
-  return data.map(provider => <QuotaPanel key={provider.provider} quota={provider} onReconnect={onReconnect} />)
+  return (
+    <div className="plans-grid">
+      {data.map(provider => <QuotaPanel key={provider.provider} quota={provider} onReconnect={onReconnect} />)}
+    </div>
+  )
+}
+
+/** The provider's own logo, embossed large and faint into the card's
+ *  bottom-right — the menu-bar plugin-card wordmark treatment. Providers with no
+ *  logo asset get no background art rather than an invented one. */
+function CardEmboss({ provider }: { provider: string }) {
+  if (!hasProviderLogo(provider)) return null
+  return <div className="plan-card-art" aria-hidden><ProviderLogo provider={provider} size={132} /></div>
 }
 
 function renderBudgetPlans(data: StatusJson | null, error: ReturnType<typeof usePolled<StatusJson>>['error'], plans: JsonPlanSummary[]) {
@@ -148,7 +216,9 @@ function renderBudgetPlans(data: StatusJson | null, error: ReturnType<typeof use
   return (
     <section className="budget-plans">
       <h2 className="plans-section-heading">Budget plans</h2>
-      {plans.map(plan => <PlanPanel key={`${plan.provider}-${plan.id}`} plan={plan} />)}
+      <div className="plans-grid">
+        {plans.map(plan => <PlanPanel key={`${plan.provider}-${plan.id}`} plan={plan} />)}
+      </div>
     </section>
   )
 }
@@ -161,6 +231,7 @@ function QuotaPanel({ quota, onReconnect }: { quota: QuotaProvider; onReconnect:
       title={<span className="quota-title">{providerName}{quota.planLabel ? <small>{quota.planLabel}</small> : null}</span>}
       right={<ConnectionIndicator connection={quota.connection} />}
     >
+      <CardEmboss provider={quota.provider} />
       <QuotaContent quota={quota} onReconnect={onReconnect} />
     </Panel>
   )
@@ -251,6 +322,7 @@ function PlanPanel({ plan }: { plan: JsonPlanSummary }) {
       title={<span className="plan-title">{PLAN_NAMES[plan.id]}<small>{detail}</small></span>}
       right={right}
     >
+      <CardEmboss provider={plan.provider} />
       <div className="track" data-testid={`plan-track-${plan.provider}`}>
         <i className={trackClass} style={{ width: `${displayPercent}%` }} />
       </div>
