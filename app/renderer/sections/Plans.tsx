@@ -80,10 +80,21 @@ function manualPlanSummaries(status: StatusJson): JsonPlanSummary[] {
 // many consecutive polls before the row actually shows it. Other honest states
 // (transientFailure/stale/rate-limited/accessDenied) pass through unchanged.
 const DISCONNECT_DEBOUNCE = 2
+// A provider stuck "waiting" (transientFailure/stale, not rate limited) never
+// resolves on its own — the quota service just re-serves the same cached failure
+// — so past this cap we stop showing an open-ended spinner and surface an
+// actionable, terminal state (Connect + Refresh). The steady poll is 30–60s and
+// already cheap (5-min service cache, no repeated spawn), so this only changes
+// the copy, not the fetch cadence. Comfortably clears a normal 1–2s answer.
+const WAITING_CAP_MS = 20_000
 
-type QuotaKnown = { last: QuotaProvider; strikes: number }
+type QuotaKnown = { last: QuotaProvider; strikes: number; waitingSince?: number }
 
-export function stabilizeQuota(raw: QuotaProvider[], known: Map<QuotaProvider['provider'], QuotaKnown>): QuotaProvider[] {
+function isWaiting(quota: QuotaProvider): boolean {
+  return (quota.connection === 'transientFailure' || quota.connection === 'stale') && !quota.rateLimited
+}
+
+export function stabilizeQuota(raw: QuotaProvider[], known: Map<QuotaProvider['provider'], QuotaKnown>, now: number): QuotaProvider[] {
   const out: QuotaProvider[] = []
   const seen = new Set<QuotaProvider['provider']>()
   for (const provider of raw) {
@@ -104,6 +115,19 @@ export function stabilizeQuota(raw: QuotaProvider[], known: Map<QuotaProvider['p
         continue
       }
     }
+    // Bound an indefinite "waiting": once it has been stuck past the cap, present
+    // it as a terminal, actionable error instead of spinning forever.
+    if (isWaiting(provider)) {
+      const waitingSince = prev?.waitingSince ?? now
+      if (now - waitingSince >= WAITING_CAP_MS) {
+        known.set(provider.provider, { last: provider, strikes: 0, waitingSince })
+        out.push({ ...provider, connection: 'terminalFailure', connectable: true, footerLines: [`Couldn't reach the ${PROVIDER_NAMES[provider.provider]} CLI.`] })
+        continue
+      }
+      known.set(provider.provider, { last: provider, strikes: 0, waitingSince })
+      out.push(provider)
+      continue
+    }
     known.set(provider.provider, { last: provider, strikes: 0 })
     out.push(provider)
   }
@@ -121,7 +145,7 @@ function useStableQuota(raw: QuotaProvider[] | null): QuotaProvider[] | null {
   const stable = useRef<QuotaProvider[] | null>(null)
   if (raw !== lastRaw.current) {
     lastRaw.current = raw
-    if (raw) stable.current = stabilizeQuota(raw, known.current)
+    if (raw) stable.current = stabilizeQuota(raw, known.current, Date.now())
   }
   return raw === null ? null : stable.current
 }
@@ -255,8 +279,13 @@ function QuotaContent({ quota, onReconnect }: { quota: QuotaProvider; onReconnec
     return <p className="quota-connection-note">Waiting on the CLI…</p>
   }
   if (quota.connection === 'terminalFailure') {
-    // A provider that knows why (an expired Kimi login, a retired Gemini tier)
-    // says so; the generic line is the fallback.
+    // An auth expiry (or a capped "waiting") is recoverable: show the same
+    // Connect affordance the disconnected state uses, keeping the error line.
+    if (quota.connectable) {
+      return <ConnectAffordance provider={quota.provider} connection="disconnected" onRefresh={onReconnect} message={quota.footerLines[0]} />
+    }
+    // A genuinely terminal provider (a retired Gemini tier, no allowance) says
+    // why; the generic line is the fallback. No action to offer.
     return <p className="quota-connection-note quota-terminal">{quota.footerLines[0] ?? 'Quota is currently unavailable.'}</p>
   }
 

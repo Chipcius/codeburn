@@ -183,7 +183,7 @@ export async function fetchGeminiQuota(options: Partial<GeminiDeps> & { signal?:
     const assist = await response.json().catch(() => ({})) as Record<string, any>
     const migration = migrationFooter(assist)
     if (migration.length > 0) return { quota: empty('terminalFailure', migration) }
-    if (!response.ok) return { quota: empty(response.status >= 400 && response.status < 500 ? 'terminalFailure' : 'transientFailure') }
+    if (!response.ok) return { quota: { ...empty(response.status >= 400 && response.status < 500 ? 'terminalFailure' : 'transientFailure'), ...(response.status === 401 || response.status === 403 ? { connectable: true } : {}) } }
 
     const project = typeof assist.cloudaicompanionProject === 'string' && assist.cloudaicompanionProject
       ? assist.cloudaicompanionProject : undefined
@@ -194,7 +194,7 @@ export async function fetchGeminiQuota(options: Partial<GeminiDeps> & { signal?:
       return { quota: empty('transientFailure'), retryAfterSeconds: Math.max(Number.isFinite(seconds) ? Math.ceil(seconds) : 300, 60) }
     }
     if (!quotaResponse.ok) {
-      return { quota: empty(quotaResponse.status >= 400 && quotaResponse.status < 500 ? 'terminalFailure' : 'transientFailure') }
+      return { quota: { ...empty(quotaResponse.status >= 400 && quotaResponse.status < 500 ? 'terminalFailure' : 'transientFailure'), ...(quotaResponse.status === 401 || quotaResponse.status === 403 ? { connectable: true } : {}) } }
     }
     const quota = decodeGeminiUsage(await quotaResponse.json())
     quota.planLabel = tierLabel(assist, credential)
