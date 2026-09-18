@@ -351,7 +351,11 @@
     linear-gradient(to right, var(--art-scrim-0) 0%, var(--art-scrim-0) var(--art-scrim-start), var(--art-scrim-1) var(--art-scrim-end), var(--art-scrim-1) 100%),
     var(--art-src);
   background-repeat: no-repeat;
-  background-size: auto, cover;
+  /* Not `cover`: a card taller than the artwork's own 5.25:1 makes cover scale by height, and
+     a right-anchored image wider than the card drags the baked-in wordmark left, under the
+     description. Stretching instead pins the wordmark to the same fraction of the card's
+     width at every height; the flat left edge takes the distortion and nothing crops. */
+  background-size: auto, 100% 100%;
   background-position: center, right bottom;
   /* Light is the default here, the same way plain.css orders it. */
   --art-src: var(--card-art-light);
@@ -453,6 +457,11 @@
    switch keeps its name in aria-label and in its tooltip. Driven by the window width, never
    by how many buttons a state has, so the card is still one height across every state. */
 @media (max-width: 1100px) {
+  /* The bigger type scale needs a little more of the row for the buttons. */
+  .art .info {
+    flex-basis: 44%;
+    max-width: 44%;
+  }
   .art .dockToggle > span {
     position: absolute;
     width: 1px;
