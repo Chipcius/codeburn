@@ -349,10 +349,11 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
 .dropdown-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .dropdown-chevron { width: 14px; height: 14px; color: var(--mut2); }
 .dropdown-menu { overflow-y: auto; }
-.dropdown-menu .pop-item { width: 100%; min-width: 0; border: 0; background: transparent; font: inherit; font-size: var(--fs-body); text-align: left; }
+.pop-menu .pop-item { width: 100%; min-width: 0; border: 0; background: transparent; font: inherit; font-size: var(--fs-body); text-align: left; }
 .pop-item-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .pop-item-note { flex: 0 0 auto; margin-left: auto; padding-left: 8px; color: var(--mut2); font-size: var(--fs-label); }
-.dropdown-menu .pop-item:hover, .dropdown-menu .pop-item:focus-visible { background: var(--hover); }
+.pop-menu .pop-item:hover:not(:disabled), .pop-menu .pop-item:focus-visible { background: var(--hover); }
+.pop-menu .pop-item:disabled { opacity: .45; cursor: default; }
 .dropdown-foot { max-width: 220px; margin-top: 4px; padding: 7px 11px 2px; border-top: 1px solid var(--line2); color: var(--mut2); font-size: var(--fs-label); line-height: 1.35; white-space: normal; }
 .calendar-trigger {
   display: inline-flex; align-items: center; gap: 6px; height: 25px; padding: 3px 7px;

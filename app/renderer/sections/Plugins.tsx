@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { codeburn } from '../lib/ipc'
 import { showToast } from '../lib/toast'
 import { PluginDetailsModal } from './PluginDetails'
 import { InstallFlowModal } from './InstallFlow'
 import styles from './Plugins.module.css'
-import { isWindowsPlatform } from '../lib/platform'
+import { isMacPlatform, isWindowsPlatform } from '../lib/platform'
 import { Icon } from '../components/icons'
 import { BarNav } from '../components/TopBar'
+import { MenuBarCard } from './MenuBarCard'
+import teamsArt from '../assets/teams-card-art.jpg'
+import teamsArtLight from '../assets/teams-card-art-light.jpg'
 
 interface PluginInfo {
   name: string
@@ -36,6 +40,28 @@ function PluginsComingSoon() {
         <p className={styles.soonBody}>
           They arrive in a later Windows release; on macOS and Linux they are available today.
         </p>
+      </div>
+    </div>
+  )
+}
+
+/** The one plugin that is coming, as a card rather than a panel of prose. Nothing to press,
+ *  so the slot the Menu bar card fills with buttons carries a label instead. */
+function TeamsCard() {
+  return (
+    <div
+      className={`${styles.row} ${styles.art}`}
+      style={{ '--card-art': `url(${teamsArt})`, '--card-art-light': `url(${teamsArtLight})` } as CSSProperties}
+      data-status="loaded"
+    >
+      <div className={styles.info}>
+        <div className={styles.name}>Teams</div>
+        <div className={styles.reason} title="Shares session outcomes and retries with your team dashboard.">
+          Shares session outcomes and retries with your team dashboard.
+        </div>
+      </div>
+      <div className={styles.controls}>
+        <span className={styles.pill}>Coming soon</span>
       </div>
     </div>
   )
@@ -111,20 +137,13 @@ function PluginsList() {
   return (
     <div className={styles.container}>
       {error && <div className={styles.error}>{error}</div>}
-      {plugins.length === 0 ? (
-        <div className={`card ${styles.empty}`}>
-          <h2 className={styles.emptyTitle}>Coming soon</h2>
-          <div className={styles.emptyBodyPanel}>
-          <p className={styles.emptyBody}>
-            Plugins will let CodeBurn do more than count. The first one ships with CodeBurn Teams: it sends your session outcomes, retries and kind of work to your team dashboard, and nothing else.
-          </p>
-          <p className={styles.emptyBody}>Until then, everything on the other screens stays local to this machine.</p>
-          <p className={styles.emptyFooter}>
-            Have a plugin file already? <button type="button" className="set-text-button" onClick={() => setShowInstallFlow(true)}>Install it</button>
-          </p>
-          </div>
-        </div>
-      ) : (
+      {/* The macOS menubar app is a companion, not a CLI plugin, so it sits above the list and
+          renders whether or not there are plugins. Nothing is rendered off darwin. */}
+      <div className={styles.artGrid}>
+        {isMacPlatform() && <MenuBarCard />}
+        <TeamsCard />
+      </div>
+      {plugins.length > 0 && (
         <div className={styles.list}>
           {plugins.map(plugin => (
             <div key={plugin.name} className={styles.row} data-status={plugin.status}>

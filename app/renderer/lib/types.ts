@@ -1040,6 +1040,22 @@ export type CompanionStatus = {
   restartRequired?: boolean
 }
 
+/** The macOS menubar app (mac/) as the Plugins page sees it (app/electron/mac-menubar.ts). */
+export type MacMenubarStatus = {
+  supported: boolean
+  /** False in a Mac App Store build, which may not download an executable. */
+  canInstall: boolean
+  installed: boolean
+  path: string | null
+  version: string | null
+  running: boolean
+  dock: boolean
+  /** True for a menubar too old to be driven from here; the card offers Update instead. */
+  outdated: boolean
+}
+
+export type MacMenubarInstall = { ok: boolean; error: string | null; status: MacMenubarStatus }
+
 /** The tray app's own settings, from the two files it reads them from
  *  (windows-settings.json, windows-dock.json) plus the HKCU Run value. */
 export type TrayPrefs = {
@@ -1153,6 +1169,17 @@ export interface CodeburnBridge {
   setTrayAppPref?(patch: Record<string, unknown>): Promise<TrayPrefs | null>
   setTrayDockPref?(patch: Record<string, unknown>): Promise<TrayPrefs | null>
   setLaunchAtLogin?(enabled: boolean): Promise<TrayPrefs | null>
+  /** The macOS menubar app. Optional so a preload that predates the card degrades to
+   *  "not supported" rather than throwing. */
+  macMenubarStatus?(): Promise<MacMenubarStatus>
+  macMenubarInstall?(): Promise<MacMenubarInstall>
+  macMenubarOpen?(): Promise<MacMenubarStatus>
+  macMenubarSetDock?(enabled: boolean): Promise<MacMenubarStatus>
+  macMenubarSettings?(): Promise<MacMenubarInstall>
+  macMenubarQuit?(): Promise<MacMenubarInstall>
+  macMenubarUninstall?(): Promise<MacMenubarInstall>
+  /** Named steps of a running install: Downloading, Verifying, Installing, Starting. */
+  onMacMenubarProgress?(cb: (phase: string) => void): () => void
   // Plugin management
   pluginList(): Promise<unknown>
   pluginInfo(name: string): Promise<unknown>
