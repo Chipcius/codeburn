@@ -115,9 +115,18 @@ export function stabilizeQuota(raw: QuotaProvider[], known: Map<QuotaProvider['p
         continue
       }
     }
-    // Bound an indefinite "waiting": once it has been stuck past the cap, present
-    // it as a terminal, actionable error instead of spinning forever.
     if (isWaiting(provider)) {
+      // A provider that has already shown real numbers keeps them through a
+      // transient miss (e.g. a manual Refresh where the serve was busy bringing
+      // another provider online): never blank connected bars back to "Waiting…".
+      if (prev?.last.connection === 'connected') {
+        known.set(provider.provider, { last: prev.last, strikes: 0 })
+        out.push(prev.last)
+        continue
+      }
+      // A genuinely cold provider that has never returned data shows "Waiting…",
+      // and past the cap escalates to a terminal, actionable error rather than
+      // spinning forever.
       const waitingSince = prev?.waitingSince ?? now
       if (now - waitingSince >= WAITING_CAP_MS) {
         known.set(provider.provider, { last: provider, strikes: 0, waitingSince })

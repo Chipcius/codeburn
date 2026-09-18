@@ -382,6 +382,27 @@ describe('Plans', () => {
     expect(screen.queryByRole('button', { name: 'Connect' })).not.toBeInTheDocument()
   })
 
+  it('keeps a connected provider\'s bars through a transient "waiting" poll (manual refresh race)', async () => {
+    __resetPolledMemo()
+    getPlans.mockResolvedValue(baseStatus)
+    getQuota.mockReset()
+    const connected: QuotaProvider[] = [
+      { provider: 'codex', connection: 'connected', primary: { label: 'Weekly', percent: 0.17, resetsAt: null }, details: [{ label: 'Weekly', percent: 0.17, resetsAt: null }], planLabel: 'Plus', footerLines: [] },
+    ]
+    const waiting: QuotaProvider[] = [
+      { provider: 'codex', connection: 'transientFailure', rateLimited: false, primary: null, details: [], planLabel: null, footerLines: [] },
+    ]
+    getQuota.mockResolvedValueOnce(connected).mockResolvedValue(waiting)
+
+    const { rerender } = render(<Plans period="30days" refreshToken={0} />)
+    expect(await screen.findByText('17% used')).toBeInTheDocument()
+
+    rerender(<Plans period="30days" refreshToken={1} />) // refresh comes back transient for Codex
+    await waitFor(() => expect(getQuota).toHaveBeenCalledTimes(2))
+    expect(screen.getByText('17% used')).toBeInTheDocument() // bars stay
+    expect(screen.queryByText('Waiting on the CLI…')).not.toBeInTheDocument()
+  })
+
   it('caps a stuck "waiting" state to an actionable Connect after the cap', async () => {
     __resetPolledMemo()
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000_000)
