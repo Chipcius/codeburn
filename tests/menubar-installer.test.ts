@@ -471,7 +471,9 @@ describe('hasRunnableRecordedCli', () => {
     expect(await hasRunnableRecordedCli(record)).toBe(false)
   })
 
-  it('is false when the recorded file is not executable', async () => {
+  // Windows fs.access(X_OK) ignores the executable bit; this launcher guard is a
+  // macOS-only install path, so the not-executable case is only meaningful on Unix.
+  it.skipIf(process.platform === 'win32')('is false when the recorded file is not executable', async () => {
     const launcher = join(dir, 'launcher.sh')
     await writeFile(launcher, '#!/bin/sh\n', { mode: 0o644 })
     const record = join(dir, 'record.v1')
