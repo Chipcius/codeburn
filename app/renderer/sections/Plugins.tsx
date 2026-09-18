@@ -60,7 +60,7 @@ function TeamsCard() {
           Shares session outcomes and retries with your team dashboard.
         </div>
       </div>
-      <div className={styles.actions}>
+      <div className={styles.controls}>
         <span className={styles.pill}>Coming soon</span>
       </div>
     </div>

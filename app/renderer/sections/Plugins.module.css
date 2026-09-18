@@ -328,6 +328,9 @@
 .art {
   box-sizing: border-box;
   height: 150px;
+  /* Text column top-left, controls pinned to the top-right rather than centred, so both cards'
+     controls share one top and right offset (the card's own padding) and line up. */
+  align-items: flex-start;
   background-image:
     linear-gradient(to right, var(--art-scrim-0) 0%, var(--art-scrim-0) var(--art-scrim-start), var(--art-scrim-1) var(--art-scrim-end), var(--art-scrim-1) 100%),
     var(--art-src);
@@ -439,11 +442,19 @@
   max-width: 44%;
 }
 
+/* Bigger title, top-left, over a small one-line description directly below it. */
+.art .name {
+  font-size: var(--fs-kpi);
+  font-weight: var(--fw-subhead);
+}
+
 .art .reason {
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
   overflow: hidden;
+  margin-top: 2px;
+  font-size: var(--fs-meta);
 }
 
 /* Below this the switch's written label no longer fits beside the buttons and the text
