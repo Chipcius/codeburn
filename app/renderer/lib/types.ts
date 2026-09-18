@@ -1050,6 +1050,8 @@ export type MacMenubarStatus = {
   version: string | null
   running: boolean
   dock: boolean
+  /** True for a menubar too old to be driven from here; the card offers Update instead. */
+  outdated: boolean
 }
 
 export type MacMenubarInstall = { ok: boolean; error: string | null; status: MacMenubarStatus }

@@ -22,7 +22,7 @@ const { PluginsSection } = await import('./Plugins')
 function status(patch: Partial<MacMenubarStatus> = {}): MacMenubarStatus {
   return {
     supported: true, canInstall: true, installed: false,
-    path: null, version: null, running: false, dock: false, ...patch,
+    path: null, version: null, running: false, dock: false, outdated: false, ...patch,
   }
 }
 
@@ -215,6 +215,44 @@ describe('MenuBarCard quit and uninstall', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Yes' }))
     await waitFor(() => expect(screen.getByText('CodeBurn could not remove the menu bar app. Check its permissions in Finder.')).toBeTruthy())
     expect(screen.getByRole('button', { name: 'Uninstall' })).toBeTruthy()
+  })
+})
+
+describe('MenuBarCard with an outdated menubar', () => {
+  const OLD = status({ installed: true, version: '0.9.18', running: true, dock: true, outdated: true })
+
+  it('offers Update and refuses to drive what it cannot ask', async () => {
+    bridge.macMenubarStatus.mockResolvedValue(OLD)
+    render(<MenuBarCard />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Update' })).toBeTruthy())
+    expect(screen.getByText('Update the menu bar to use this')).toBeTruthy()
+    expect(screen.getByRole('switch')).toHaveProperty('disabled', true)
+    expect(screen.getByRole('button', { name: 'Quit' })).toHaveProperty('disabled', true)
+    expect(screen.getByRole('button', { name: 'Uninstall' })).toHaveProperty('disabled', true)
+    // Open still works: it launches the bundle, which needs nothing of the app.
+    expect(screen.getByRole('button', { name: 'Open' })).toHaveProperty('disabled', false)
+  })
+
+  it('Update reinstalls and the card comes back current', async () => {
+    let current = OLD
+    bridge.macMenubarStatus.mockImplementation(async () => current)
+    bridge.macMenubarInstall.mockImplementation(async () => {
+      current = status({ installed: true, version: '0.9.24', running: true, dock: true })
+      return { ok: true, error: null, status: current }
+    })
+    render(<MenuBarCard />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Update' }))
+    expect(bridge.macMenubarInstall).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Update' })).toBeNull())
+    expect(screen.getByRole('switch')).toHaveProperty('disabled', false)
+    expect(screen.getByRole('button', { name: 'Quit' })).toHaveProperty('disabled', false)
+  })
+
+  it('an App Store build has no Update button either, only the line', async () => {
+    bridge.macMenubarStatus.mockResolvedValue(status({ ...OLD, canInstall: false }))
+    render(<MenuBarCard />)
+    await waitFor(() => expect(screen.getByText('Update the menu bar to use this')).toBeTruthy())
+    expect(screen.queryByRole('button', { name: 'Update' })).toBeNull()
   })
 })
 

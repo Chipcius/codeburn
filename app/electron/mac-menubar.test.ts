@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { mkdtempSync, mkdirSync, existsSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { DOCK_ENABLED_KEY, MENUBAR_BUNDLE_ID, REMOTE_COMMAND_KEY, MacMenubar, installErrorMessage } from './mac-menubar'
+import { DOCK_ENABLED_KEY, MENUBAR_BUNDLE_ID, OLDEST_ASKABLE, REMOTE_COMMAND_KEY, MacMenubar, installErrorMessage, isOlderThan } from './mac-menubar'
 
 const HOME = '/Users/tester'
 const USER_APP = `${HOME}/Applications/CodeBurnMenubar.app`
@@ -31,7 +31,7 @@ function harness(opts: {
   const run = vi.fn(async (command: string, args: string[]) => {
     calls.push([command, args])
     if (command.endsWith('mdfind')) return opts.mdfind ?? ''
-    if (command.endsWith('PlistBuddy')) return opts.version ?? '1.2.3'
+    if (command.endsWith('PlistBuddy')) return opts.version ?? '9.9.9'
     if (command.endsWith('pgrep')) return running ? '4242' : null
     if (command.endsWith('pkill')) { running = false; return '' }
     if (command.endsWith('defaults') && args[0] === 'read') return opts.dock ?? null
@@ -80,6 +80,13 @@ describe('MacMenubar.status', () => {
   it('finds the bundle in ~/Applications', async () => {
     const { menubar } = harness({ present: [USER_APP], version: '0.9.18' })
     expect(await menubar.status()).toMatchObject({ installed: true, path: USER_APP, version: '0.9.18', running: false })
+  })
+
+  it('marks a menubar older than the one that answers as outdated, and a newer one as not', async () => {
+    expect((await harness({ present: [USER_APP], version: '0.9.18' }).menubar.status()).outdated).toBe(true)
+    expect((await harness({ present: [USER_APP], version: OLDEST_ASKABLE }).menubar.status()).outdated).toBe(false)
+    expect((await harness({ present: [USER_APP], version: '1.0.0' }).menubar.status()).outdated).toBe(false)
+    expect((await harness({ present: [USER_APP], version: 'dev' }).menubar.status()).outdated).toBe(true)
   })
 
   it('finds the bundle in /Applications', async () => {
@@ -227,13 +234,21 @@ describe('MacMenubar.quit', () => {
     expect(status.installed).toBe(true)
   })
 
-  it('signals a menubar too old to watch the key, and clears the command it left behind', async () => {
+  it('never signals a menubar that does not answer, and takes the command back', async () => {
     const { menubar, calls, isRunning } = harness({ present: [USER_APP], running: true, honoursRemoteCommand: false })
     await menubar.quit()
-    const kill = calls.find(([cmd]) => cmd.endsWith('pkill'))
-    expect(kill?.[1][1]).toBe(`${USER_APP}/Contents/MacOS/CodeBurnMenubar`)
-    expect(isRunning()).toBe(false)
+    // No pkill at all: a SIGTERM skips applicationWillTerminate, and on an uninstall it would
+    // strand the login item. An unanswering menubar is `outdated`, which the card will not drive.
+    expect(calls.some(([cmd]) => cmd.endsWith('pkill'))).toBe(false)
+    expect(isRunning()).toBe(true)
     expect(calls.some(([cmd, args]) => cmd.endsWith('defaults') && args[0] === 'delete' && args[2] === REMOTE_COMMAND_KEY)).toBe(true)
+  })
+
+  it('leaves the bundle alone when an uninstall goes unanswered', async () => {
+    const { menubar } = harness({ present: [USER_APP], running: true, honoursRemoteCommand: false })
+    const result = await menubar.uninstall()
+    expect(result.ok).toBe(false)
+    expect(result.error).toBe('The menu bar app did not quit, so it was left in place. Quit it from its menu and try again.')
   })
 
   it('does nothing when nothing is installed', async () => {
@@ -319,5 +334,78 @@ describe('MacMenubar.uninstall', () => {
     const result = await menubar.uninstall()
     expect(result).toMatchObject({ ok: true, error: null })
     expect(result.status.installed).toBe(false)
+  })
+})
+
+describe('isOlderThan', () => {
+  it.each([
+    ['0.9.18', true], ['0.9.23', true], ['0.9.24', false], ['0.10.0', false],
+    ['1.0.0', false], ['v1.0.0', false], ['dev', true], ['', true],
+  ])('%s -> outdated %s', (version, expected) => {
+    expect(isOlderThan(version || null, OLDEST_ASKABLE)).toBe(expected)
+  })
+})
+
+describe('MacMenubar.writeCliLauncher', () => {
+  function lab() {
+    const root = mkdtempSync(join(tmpdir(), 'mac-menubar-cli-'))
+    const record = join(root, 'record', 'codeburn-cli-path.v1')
+    process.env.CODEBURN_CLI_PATH_FILE = record
+    return { root, record }
+  }
+
+  it('writes a runnable launcher and records it where the menubar looks first', async () => {
+    const { root, record } = lab()
+    const menubar = new MacMenubar({
+      platform: 'darwin', mas: false, home: root, run: async () => null,
+      execPath: '/Applications/CodeBurn.app/Contents/MacOS/CodeBurn',
+      bundledCli: '/Applications/CodeBurn.app/Contents/Resources/cli/dist/launch.js',
+      stateDir: join(root, 'userData'),
+    })
+    const launcher = await menubar.writeCliLauncher()
+    expect(launcher).toBe(join(root, 'userData', 'codeburn-desktop-cli.sh'))
+    const script = readFileSync(launcher!, 'utf-8')
+    expect(script.startsWith('#!/bin/sh')).toBe(true)
+    expect(script).toContain('ELECTRON_RUN_AS_NODE=1 exec "/Applications/CodeBurn.app/Contents/MacOS/CodeBurn" "/Applications/CodeBurn.app/Contents/Resources/cli/dist/launch.js" "$@"')
+    expect(statSync(launcher!).mode & 0o111).toBeTruthy()
+    expect(readFileSync(record, 'utf-8').trim()).toBe(launcher)
+    delete process.env.CODEBURN_CLI_PATH_FILE
+  })
+
+  it('writes nothing in a dev build, which carries no CLI to point at', async () => {
+    const { root, record } = lab()
+    const menubar = new MacMenubar({ platform: 'darwin', mas: false, home: root, run: async () => null, stateDir: join(root, 'userData') })
+    expect(await menubar.writeCliLauncher()).toBeNull()
+    expect(existsSync(record)).toBe(false)
+    delete process.env.CODEBURN_CLI_PATH_FILE
+  })
+
+  it('refuses a path the shell would read rather than pass along', async () => {
+    const { root } = lab()
+    const menubar = new MacMenubar({
+      platform: 'darwin', mas: false, home: root, run: async () => null,
+      execPath: '/Apps/Code"Burn/CodeBurn', bundledCli: '/Apps/cli.js', stateDir: join(root, 'userData'),
+    })
+    expect(await menubar.writeCliLauncher()).toBeNull()
+    delete process.env.CODEBURN_CLI_PATH_FILE
+  })
+
+  it('install writes the launcher before it runs the CLI, so a PATH with no codeburn still works', async () => {
+    const { root, record } = lab()
+    const order: string[] = []
+    const menubar = new MacMenubar({
+      platform: 'darwin', mas: false, home: root,
+      run: async () => null,
+      execPath: '/Applications/CodeBurn.app/Contents/MacOS/CodeBurn',
+      bundledCli: '/Applications/CodeBurn.app/Contents/Resources/cli/dist/launch.js',
+      stateDir: join(root, 'userData'),
+      runCli: async () => {
+        order.push(existsSync(record) ? 'record-first' : 'cli-first')
+        return { ok: true, stdout: '', stderr: '', code: 0 }
+      },
+    })
+    await menubar.install()
+    expect(order).toEqual(['record-first'])
+    delete process.env.CODEBURN_CLI_PATH_FILE
   })
 })

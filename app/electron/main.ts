@@ -1033,6 +1033,11 @@ function bootstrap(): void {
       // against the rules, so the card offers the website instead of an Install button.
       mas: (process as NodeJS.Process & { mas?: boolean }).mas === true,
       runCli: spawnCliAction,
+      // So the menubar this installs can find a codeburn without one on PATH: the launcher is
+      // written into userData and recorded where the menubar looks first.
+      execPath: process.execPath,
+      bundledCli: process.env.CODEBURN_BUNDLED_CLI,
+      stateDir: app.getPath('userData'),
     })
     registerHandlers()
     installApplicationMenu()

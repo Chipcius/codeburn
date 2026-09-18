@@ -7,7 +7,7 @@ import styles from './Plugins.module.css'
  *  card has no link step: install, open, and the one switch the app draws a window for. */
 const POLL_MS = 4000
 
-type Action = 'install' | 'open' | 'dock' | 'quit' | 'uninstall'
+type Action = 'install' | 'open' | 'dock' | 'quit' | 'uninstall' | 'update'
 
 /**
  * Polls only while this card is mounted (the Plugins page unmounts on navigation) and only
@@ -76,6 +76,13 @@ export function MenuBarCard() {
     if (!result.ok) setError(result.error ?? 'The menu bar app could not be installed.')
   })
 
+  const update = () => act('update', async () => {
+    const result = await codeburn.macMenubarInstall?.()
+    if (!result) return
+    apply(result.status)
+    if (!result.ok) setError(result.error ?? 'The menu bar app could not be updated.')
+  })
+
   const open = () => act('open', async () => {
     const next = await codeburn.macMenubarOpen?.()
     if (next) apply(next)
@@ -111,6 +118,7 @@ export function MenuBarCard() {
           )}
           {status.version && <span>v{status.version}</span>}
         </div>
+        {status.outdated && <div className={styles.reason}>Update the menu bar to use this</div>}
         {error && <div className={styles.cardError}>{error}</div>}
       </div>
       {status.installed && (
@@ -121,8 +129,10 @@ export function MenuBarCard() {
             role="switch"
             aria-checked={status.dock}
             aria-label="Capacity Dock"
-            disabled={busy !== null || !status.running}
-            title={status.running ? 'Show the Capacity Dock rail on the screen edge' : 'Open the menu bar app to use the Capacity Dock'}
+            disabled={busy !== null || !status.running || status.outdated}
+            title={status.outdated
+              ? 'Update the menu bar to use this'
+              : status.running ? 'Show the Capacity Dock rail on the screen edge' : 'Open the menu bar app to use the Capacity Dock'}
             className={status.dock ? 'switch sm on' : 'switch sm'}
             onClick={toggleDock}
           >
@@ -150,10 +160,15 @@ export function MenuBarCard() {
             <button className="btnp" onClick={open} disabled={busy !== null}>
               {busy === 'open' ? 'Opening\u2026' : 'Open'}
             </button>
-            {status.running && (
-              <button className="btnp" onClick={() => setConfirming('quit')} disabled={busy !== null}>Quit</button>
+            {status.outdated && status.canInstall && (
+              <button className="btnp btnp-primary" onClick={update} disabled={busy !== null}>
+                {busy === 'update' ? 'Updating\u2026' : 'Update'}
+              </button>
             )}
-            <button className="btnp" onClick={() => setConfirming('uninstall')} disabled={busy !== null}>Uninstall</button>
+            {status.running && (
+              <button className="btnp" onClick={() => setConfirming('quit')} disabled={busy !== null || status.outdated} title={status.outdated ? 'Update the menu bar to use this' : undefined}>Quit</button>
+            )}
+            <button className="btnp" onClick={() => setConfirming('uninstall')} disabled={busy !== null || status.outdated} title={status.outdated ? 'Update the menu bar to use this' : undefined}>Uninstall</button>
           </>
         ) : status.canInstall ? (
           <button className="btnp btnp-primary" onClick={install} disabled={busy !== null}>

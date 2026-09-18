@@ -5,10 +5,11 @@
 // copy and launches the new one. This module only looks at the result and reports it.
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { rm } from 'node:fs/promises'
+import { chmod, mkdir, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { basename, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 
+import { persistedPathFile } from './cli'
 import type { ActionResult } from './cli'
 
 /** Set by mac/Scripts/package-app.sh, checked by the CLI installer before it moves anything. */
@@ -21,9 +22,33 @@ export const DOCK_ENABLED_KEY = 'CodeBurnCapacityDockEnabled'
  *  older menubar that does not watch the key is killed instead, which is what the CLI's own
  *  installer already does before it replaces a bundle. */
 export const REMOTE_COMMAND_KEY = 'CodeBurnMenubarRemoteCommand'
-/** How long the polite exit is given before the signal. */
+/** How long the app is given to answer a quit or uninstall. Nothing is signalled after it:
+ *  a menubar that cannot be asked is one the card refuses to drive at all (see OLDEST_ASKABLE). */
 const EXIT_TIMEOUT_MS = 5000
 const EXIT_POLL_MS = 250
+
+/**
+ * The first menubar version that watches its own defaults: it acts on a Capacity Dock change
+ * made from outside and answers the quit and uninstall requests. Anything older cannot be
+ * driven from here at all, so the card offers an update instead of switches that do nothing.
+ * This is the desktop version the two shipped in.
+ */
+export const OLDEST_ASKABLE = '0.9.24'
+
+/** Numeric-component compare, with anything unparseable (a `dev` build) sorting oldest. */
+export function isOlderThan(version: string | null, floor: string): boolean {
+  if (!version) return true
+  const parts = (v: string) => v.replace(/^v/, '').split('.').map(n => Number.parseInt(n, 10))
+  const a = parts(version)
+  const b = parts(floor)
+  if (a.some(Number.isNaN)) return true
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const left = a[i] ?? 0
+    const right = b[i] ?? 0
+    if (left !== right) return left < right
+  }
+  return false
+}
 
 /** Where a person is told to get it when this build may not download executables. */
 export const MENUBAR_WEBSITE = 'https://github.com/getagentseal/codeburn/releases'
@@ -39,6 +64,9 @@ export type MacMenubarStatus = {
   running: boolean
   /** The Capacity Dock switch. False when nothing is installed to have one. */
   dock: boolean
+  /** True for a menubar that predates {@link OLDEST_ASKABLE}: the card offers Update and
+   *  disables the switch, Quit and Uninstall rather than pretending they work. */
+  outdated: boolean
 }
 
 export type MacMenubarDeps = {
@@ -47,6 +75,12 @@ export type MacMenubarDeps = {
   mas: boolean
   home?: string
   runCli?: (args: string[], opts?: { timeoutMs?: number }) => Promise<ActionResult>
+  /** The desktop app's own executable, which is also the Node that runs the CLI it carries. */
+  execPath?: string
+  /** `resources/cli/dist/launch.js` in a packaged build, absent in dev. */
+  bundledCli?: string
+  /** Where the launcher is written. The desktop app's userData directory. */
+  stateDir?: string
   /** Injected so tests never spawn. Resolves stdout, or null when the command failed. */
   run?: (command: string, args: string[]) => Promise<string | null>
   /** Injected so a test can cross the exit timeout without waiting it out. */
@@ -55,7 +89,7 @@ export type MacMenubarDeps = {
 }
 
 const NOT_SUPPORTED: MacMenubarStatus = {
-  supported: false, canInstall: false, installed: false, path: null, version: null, running: false, dock: false,
+  supported: false, canInstall: false, installed: false, path: null, version: null, running: false, dock: false, outdated: false,
 }
 
 export const NO_MAC_MENUBAR: MacMenubarStatus = NOT_SUPPORTED
@@ -142,7 +176,7 @@ export class MacMenubar {
       this.isRunning(path),
       this.dockEnabled(),
     ])
-    return { ...base, installed: true, path, version, running, dock }
+    return { ...base, installed: true, path, version, running, dock, outdated: isOlderThan(version, OLDEST_ASKABLE) }
   }
 
   private async version(path: string): Promise<string | null> {
@@ -178,6 +212,9 @@ export class MacMenubar {
     }
     const runCli = this.deps.runCli
     if (!runCli) return { ok: false, error: 'The codeburn CLI is not available.', status: await this.status() }
+    // Before the install, not after: the CLI records a persistent codeburn path for the
+    // menubar and refuses to go on without one, and a desktop-only user has none on PATH.
+    await this.writeCliLauncher()
     const already = Boolean(await this.locate())
     const result = await runCli(already ? ['menubar', '--force'] : ['menubar'], { timeoutMs: INSTALL_TIMEOUT_MS })
     const status = await this.status()
@@ -216,7 +253,9 @@ export class MacMenubar {
     if (basename(path) !== MENUBAR_BUNDLE_NAME) {
       return { ok: false, error: 'CodeBurn could not find the menu bar app to remove.', status: await this.status() }
     }
-    await this.requestExit('uninstall', path)
+    if (!(await this.requestExit('uninstall', path))) {
+      return { ok: false, error: 'The menu bar app did not quit, so it was left in place. Quit it from its menu and try again.', status: await this.status() }
+    }
     try {
       await rm(path, { recursive: true, force: true })
     } catch {
@@ -228,16 +267,51 @@ export class MacMenubar {
       : { ok: true, error: null, status }
   }
 
-  /** Ask, then insist. The key is how a current menubar is told to unregister its login item
-   *  and quit itself; a build that predates the key never answers, so the signal follows. */
-  private async requestExit(command: 'quit' | 'uninstall', path: string): Promise<void> {
+  /**
+   * Ask the app to go, and take no for an answer. Killing it was the obvious fallback and is
+   * deliberately not here: a SIGTERM skips `applicationWillTerminate`, and on an uninstall it
+   * would leave the login item registered pointing at a bundle about to be deleted. A menubar
+   * that cannot be asked is `outdated`, which the card never offers Quit or Uninstall for.
+   */
+  private async requestExit(command: 'quit' | 'uninstall', path: string): Promise<boolean> {
     await this.run('/usr/bin/defaults', ['write', MENUBAR_BUNDLE_ID, REMOTE_COMMAND_KEY, '-string', command])
     const executable = join(path, 'Contents', 'MacOS', 'CodeBurnMenubar')
-    if (await this.waitForExit(executable, EXIT_TIMEOUT_MS)) return
-    await this.run('/usr/bin/pkill', ['-f', executable])
-    await this.waitForExit(executable, EXIT_TIMEOUT_MS)
+    if (await this.waitForExit(executable, EXIT_TIMEOUT_MS)) return true
     // A command nobody consumed would quit the next launch, which is not what was asked.
     await this.run('/usr/bin/defaults', ['delete', MENUBAR_BUNDLE_ID, REMOTE_COMMAND_KEY])
+    return false
+  }
+
+  /**
+   * A `sh` launcher for the CLI the desktop app carries, recorded where the menubar looks for
+   * a codeburn first (CodeburnCLI.persistedCLIPath). The Windows mirror of this is
+   * writeCliLauncher in menubar.ts; the difference is only the file it writes.
+   * Returns the launcher path, or null in a dev build, which has no bundled CLI to point at.
+   */
+  async writeCliLauncher(): Promise<string | null> {
+    const { execPath, bundledCli, stateDir } = this.deps
+    if (!execPath || !bundledCli || !stateDir) return null
+    // Anything `sh` would read rather than pass along. Both paths come from the app's own
+    // install location, so this never fires in practice; the alternative to failing is
+    // writing a script that means something other than what it says.
+    if (/["\\$`\n]/.test(execPath) || /["\\$`\n]/.test(bundledCli)) return null
+    const launcher = join(stateDir, 'codeburn-desktop-cli.sh')
+    // The menubar rejects a path with a shell metacharacter in it (CodeburnCLI.isSafe), and a
+    // path it rejects is worse than none: it would sit in the file and never resolve.
+    if (!/^[A-Za-z0-9 ._/-]+$/.test(launcher)) return null
+    await mkdir(stateDir, { recursive: true })
+    await writeFile(launcher, [
+      '#!/bin/sh',
+      '# Written by the CodeBurn desktop app. It runs the CLI the desktop app carries,',
+      '# through the desktop app\'s own executable.',
+      `ELECTRON_RUN_AS_NODE=1 exec "${execPath}" "${bundledCli}" "$@"`,
+      '',
+    ].join('\n'), { mode: 0o755 })
+    await chmod(launcher, 0o755)
+    const record = persistedPathFile()
+    await mkdir(dirname(record), { recursive: true })
+    await writeFile(record, `${launcher}\n`, { mode: 0o600 })
+    return launcher
   }
 
   private async waitForExit(executable: string, timeoutMs: number): Promise<boolean> {

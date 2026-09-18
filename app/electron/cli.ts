@@ -428,7 +428,9 @@ function isFile(p: string): boolean {
 
 // Persisted-path file written by the (future) first-run "locate CLI" flow,
 // mirroring the mac app's Application Support/CodeBurn/codeburn-cli-path.v1.
-function persistedPathFile(): string {
+/** Where the persisted CLI path lives. The macOS menubar reads this same file first
+ *  (mac/Sources/CodeBurnMenubar/Security/CodeburnCLI.swift, persistedCLIPath). */
+export function persistedPathFile(): string {
   const override = process.env.CODEBURN_CLI_PATH_FILE
   if (override) return override
   const home = homedir()
