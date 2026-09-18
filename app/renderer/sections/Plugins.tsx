@@ -57,7 +57,7 @@ function TeamsCard() {
       <div className={styles.info}>
         <div className={styles.name}>Teams</div>
         <div className={styles.reason}>
-          The first one ships with CodeBurn Teams: it sends your session outcomes, retries and kind of work to your team dashboard, and nothing else.
+          Sends your session outcomes, retries and kind of work to your team dashboard, and nothing else. Everything on the other screens stays on this machine.
         </div>
       </div>
       <div className={styles.actions}>
