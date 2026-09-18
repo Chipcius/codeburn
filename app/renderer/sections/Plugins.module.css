@@ -301,22 +301,13 @@
 }
 
 
-/* The two artwork cards sit side by side as equal halves of one row, at one height, so
-   neither reads as the more important of the pair. One column below the width where a
-   half-width card can no longer hold its control row on one line: the content column is the
-   window less the 200px sidebar and the page's own gutters, so ~1000px of content is a
-   ~1280px window. */
+/* The two artwork cards share the responsive grid the Plans tab uses: side by side as equal
+   columns, dropping to one column when the row is too narrow to hold a card at its floor. */
 .artGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
   gap: var(--sp-3);
   margin-bottom: var(--sp-5);
-}
-
-@media (max-width: 1280px) {
-  .artGrid {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 /* Artwork cards (Menu bar, Teams). The art rides on .row's own background, so the radius,
