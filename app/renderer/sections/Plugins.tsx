@@ -56,7 +56,7 @@ function TeamsCard() {
     >
       <div className={styles.info}>
         <div className={styles.name}>Teams</div>
-        <div className={`${styles.reason} ${styles.clamp2}`} title="Shares session outcomes and retries with your team dashboard.">
+        <div className={styles.reason} title="Shares session outcomes and retries with your team dashboard.">
           Shares session outcomes and retries with your team dashboard.
         </div>
       </div>
@@ -139,7 +139,7 @@ function PluginsList() {
       {error && <div className={styles.error}>{error}</div>}
       {/* The macOS menubar app is a companion, not a CLI plugin, so it sits above the list and
           renders whether or not there are plugins. Nothing is rendered off darwin. */}
-      <div className={styles.list} style={{ marginBottom: 'var(--sp-5)' }}>
+      <div className={styles.artGrid}>
         {isMacPlatform() && <MenuBarCard />}
         <TeamsCard />
       </div>

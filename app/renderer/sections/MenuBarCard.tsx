@@ -178,7 +178,7 @@ export function MenuBarCard({ art = menubarArt, artLight = menubarArtLight }: { 
             <Icon name="info" />
           </button>
         </div>
-        <div className={styles.reason}>
+        <div className={styles.reason} title="CodeBurn in the macOS menu bar, with the Capacity Dock rail on the screen edge.">
           CodeBurn in the macOS menu bar, with the Capacity Dock rail on the screen edge.
         </div>
         <div className={styles.caps}>

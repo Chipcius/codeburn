@@ -335,6 +335,24 @@
 }
 
 
+/* The two artwork cards sit side by side as equal halves of one row, at one height, so
+   neither reads as the more important of the pair. One column below the width where a
+   half-width card can no longer hold its control row on one line: the content column is the
+   window less the 200px sidebar and the page's own gutters, so ~1000px of content is a
+   ~1280px window. */
+.artGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-5);
+}
+
+@media (max-width: 1280px) {
+  .artGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* Artwork cards (Menu bar, Teams). The art rides on .row's own background, so the radius,
    rim, padding and layout are untouched; only the paint under them changes. Each card sets
    `--card-art` and `--card-art-light` (and, where its own light wordmark needs holding back,
@@ -342,6 +360,8 @@
    keeps the controls legible, the artwork. Right-bottom anchored so the wordmark baked into
    the bottom-right of the source stays where it was drawn and the flat left edge stretches. */
 .art {
+  box-sizing: border-box;
+  height: 150px;
   background-image:
     linear-gradient(to right, var(--art-scrim-0) 0%, var(--art-scrim-0) var(--art-scrim-start), var(--art-scrim-1) var(--art-scrim-end), var(--art-scrim-1) 100%),
     var(--art-src);
@@ -409,7 +429,7 @@
    controls need, and the chip row and the note line keep their row whether or not they have
    anything in them. */
 .art .info {
-  flex: 0 0 48%;
+  flex: 0 0 44%;
 }
 
 .art .caps {
@@ -447,9 +467,17 @@
   color: var(--mut);
 }
 
-/* The text column stops short of the wordmark baked into the right of the artwork. */
+/* The text column stops short of the wordmark baked into the right of the artwork, and its
+   copy is capped at two lines the way the note row above it is. */
 .art .info {
-  max-width: 48%;
+  max-width: 44%;
+}
+
+.art .reason {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 
 /* Below this the switch's written label no longer fits beside the buttons and the text
@@ -457,20 +485,15 @@
    makes the card tall, and `cover` then blows the artwork's wordmark up to fill it. The
    switch keeps its name in aria-label and in its tooltip. Driven by the window width, never
    by how many buttons a state has, so the card is still one height across every state. */
-@media (max-width: 1100px) {
-  /* The bigger type scale needs a little more of the row for the buttons. */
-  .art .info {
-    flex-basis: 44%;
-    max-width: 44%;
-  }
-  .art .dockToggle > span {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
+/* Half a row is never enough for the switch's written label beside the buttons, so it is
+   always screen-reader-only here; the aria-label and the tooltip still name it. */
+.art .dockToggle > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* Disabled still has to be readable over the haze; the shared .6 lands at 4.1:1 there. */
@@ -481,15 +504,6 @@
 
 .art .actions button.primary {
   border-color: var(--accent);
-}
-
-/* Two lines like the note row above, so a long line of copy cannot make the card tall at a
-   narrow window. The full sentence stays in the tooltip. */
-.clamp2 {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
 }
 
 /* Nothing on this card moves when it is pressed. The shared button classes take a 2% dip and
