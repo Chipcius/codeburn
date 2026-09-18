@@ -30,7 +30,8 @@ describe('Group Container preflight', () => {
     expect(Date.now() - started).toBeLessThan(10_000)
   })
 
-  it('blocks a hanging open (FIFO) on a normal path', () => {
+  // mkfifo has no Windows equivalent, so this hang can only be reproduced on POSIX.
+  it.skipIf(process.platform === 'win32')('blocks a hanging open (FIFO) on a normal path', () => {
     const fifo = join(normalDir(), 'warp.fifo')
     execFileSync('mkfifo', [fifo])
     const started = Date.now()
