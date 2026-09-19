@@ -37,7 +37,7 @@ import type {
   YieldJsonReport,
 } from '../lib/types'
 import type { OverviewHeadlineSnapshot } from '../lib/overviewSnapshot'
-import { formatCombinedSessionCount, formatSessionCount, sessionCountIsExact, COMBINED_SESSION_COUNT_HELP, SESSION_COUNT_HELP } from '../lib/session-count-label'
+import { formatCombinedSessionCount, formatSessionCount, sessionCountIsExact, combinedSessionCountHelp, sessionCountHelp } from '../lib/session-count-label'
 import { Icon } from '../components/icons'
 
 export { localDateKey } from '../lib/period'
@@ -1065,8 +1065,8 @@ export function OverviewContent({
     ? tokensOf({ ...combined.combined, cacheWriteTokens: combined.combined.cacheCreateTokens })
     : tokensOf(useGeneration ? headline : data.current)
   const heroSessionHelp = combined
-    ? COMBINED_SESSION_COUNT_HELP
-    : (sessionCountIsExact(data.current.sessionCountBasis) ? undefined : SESSION_COUNT_HELP)
+    ? combinedSessionCountHelp()
+    : (sessionCountIsExact(data.current.sessionCountBasis) ? undefined : sessionCountHelp())
   const animateKey = heroSelectionKey
   const anchorKey = rangeActive ? range.to : localDateKey(now)
   const anchorIsToday = anchorKey === localDateKey(now)

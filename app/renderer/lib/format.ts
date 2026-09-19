@@ -1,4 +1,4 @@
-import { localeTag } from '../i18n'
+import { localeTag, t } from '../i18n'
 
 export type ActiveCurrency = { code: string; symbol: string; rate: number }
 
@@ -55,7 +55,11 @@ export function shortenProjectPath(value: string, maxSegments = 3): string {
 /** "1 session" / "2,048 sessions" — one count label for every count site, so the
  *  separator and the noun form never drift between screens. */
 export function formatCount(n: number, singular: string, plural = `${singular}s`): string {
-  return `${n.toLocaleString(localeTag())} ${n === 1 ? singular : plural}`
+  const count = n.toLocaleString(localeTag())
+  const stem = singular.replace(/\s+/g, '_')
+  const template = t(`common.count.${stem}.${n === 1 ? 'one' : 'other'}`)
+  // Fall back to English when a noun has no catalog entry (templates carry {count}).
+  return template.includes('{count}') ? template.replace('{count}', count) : `${count} ${n === 1 ? singular : plural}`
 }
 
 /** Compact token/count formatting: 1_842 → "1.8K", 184_000 → "184K", 1_200_000 → "1.2M". */
@@ -93,6 +97,6 @@ export function formatDuration(ms: number): string {
   const totalMin = Math.floor(ms / 60_000)
   if (totalMin < 1) return `${Math.floor(ms / 1000)}s`
   if (totalMin < 60) return `${totalMin}m`
-  if (totalMin >= 2_880) return `${Math.round(totalMin / 1_440)} days`
+  if (totalMin >= 2_880) return t('common.duration.days', { count: Math.round(totalMin / 1_440) })
   return `${Math.floor(totalMin / 60)}h ${totalMin % 60}m`
 }

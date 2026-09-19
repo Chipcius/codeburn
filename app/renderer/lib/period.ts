@@ -1,14 +1,16 @@
-import { localeTag } from '../i18n'
+import { localeTag, t } from '../i18n'
 import type { DailyHistoryEntry, Period } from './types'
 
-/** Same words the desktop TopBar and empty states must use. `all` is last six months, not lifetime. */
+/** Same words the desktop TopBar and empty states must use. `all` is last six
+ *  months, not lifetime. Getters so each read resolves against the active locale
+ *  (the labels are indexed as PERIOD_LABELS[period] at render time). */
 export const PERIOD_LABELS: Record<Period, string> = {
-  today: 'Today',
-  week: 'Last 7 days',
-  month: 'This month',
-  '30days': 'Last 30 days',
-  all: 'Last 6 months',
-  lifetime: 'Lifetime',
+  get today() { return t('common.period.today') },
+  get week() { return t('common.period.week') },
+  get month() { return t('common.period.month') },
+  get '30days'() { return t('common.period.30days') },
+  get all() { return t('common.period.all') },
+  get lifetime() { return t('common.period.lifetime') },
 }
 
 // The CLI emits `history.daily` as a SPARSE list of active days only (not a

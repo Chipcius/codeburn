@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import { isColdHydrating } from './components/CliErrorPanel'
 import { EmptyNote } from './components/EmptyState'
@@ -313,7 +313,10 @@ function LocaleProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo(() => ({ locale, choice, setChoice }), [locale, choice, setChoice])
-  return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>
+  // Remount the subtree on locale change so components using bare t() re-read the
+  // active catalog. Switching language is a rare, deliberate action, so the brief
+  // reload of transient UI state is acceptable.
+  return <LocaleContext.Provider value={value}><Fragment key={locale}>{children}</Fragment></LocaleContext.Provider>
 }
 
 const NAV_SECTIONS = new Set<string>(['overview', 'sessions', 'pullRequests', 'spend', 'optimize', 'models', 'compare', 'plans', 'settings', 'plugins'])

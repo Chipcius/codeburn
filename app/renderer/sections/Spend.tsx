@@ -16,7 +16,7 @@ import { codeburn } from '../lib/ipc'
 import { contiguousDailyWindow, dataStartKey, localDateKey } from '../lib/period'
 import { reportMemoKey } from '../lib/reportMemoKey'
 import { projectFilters } from '../lib/investigation'
-import { formatSessionCount, SESSION_COUNT_HELP } from '../lib/session-count-label'
+import { formatSessionCount, sessionCountHelp } from '../lib/session-count-label'
 import type { CliError, DateRange, MenubarPayload, Period, SpendFlow } from '../lib/types'
 
 import type { InvestigateRequest } from './Overview'
@@ -229,7 +229,7 @@ function ProjectBreakdown({ projects, onInvestigate }: { projects: Project[]; on
               <ListRow
                 no={String(i + 1).padStart(2, '0')}
                 title={project.name}
-                sub={<span title={project.sessionCountBasis === 'identity' ? undefined : SESSION_COUNT_HELP}>{formatSessionCount(project.sessions, project.sessionCountBasis)}</span>}
+                sub={<span title={project.sessionCountBasis === 'identity' ? undefined : sessionCountHelp()}>{formatSessionCount(project.sessions, project.sessionCountBasis)}</span>}
                 value={formatUsd(project.cost)}
                 expanded={open}
                 onClick={() => setExpanded(current => current === rowKey ? null : rowKey)}
