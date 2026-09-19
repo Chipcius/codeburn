@@ -5,6 +5,7 @@ import { join } from 'path'
 
 import { getCodeburnCacheDir } from './cache-dir.js'
 import { acquireCacheRefreshLock, releaseOwnedRefreshLocksForExit } from './cache-refresh-lock.js'
+import { parseBillingMode, type BillingMode } from './models.js'
 import type { ToolCall } from './types.js'
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -77,6 +78,11 @@ export type CachedCall = {
   // a direct-door call or one parsed before the provider carried the column
   // (its parse version forces a re-parse).
   route?: string
+  // Billing mode the provider recorded (see ParsedProviderCall.billing).
+  // Persisted so a warm read answers the same --billing question a cold parse
+  // would. Absent means the provider stated no fact; a value outside the two
+  // modes fails validation rather than being coerced into one.
+  billing?: BillingMode
 }
 
 export type CachedTurn = {
@@ -409,7 +415,10 @@ export const PROVIDER_PARSE_VERSIONS: Record<string, string> = {
   // produced under v2 can turn historical accounting deltas into today's use.
   // billing-route-v1: the session's `billing_provider` column now rides on
   // each call as `route`. Cached calls hold none, so they must re-parse.
-  hermes: 'reasoning-output-accounting-v1-est-cost-routed-ids-workspace-pr-v5-cost-provenance-v3-billing-route-v1',
+  // billing-mode-v1: the resolved cost basis now rides on each call as
+  // `billing` (`included` -> subscription, `actual` -> metered). Cached calls
+  // hold none, so they must re-parse.
+  hermes: 'reasoning-output-accounting-v1-est-cost-routed-ids-workspace-pr-v5-cost-provenance-v3-billing-route-v1-billing-mode-v1',
   'lingtai-tui': 'token-ledger-registry-activity-v3',
   'ibm-bob': 'worktree-project-grouping-v1',
   // project-path-v1: the parser now records the session's full working
@@ -445,7 +454,11 @@ export const PROVIDER_PARSE_VERSIONS: Record<string, string> = {
   // was archived stays a present, unchanged source: every opencode entry
   // fingerprints the same database file, so a warm cache keeps serving the
   // parse that dropped the child's calls until the database is written again.
-  opencode: 'session-model-v1-archived-subtree-v1',
+  // billing-routes-v2: OpenCode's exact `providerID` values now ride on every
+  // parsed call as `route`: `openrouter` and `amazon-bedrock`. Cached calls hold
+  // neither, so they must re-parse. v2 also invalidates the OpenRouter-only
+  // fingerprint used by pre-merge builds of #1486.
+  opencode: 'session-model-v1-archived-subtree-v1-billing-routes-v2',
   quickdesk: 'emf-sqlite-v2-est-cost',
   // session-lineage-capture-v1: SessionLineage (CB-1, slice 1) is now carried
   // on the cached file for every kimicode wire. Child evidence is the
@@ -457,7 +470,8 @@ export const PROVIDER_PARSE_VERSIONS: Record<string, string> = {
   // that omits it.
   kimicode: 'wire-usage-v1-est-cost-session-lineage-capture-v1',
   // archived-subtree-v1: KiloCode shares the SQLite parser and the same schema.
-  'kilo-code': 'worktree-project-grouping-v1-session-model-v1-archived-subtree-v1',
+  // billing-routes-v2: its warm cache must move with both shared route fields.
+  'kilo-code': 'worktree-project-grouping-v1-session-model-v1-archived-subtree-v1-billing-routes-v2',
   'roo-code': 'worktree-project-grouping-v1',
   warp: 'worktree-project-grouping-v1-est-cost',
   antigravity: 'worktree-project-grouping-v6',
@@ -787,6 +801,7 @@ function validateCall(c: unknown): c is CachedCall {
     && isOptionalNum(o['editFailed'])
     && isOptionalBool(o['supplementaryAccounting'])
     && isOptionalString(o['route'])
+    && (o['billing'] === undefined || parseBillingMode(o['billing'] as string) !== undefined)
     && validateUsage(o['usage'])
 }
 
