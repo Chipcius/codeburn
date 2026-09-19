@@ -42,7 +42,7 @@ export function AnchoredSurface({
       const trigger = anchor.current
       const surface = surfaceRef.current
       if (!trigger || !surface) return
-      if (contentWidth === 0) contentWidth = surface.offsetWidth
+      if (contentWidth === 0) contentWidth = Math.ceil(surface.getBoundingClientRect().width)
       const rect = trigger.getBoundingClientRect()
       const below = window.innerHeight - rect.bottom - OFFSET - EDGE
       const above = rect.top - OFFSET - EDGE
