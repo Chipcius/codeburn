@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
-import { decodeClaudeUsage, fetchClaudeQuota } from './claude'
+import { decodeClaudeUsage, fetchClaudeQuota, planLabel } from './claude'
 
 const credential = JSON.stringify({
   claudeAiOauth: {
@@ -38,6 +38,23 @@ describe('Claude quota', () => {
     const result = await fetchClaudeQuota({ fetch: fetchMock, readFile: vi.fn(async () => null) })
     expect(result.quota.connection).toBe('disconnected')
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('prefers subscriptionType over rateLimitTier for the plan label', () => {
+    const cases: Array<[string | undefined, string | undefined, string]> = [
+      ['max', 'default_claude_max_20x', 'Max 20x'],
+      ['team', 'default_claude_max_5x', 'Team Premium'],
+      ['team', undefined, 'Team'],
+      ['enterprise', 'default_claude_max_5x', 'Enterprise Premium'],
+      ['pro', 'default_claude_pro', 'Pro'],
+      [undefined, 'max_5x', 'Max 5x'],
+      [undefined, 'max_20x', 'Max 20x'],
+      [undefined, 'team', 'Team'],
+      [undefined, undefined, 'Subscription'],
+    ]
+    for (const [subscriptionType, rateLimitTier, label] of cases) {
+      expect(planLabel({ subscriptionType, rateLimitTier })).toBe(label)
+    }
   })
 
   it('sanitizes newline-corrupted credential JSON and uses exact request headers', async () => {

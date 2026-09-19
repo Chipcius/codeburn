@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { fetchAntigravityQuota, decodeAntigravitySummary, parseNetstatPorts } from '../src/quota/antigravity.js'
-import { decodeClaudeUsage, fetchClaudeQuota } from '../src/quota/claude.js'
+import { decodeClaudeUsage, fetchClaudeQuota, planLabel } from '../src/quota/claude.js'
 import { decodeCodexUsage, fetchCodexQuota } from '../src/quota/codex.js'
 import { decodeCopilotUsage, fetchCopilotQuota } from '../src/quota/copilot.js'
 import { decodeGeminiUsage, fetchGeminiQuota } from '../src/quota/gemini.js'
@@ -27,6 +27,23 @@ describe('Claude quota', () => {
   it('reports disconnected without a credential and never fetches', async () => {
     const result = await fetchClaudeQuota({ fetch: neverFetch as unknown as typeof fetch, readFile: noFile })
     expect(result.quota.connection).toBe('disconnected')
+  })
+
+  it('prefers subscriptionType over rateLimitTier for the plan label', () => {
+    const cases: Array<[string | undefined, string | undefined, string]> = [
+      ['max', 'default_claude_max_20x', 'Max 20x'],
+      ['team', 'default_claude_max_5x', 'Team Premium'],
+      ['team', undefined, 'Team'],
+      ['enterprise', 'default_claude_max_5x', 'Enterprise Premium'],
+      ['pro', 'default_claude_pro', 'Pro'],
+      [undefined, 'max_5x', 'Max 5x'],
+      [undefined, 'max_20x', 'Max 20x'],
+      [undefined, 'team', 'Team'],
+      [undefined, undefined, 'Subscription'],
+    ]
+    for (const [subscriptionType, rateLimitTier, label] of cases) {
+      expect(planLabel({ subscriptionType, rateLimitTier })).toBe(label)
+    }
   })
 })
 
