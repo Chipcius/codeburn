@@ -10,6 +10,7 @@ import { readCachedCodexResults, writeCachedCodexResults, getCachedCodexProject,
 import { mergeToolIntervals } from '../codex-throughput.js'
 import { normalizeContentBlocks } from '../content-utils.js'
 import { estimateTokensFromChars } from '../token-estimate.js'
+import { wslHomes } from '../wsl.js'
 import type { ToolCall } from '../types.js'
 import type { Provider, ProbeRoot, SessionSource, SessionParser, ParsedProviderCall } from './types.js'
 import { defaultBilledCodexHome, defaultLauncherRoots, FIRST_LINE_READ_CAP, isNestedLauncherCodexHome, listRolloutSessionIds, rolloutFileSessionId, sameCodexHome } from '../launcher-homes.js'
@@ -1401,6 +1402,11 @@ export function createCodexProvider(
   // the resolved dir is a launcher nest and ~/.codex is a distinct existing
   // tree, walk BOTH and drop nest sources whose session id is already billed.
   const scanBoth = nestHome && codexDir === undefined
+  // Extra WSL homes' ~/.codex (#1059); empty off-win32 and when a caller
+  // pinned an explicit dir. Separate Linux trees, so no nest double-count.
+  // Resolved lazily: `codex` is built at import and WSL probing spawns wsl.exe.
+  const wslCodexDirs = (): string[] =>
+    codexDir ? [] : wslHomes().map(home => join(home, '.codex'))
 
   return {
     name: 'codex',
@@ -1418,11 +1424,12 @@ export function createCodexProvider(
     },
 
     // Trees discoverSessions actually walks. Honors CODEX_HOME; when the
-    // production singleton scans nest + billed home, both appear here.
+    // production singleton scans nest + billed home, both appear here, plus
+    // each WSL home's ~/.codex.
     async probeRoots(): Promise<ProbeRoot[]> {
       if (duplicateHome) return []
-      if (scanBoth) return [...rootsFor(primaryDir), ...rootsFor(dir)]
-      return rootsFor(dir)
+      const local = scanBoth ? [...rootsFor(primaryDir), ...rootsFor(dir)] : rootsFor(dir)
+      return [...local, ...wslCodexDirs().flatMap(rootsFor)]
     },
 
     async discoverSessions(): Promise<SessionSource[]> {
@@ -1430,12 +1437,19 @@ export function createCodexProvider(
       // distinct nest. isNestedLauncherCodexHome is false in that case.
       if (duplicateHome) return []
       const sources = await discoverSessionsInDir(dir)
+      const wslSources = (
+        await Promise.all(wslCodexDirs().map(d => discoverSessionsInDir(d)))
+      ).flat()
+      let local: SessionSource[]
       if (scanBoth) {
         const billed = await discoverSessionsInDir(primaryDir)
-        return [...billed, ...dropOverlappingNestSources(sources, primaryDir)]
+        local = [...billed, ...dropOverlappingNestSources(sources, primaryDir)]
+      } else if (!nestHome) {
+        local = sources
+      } else {
+        local = dropOverlappingNestSources(sources, primaryDir)
       }
-      if (!nestHome) return sources
-      return dropOverlappingNestSources(sources, primaryDir)
+      return [...local, ...wslSources]
     },
 
     createSessionParser(source: SessionSource, seenKeys: Set<string>): SessionParser {
