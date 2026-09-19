@@ -722,7 +722,7 @@ private struct CapacityDockProviderRow: View {
     /// has to say out loud.
     private var accessibilityValue: String {
         guard let headline else { return L("Unknown") }
-        return "\(headline.label) \(headline.percentLabel)"
+        return "\(localizedWindowLabel(headline.label)) \(headline.percentLabel)"
     }
 
     private var accessibilityHint: String {
@@ -735,7 +735,7 @@ private struct CapacityDockProviderRow: View {
         let next = CapacityDockGlanceWindow.next(after: glanceWindow, quota: quota)
         let label = CapacityDockGlanceWindow.window(next, quota: quota)?.label
             ?? next.displayName
-        return L("Show %@ usage", label)
+        return L("Show %@ usage", localizedWindowLabel(label))
     }
 
     private var headlinePercentColor: Color {
@@ -830,10 +830,12 @@ struct CapacityDockGaugePath: Shape {
 
 enum CapacityDockQuotaPresentation {
     static func displayLabel(_ label: String) -> String {
-        label
-            .replacingOccurrences(of: "Claude and GPT models", with: "Claude + GPT", options: .caseInsensitive)
-            .replacingOccurrences(of: "Gemini Models", with: "Gemini", options: .caseInsensitive)
-            .replacingOccurrences(of: "Five-hour", with: "5-hour", options: .caseInsensitive)
+        localizedWindowLabel(
+            label
+                .replacingOccurrences(of: "Claude and GPT models", with: "Claude + GPT", options: .caseInsensitive)
+                .replacingOccurrences(of: "Gemini Models", with: "Gemini", options: .caseInsensitive)
+                .replacingOccurrences(of: "Five-hour", with: "5-hour", options: .caseInsensitive)
+        )
     }
 
     static func visibleFooterLines(

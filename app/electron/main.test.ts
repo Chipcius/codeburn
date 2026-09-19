@@ -64,6 +64,8 @@ const CHANNELS = [
   'codeburn:getProjectFilter',
   'codeburn:setProjectFilter',
   'codeburn:getUnfilteredProjects',
+  'codeburn:getLanguage',
+  'codeburn:setLanguage',
   'codeburn:setCurrency',
   'codeburn:resetCurrency',
   'codeburn:addAlias',

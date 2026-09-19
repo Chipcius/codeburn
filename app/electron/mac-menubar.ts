@@ -45,6 +45,8 @@ export function installPhase(line: string): InstallPhase | null {
  *  a menubar that cannot be asked is one the card refuses to drive at all (see OLDEST_ASKABLE). */
 const EXIT_TIMEOUT_MS = 5000
 const EXIT_POLL_MS = 250
+/** How long a relaunch is given to bring the process up before `open` is retried. */
+const RELAUNCH_TIMEOUT_MS = 3000
 
 /**
  * The first menubar version that watches its own defaults: it acts on a Capacity Dock change
@@ -272,6 +274,34 @@ export class MacMenubar {
   }
 
   /**
+   * Drive the menu bar's language the way it already honors it: AppleLanguages in
+   * its own defaults domain. A concrete Apple tag (en/ja/ko/fr, or zh-Hans/zh-Hant)
+   * overrides; null (System) clears the override so the OS language decides. The
+   * menu bar ships en + zh-Hans and falls back to English for the rest, so this is
+   * correct with no Swift change. AppKit reads AppleLanguages once, at launch, so a
+   * running copy is quit first — `open` then relaunches it into the new locale.
+   */
+  async setLanguage(appleLang: string | null): Promise<MacMenubarStatus> {
+    if (appleLang) await this.run('/usr/bin/defaults', ['write', MENUBAR_BUNDLE_ID, 'AppleLanguages', '-array', appleLang])
+    else await this.run('/usr/bin/defaults', ['delete', MENUBAR_BUNDLE_ID, 'AppleLanguages'])
+    const path = await this.locate()
+    if (!path) return this.open()
+    const executable = join(path, 'Contents', 'MacOS', 'CodeBurnMenubar')
+    if ((await this.status()).running) {
+      await this.run('/usr/bin/osascript', ['-e', 'quit app "CodeBurnMenubar"'])
+      await this.waitForExit(executable, EXIT_TIMEOUT_MS)
+    }
+    // `open` right after a quit can no-op while the OS still has the dying
+    // instance registered, leaving the menu bar down after a language switch.
+    // Open, confirm it came up, and open once more if it did not.
+    const status = await this.open()
+    if (await this.waitForRunning(executable, RELAUNCH_TIMEOUT_MS)) return status
+    await this.run('/usr/bin/open', [path])
+    await this.waitForRunning(executable, RELAUNCH_TIMEOUT_MS)
+    return this.status()
+  }
+
+  /**
    * Ask the app to show its own Settings window. Unlike quit and uninstall the app stays up,
    * so what is waited for is the command being consumed: the menubar clears the key as it
    * acts, and a key still sitting there after the timeout means nobody was listening. `open`
@@ -382,6 +412,16 @@ export class MacMenubar {
     const deadline = this.now() + timeoutMs
     for (;;) {
       if (!(await this.run('/usr/bin/pgrep', ['-f', executable]))) return true
+      if (this.now() >= deadline) return false
+      await new Promise(resolve => setTimeout(resolve, EXIT_POLL_MS))
+    }
+  }
+
+  /** True once the menubar process is up, so a relaunch can confirm it took. */
+  private async waitForRunning(executable: string, timeoutMs: number): Promise<boolean> {
+    const deadline = this.now() + timeoutMs
+    for (;;) {
+      if (await this.run('/usr/bin/pgrep', ['-f', executable])) return true
       if (this.now() >= deadline) return false
       await new Promise(resolve => setTimeout(resolve, EXIT_POLL_MS))
     }

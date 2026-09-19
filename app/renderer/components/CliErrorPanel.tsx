@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import { Panel } from './Panel'
 import type { CliError } from '../lib/types'
 
@@ -14,26 +15,26 @@ export function isColdHydrating(error: CliError | null): boolean {
 export function cliErrorDisplay(error: CliError): { title: string; message: string; tone: 'amber' | 'red' | 'muted' } {
   if (isColdHydrating(error)) {
     return {
-      title: 'Still indexing',
-      message: 'Reading your usage history for the first time. This can take a few minutes.',
+      title: t('shell.error.stillIndexing.title'),
+      message: t('shell.error.stillIndexing.message'),
       tone: 'muted',
     }
   }
   if (error.kind === 'not-found') {
     return {
-      title: 'Locate the codeburn CLI',
-      message: 'Install it with npm i -g codeburn, then reopen this window.',
+      title: t('shell.error.notFound.title'),
+      message: t('shell.error.notFound.installMessage'),
       tone: 'muted',
     }
   }
   if (isPermissionCliError(error)) {
     return {
-      title: 'Permission denied',
-      message: 'permission denied; grant Full Disk Access',
+      title: t('shell.error.permission.title'),
+      message: t('shell.error.permission.message'),
       tone: 'amber',
     }
   }
-  return { title: "Couldn't read data", message: error.message, tone: 'red' }
+  return { title: t('shell.error.generic.title'), message: error.message, tone: 'red' }
 }
 
 function colorForTone(tone: 'amber' | 'red' | 'muted'): string {
@@ -53,13 +54,12 @@ export function CliErrorPanel({ error, subject = 'usage' }: { error: CliError; s
     return (
       <Panel title={display.title}>
         <p style={{ color: 'var(--mut)', margin: '0 0 6px', fontSize: 'var(--fs-body)' }}>
-          CodeBurn Desktop reads {subject} by running the{' '}
-          <code style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>codeburn</code> command, but it isn&apos;t
-          on your PATH yet.
+          {t('shell.error.notFound.pathPrefix', { subject })}
+          <code style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>codeburn</code>
+          {t('shell.error.notFound.pathSuffix', { subject })}
         </p>
         <p style={{ color: colorForTone(display.tone), margin: 0, fontSize: 'var(--fs-meta)' }}>
-          Install it with <code style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>npm i -g codeburn</code>,
-          then reopen this window.
+          {t('shell.error.notFound.installPrefix')}<code style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>npm i -g codeburn</code>{t('shell.error.notFound.installSuffix')}
         </p>
       </Panel>
     )

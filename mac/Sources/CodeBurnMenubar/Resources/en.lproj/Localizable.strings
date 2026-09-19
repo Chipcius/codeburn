@@ -645,6 +645,7 @@
 "%lld%% left" = "%lld%% left";
 
 /* MARK: Codex credit limit */
+"Monthly" = "Monthly";
 "Monthly usage limit" = "Monthly usage limit";
 "Monthly usage limit · limit reached" = "Monthly usage limit · limit reached";
 "Monthly usage limit · %1$@ / %2$@ credits" = "Monthly usage limit · %1$@ / %2$@ credits";

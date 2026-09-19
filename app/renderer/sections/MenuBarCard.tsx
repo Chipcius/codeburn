@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useEffect, useRef } from 'react'
 import type { CSSProperties } from 'react'
 import { Icon } from '../components/icons'
+import { t } from '../i18n'
 import { codeburn } from '../lib/ipc'
 import type { MacMenubarStatus } from '../lib/types'
 import { MenuBarAboutModal } from './MenuBarAbout'
@@ -73,7 +74,7 @@ export function MenuBarCard({ art = menubarArt, artLight = menubarArtLight }: { 
     try {
       await call()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong. Try again.')
+      setError(err instanceof Error ? err.message : t('plugins.menuBar.errorGeneric'))
     } finally {
       setBusy(null)
       setPhase(null)
@@ -90,7 +91,7 @@ export function MenuBarCard({ art = menubarArt, artLight = menubarArtLight }: { 
       // What landed decides the card, so a release older than this build can drive still comes
       // back as the outdated state rather than a cheerful Running.
       apply(result.status)
-      if (!result.ok) setError(result.error ?? 'The menu bar app could not be installed.')
+      if (!result.ok) setError(result.error ?? t('plugins.menuBar.errorInstall'))
     } finally {
       stop?.()
     }
@@ -104,7 +105,7 @@ export function MenuBarCard({ art = menubarArt, artLight = menubarArtLight }: { 
     const result = await codeburn.macMenubarSettings?.()
     if (!result) return
     apply(result.status)
-    if (!result.ok) setError(result.error ?? 'The menu bar app could not open its settings.')
+    if (!result.ok) setError(result.error ?? t('plugins.menuBar.errorSettings'))
   })
 
   const open = () => act('open', async () => {
@@ -121,14 +122,14 @@ export function MenuBarCard({ art = menubarArt, artLight = menubarArtLight }: { 
     const result = await codeburn.macMenubarQuit?.()
     if (!result) return
     apply(result.status)
-    if (!result.ok) setError(result.error ?? 'The menu bar app could not be quit.')
+    if (!result.ok) setError(result.error ?? t('plugins.menuBar.errorQuit'))
   })
 
   const uninstall = () => act('uninstall', async () => {
     const result = await codeburn.macMenubarUninstall?.()
     if (!result) return
     apply(result.status)
-    if (!result.ok) setError(result.error ?? 'The menu bar app could not be removed.')
+    if (!result.ok) setError(result.error ?? t('plugins.menuBar.errorUninstall'))
   })
 
   return (
@@ -145,29 +146,29 @@ export function MenuBarCard({ art = menubarArt, artLight = menubarArtLight }: { 
     >
       <div className={`${styles.info} ${styles.menubarInfo}`}>
         <div className={styles.nameRow}>
-          <div className={styles.name}>Menu bar</div>
+          <div className={styles.name}>{t('plugins.menuBar.name')}</div>
           <button
             type="button"
             className={`ov-info ${styles.infoDot}`}
-            aria-label="What the menu bar app does"
+            aria-label={t('plugins.menuBar.aboutAria')}
             onClick={() => setAbout(true)}
           >
             <Icon name="info" />
           </button>
         </div>
         <div className={`${styles.reason} ${styles.reasonFull}`}>
-          Spend and quotas in your Mac&apos;s menu bar.
+          {t('plugins.menuBar.description')}
         </div>
         {/* One note row, always present, so the card is the same height in every state. An
             error answers something the person just pressed, so it wins over the hint. */}
         <div className={styles.note} data-kind={error ? 'error' : 'hint'} title={error ?? undefined}>
-          {error ?? (status.outdated ? 'Update the menu bar to use this' : '')}
+          {error ?? (status.outdated ? t('plugins.menuBar.updateHint') : '')}
         </div>
         {/* The status line rides the bottom-left of the card, clear of the wordmark baked into
             the artwork's bottom-right. */}
         <div className={styles.caps}>
           {status.running && (
-            <span className={styles.running}><span className={styles.runningDot} />Running</span>
+            <span className={styles.running}><span className={styles.runningDot} />{t('plugins.menuBar.running')}</span>
           )}
           {status.version && <span>v{status.version}</span>}
         </div>
@@ -175,16 +176,16 @@ export function MenuBarCard({ art = menubarArt, artLight = menubarArtLight }: { 
       <div className={styles.controls}>
         {status.installed && (
           <label className={styles.dockToggle}>
-            <span>Capacity Dock</span>
+            <span>{t('plugins.menuBar.capacityDock')}</span>
             <button
               type="button"
               role="switch"
               aria-checked={status.dock}
-              aria-label="Capacity Dock"
+              aria-label={t('plugins.menuBar.capacityDock')}
               disabled={busy !== null || !status.running || status.outdated}
               title={status.outdated
-                ? 'Update the menu bar to use this'
-                : status.running ? 'Show the Capacity Dock rail on the screen edge' : 'Open the menu bar app to use the Capacity Dock'}
+                ? t('plugins.menuBar.updateHint')
+                : status.running ? t('plugins.menuBar.dockShowTitle') : t('plugins.menuBar.dockOpenTitle')}
               className={status.dock ? 'switch sm on' : 'switch sm'}
               onClick={toggleDock}
             >
@@ -197,7 +198,7 @@ export function MenuBarCard({ art = menubarArt, artLight = menubarArtLight }: { 
             <>
               {status.outdated && status.canInstall && (
                 <button className={`btnp ${styles.primary}`} onClick={update} disabled={busy !== null}>
-                  {busy === 'update' ? `${phase ?? 'Updating'}\u2026` : 'Update'}
+                  {busy === 'update' ? `${phase ?? t('plugins.menuBar.updating')}\u2026` : t('plugins.menuBar.update')}
                 </button>
               )}
               {/* Icon-only, all visible: no window to bring forward while it is up, so Open
@@ -206,8 +207,8 @@ export function MenuBarCard({ art = menubarArt, artLight = menubarArtLight }: { 
                 <button
                   type="button"
                   className={`btnp ${styles.iconBtn}`}
-                  aria-label="Open"
-                  title="Open the menu bar app"
+                  aria-label={t('plugins.menuBar.openAria')}
+                  title={t('plugins.menuBar.openTitle')}
                   disabled={busy !== null}
                   onClick={open}
                 >
@@ -218,8 +219,8 @@ export function MenuBarCard({ art = menubarArt, artLight = menubarArtLight }: { 
                 <button
                   type="button"
                   className={`btnp ${styles.iconBtn}`}
-                  aria-label="Settings"
-                  title={status.outdated ? 'Update the menu bar to use this' : "Open the menu bar app's own Settings window"}
+                  aria-label={t('plugins.menuBar.settingsAria')}
+                  title={status.outdated ? t('plugins.menuBar.updateHint') : t('plugins.menuBar.settingsTitle')}
                   disabled={busy !== null || status.outdated}
                   onClick={settings}
                 >
@@ -232,8 +233,8 @@ export function MenuBarCard({ art = menubarArt, artLight = menubarArtLight }: { 
                 <button
                   type="button"
                   className={confirming === 'quit' ? `btnp ${styles.iconBtn} ${styles.confirming}` : `btnp ${styles.iconBtn}`}
-                  aria-label={confirming === 'quit' ? 'Confirm quit' : 'Quit'}
-                  title={status.outdated ? 'Update the menu bar to use this' : confirming === 'quit' ? 'Click again to quit' : 'Quit'}
+                  aria-label={confirming === 'quit' ? t('plugins.menuBar.confirmQuit') : t('plugins.menuBar.quit')}
+                  title={status.outdated ? t('plugins.menuBar.updateHint') : confirming === 'quit' ? t('plugins.menuBar.clickAgainQuit') : t('plugins.menuBar.quit')}
                   disabled={busy !== null || status.outdated}
                   onClick={() => (confirming === 'quit' ? quit() : setConfirming('quit'))}
                   onBlur={() => setConfirming(current => (current === 'quit' ? null : current))}
@@ -244,8 +245,8 @@ export function MenuBarCard({ art = menubarArt, artLight = menubarArtLight }: { 
               <button
                 type="button"
                 className={confirming === 'uninstall' ? `btnp ${styles.iconBtn} ${styles.confirming}` : `btnp ${styles.iconBtn}`}
-                aria-label={confirming === 'uninstall' ? 'Confirm uninstall' : 'Uninstall'}
-                title={status.outdated ? 'Update the menu bar to use this' : confirming === 'uninstall' ? 'Click again to uninstall' : 'Uninstall'}
+                aria-label={confirming === 'uninstall' ? t('plugins.menuBar.confirmUninstall') : t('plugins.menuBar.uninstall')}
+                title={status.outdated ? t('plugins.menuBar.updateHint') : confirming === 'uninstall' ? t('plugins.menuBar.clickAgainUninstall') : t('plugins.menuBar.uninstall')}
                 disabled={busy !== null || status.outdated}
                 onClick={() => (confirming === 'uninstall' ? uninstall() : setConfirming('uninstall'))}
                 onBlur={() => setConfirming(current => (current === 'uninstall' ? null : current))}
@@ -255,10 +256,10 @@ export function MenuBarCard({ art = menubarArt, artLight = menubarArtLight }: { 
             </>
           ) : status.canInstall ? (
             <button className={`btnp ${styles.primary}`} onClick={install} disabled={busy !== null}>
-              {busy === 'install' ? `${phase ?? 'Installing'}\u2026` : 'Install'}
+              {busy === 'install' ? `${phase ?? t('plugins.menuBar.installing')}\u2026` : t('plugins.menuBar.install')}
             </button>
           ) : (
-            <span className={styles.website}>Get the menu bar from the website</span>
+            <span className={styles.website}>{t('plugins.menuBar.website')}</span>
           )}
         </div>
       </div>

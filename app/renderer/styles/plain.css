@@ -163,10 +163,10 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
 .grp { display: flex; flex-direction: column; gap: var(--sp-1); }
 .grp + .grp { margin-top: var(--sp-5); }
 .grp-label { padding: 0 8px 6px; color: var(--mut2); font-size: var(--fs-eyebrow); font-weight: var(--fw-subhead); letter-spacing: .06em; text-transform: uppercase; }
-.ni { height: 36px; margin-bottom: 0; padding: 0 8px; gap: 10px; color: var(--mut); }
+.ni { min-height: 36px; margin-bottom: 0; padding: 0 8px; gap: 10px; color: var(--mut); }
 .ni:hover { background: var(--nav-hover); }
 .ni.on { background: var(--nav-on); color: var(--nav-ink); font-weight: var(--fw-medium); }
-.ni .ni-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ni .ni-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: normal; }
 .foot { margin-top: 4px; padding: 8px 0 0; border-top: 1px solid var(--line); }
 .foot .about { display: flex; align-items: center; height: 36px; padding: 0 8px; gap: 10px; border-radius: 7px; color: var(--mut); text-decoration: none; font-size: var(--fs-body); font-weight: 520; cursor: pointer; }
 .foot .about:hover { background: var(--nav-hover); color: var(--nav-ink); }
@@ -435,7 +435,7 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
 .body.set-body > .set-rail { flex-shrink: 0; }
 .body.set-body > .set-pane { flex-shrink: 1; }
 .set-rail { flex: 0 0 198px; border-right: 1px solid var(--line); padding: var(--sp-3); display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
-.set-rail-item { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 7px; font-size: var(--fs-body); color: var(--mut); cursor: pointer; white-space: nowrap; border: 0; background: transparent; font: inherit; text-align: left; width: 100%; }
+.set-rail-item { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 7px; font-size: var(--fs-body); color: var(--mut); cursor: pointer; white-space: normal; border: 0; background: transparent; font: inherit; text-align: left; width: 100%; }
 .set-rail-item:hover { background: var(--hover); color: var(--ink); }
 .set-rail-item.on { background: var(--hover); color: var(--ink); font-weight: 560; }
 .set-rail-item svg { width: 16px; height: 16px; flex: 0 0 auto; color: var(--mut2); }

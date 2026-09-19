@@ -1,6 +1,7 @@
 import { useId, useRef, useState, type ReactElement, type RefObject } from 'react'
 import { AnchoredSurface } from './AnchoredSurface'
 import { useEscape } from '../hooks/useEscape'
+import { t } from '../i18n'
 import { formatCompact, formatUsd } from '../lib/format'
 
 /** The token counts behind one dollar amount. `calls` is optional context. */
@@ -98,11 +99,11 @@ export function useUsdPop<T extends HTMLElement>(tokens: TokenBreakdown | null |
 export function TokenRows({ tokens }: { tokens: TokenBreakdown }): ReactElement {
   return (
     <>
-      <div className="usd-pop-row"><span>Input</span><b>{formatCompact(tokens.inputTokens)}</b></div>
-      <div className="usd-pop-row"><span>Output</span><b>{formatCompact(tokens.outputTokens)}</b></div>
-      <div className="usd-pop-row"><span>Cache read</span><b>{formatCompact(tokens.cacheReadTokens)}</b></div>
-      <div className="usd-pop-row"><span>Cache write</span><b>{formatCompact(tokens.cacheWriteTokens)}</b></div>
-      {tokens.calls != null && <div className="usd-pop-row calls"><span>Calls</span><b>{formatCompact(tokens.calls)}</b></div>}
+      <div className="usd-pop-row"><span>{t('shared.usd.input')}</span><b>{formatCompact(tokens.inputTokens)}</b></div>
+      <div className="usd-pop-row"><span>{t('shared.usd.output')}</span><b>{formatCompact(tokens.outputTokens)}</b></div>
+      <div className="usd-pop-row"><span>{t('shared.usd.cacheRead')}</span><b>{formatCompact(tokens.cacheReadTokens)}</b></div>
+      <div className="usd-pop-row"><span>{t('shared.usd.cacheWrite')}</span><b>{formatCompact(tokens.cacheWriteTokens)}</b></div>
+      {tokens.calls != null && <div className="usd-pop-row calls"><span>{t('shared.usd.calls')}</span><b>{formatCompact(tokens.calls)}</b></div>}
     </>
   )
 }

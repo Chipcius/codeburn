@@ -9,6 +9,7 @@ import type { Section } from '../components/Sidebar'
 import { StaleBanner } from '../components/StaleBanner'
 import { BarNav } from '../components/TopBar'
 import { usePolled } from '../hooks/usePolled'
+import { localeTag, t } from '../i18n'
 import { formatConverted } from '../lib/format'
 import { codeburn } from '../lib/ipc'
 import { motionClass } from '../lib/motion'
@@ -37,7 +38,7 @@ function fmtPct(n: number): string {
 /** Honest copy for a 429 backoff window (the upstream quota endpoint rate
  *  limited us), replacing the generic "waiting" note. */
 export function rateLimitedNote(provider: QuotaProvider['provider']): string {
-  return `${PROVIDER_OWNERS[provider]} rate limited the quota endpoint, retrying in a few minutes`
+  return t('plans.quota.rateLimited', { owner: PROVIDER_OWNERS[provider] })
 }
 
 function cycleEndDate(plan: JsonPlanSummary): Date | null {
@@ -49,8 +50,8 @@ function cycleEndDate(plan: JsonPlanSummary): Date | null {
 
 function formatShortDate(value: string | Date): string {
   const date = value instanceof Date ? value : new Date(value)
-  if (Number.isNaN(date.getTime())) return 'unknown'
-  return new Intl.DateTimeFormat('en-US', {
+  if (Number.isNaN(date.getTime())) return t('plans.date.unknown')
+  return new Intl.DateTimeFormat(localeTag(), {
     month: 'short',
     day: 'numeric',
   }).format(date)
@@ -130,7 +131,7 @@ export function stabilizeQuota(raw: QuotaProvider[], known: Map<QuotaProvider['p
       const waitingSince = prev?.waitingSince ?? now
       if (now - waitingSince >= WAITING_CAP_MS) {
         known.set(provider.provider, { last: provider, strikes: 0, waitingSince })
-        out.push({ ...provider, connection: 'terminalFailure', connectable: true, footerLines: [`Couldn't reach the ${PROVIDER_NAMES[provider.provider]} CLI.`] })
+        out.push({ ...provider, connection: 'terminalFailure', connectable: true, footerLines: [t('plans.quota.couldNotReach', { name: PROVIDER_NAMES[provider.provider] })] })
         continue
       }
       known.set(provider.provider, { last: provider, strikes: 0, waitingSince })
@@ -185,10 +186,10 @@ export function Plans({ period, refreshToken = 0, onNavigate, ready = true }: { 
     <>
       <div className="bar">
         <BarNav />
-        <h1 className="t">Plans</h1>
+        <h1 className="t">{t('plans.title')}</h1>
         <div className="sp" />
         <button type="button" className="btn btn-s" onClick={() => onNavigate?.('settings', 'plans')}>
-          Add plan…
+          {t('plans.addPlan')}
         </button>
       </div>
       <div className={motionClass('body', 'section-fade')}>
@@ -204,18 +205,18 @@ function renderQuota(data: QuotaProvider[] | null, error: ReturnType<typeof useP
   if (!data) {
     if (error) {
       return (
-        <Panel title="Live quota">
-          <p className="quota-connection-note quota-terminal">Live quota is unavailable.</p>
+        <Panel title={t('plans.quota.panelTitle')}>
+          <p className="quota-connection-note quota-terminal">{t('plans.quota.unavailable')}</p>
         </Panel>
       )
     }
-    return <SectionSkeleton label="Loading quota…" rows={3} />
+    return <SectionSkeleton label={t('plans.quota.loading')} rows={3} />
   }
 
   if (data.length === 0) {
     return (
-      <Panel title="Live quota">
-        <p className="quota-connection-note">No quota providers available.</p>
+      <Panel title={t('plans.quota.panelTitle')}>
+        <p className="quota-connection-note">{t('plans.quota.noProviders')}</p>
       </Panel>
     )
   }
@@ -239,8 +240,8 @@ function renderBudgetPlans(data: StatusJson | null, error: ReturnType<typeof use
   if (!data && error) {
     return (
       <section className="budget-plans">
-        <h2 className="plans-section-heading">Budget plans</h2>
-        <CliErrorPanel error={error} subject="plan pacing" />
+        <h2 className="plans-section-heading">{t('plans.budget.heading')}</h2>
+        <CliErrorPanel error={error} subject={t('plans.budget.pacingSubject')} />
       </section>
     )
   }
@@ -248,7 +249,7 @@ function renderBudgetPlans(data: StatusJson | null, error: ReturnType<typeof use
 
   return (
     <section className="budget-plans">
-      <h2 className="plans-section-heading">Budget plans</h2>
+      <h2 className="plans-section-heading">{t('plans.budget.heading')}</h2>
       <div className="plans-grid">
         {plans.map(plan => <PlanPanel key={`${plan.provider}-${plan.id}`} plan={plan} />)}
       </div>
@@ -270,11 +271,18 @@ function QuotaPanel({ quota, onReconnect }: { quota: QuotaProvider; onReconnect:
   )
 }
 
+const CONNECTION_LABEL_KEYS: Record<QuotaProvider['connection'], string> = {
+  connected: 'plans.quota.status.connected',
+  disconnected: 'plans.quota.status.disconnected',
+  accessDenied: 'plans.quota.status.locked',
+  loading: 'plans.quota.status.loading',
+  stale: 'plans.quota.status.stale',
+  transientFailure: 'plans.quota.status.waiting',
+  terminalFailure: 'plans.quota.status.error',
+}
+
 function ConnectionIndicator({ connection }: { connection: QuotaProvider['connection'] }) {
-  const label = connection === 'transientFailure' ? 'waiting'
-    : connection === 'terminalFailure' ? 'error'
-    : connection === 'accessDenied' ? 'locked'
-    : connection
+  const label = t(CONNECTION_LABEL_KEYS[connection])
   return <span className={`quota-connection quota-connection-${connection}`}><i />{label}</span>
 }
 
@@ -282,10 +290,10 @@ function QuotaContent({ quota, onReconnect }: { quota: QuotaProvider; onReconnec
   if (quota.connection === 'disconnected' || quota.connection === 'accessDenied') {
     return <ConnectAffordance provider={quota.provider} connection={quota.connection} onRefresh={onReconnect} />
   }
-  if (quota.connection === 'loading') return <p className="quota-connection-note">Loading quota…</p>
+  if (quota.connection === 'loading') return <p className="quota-connection-note">{t('plans.quota.loading')}</p>
   if (quota.connection === 'stale' || quota.connection === 'transientFailure') {
     if (quota.rateLimited) return <p className="quota-connection-note">{rateLimitedNote(quota.provider)}</p>
-    return <p className="quota-connection-note">Waiting on the CLI…</p>
+    return <p className="quota-connection-note">{t('plans.quota.waitingOnCli')}</p>
   }
   if (quota.connection === 'terminalFailure') {
     // An auth expiry (or a capped "waiting") is recoverable: show the same
@@ -295,7 +303,7 @@ function QuotaContent({ quota, onReconnect }: { quota: QuotaProvider; onReconnec
     }
     // A genuinely terminal provider (a retired Gemini tier, no allowance) says
     // why; the generic line is the fallback. No action to offer.
-    return <p className="quota-connection-note quota-terminal">{quota.footerLines[0] ?? 'Quota is currently unavailable.'}</p>
+    return <p className="quota-connection-note quota-terminal">{quota.footerLines[0] ?? t('plans.quota.unavailableGeneric')}</p>
   }
 
   return (
@@ -318,7 +326,7 @@ function QuotaMeter({ window }: { window: QuotaWindow }) {
     <div className="quota-window">
       <div className="quota-window-labels">
         <span>{window.label}</span>
-        <span>{percent}% used{reset ? ` · resets ${reset}` : ''}</span>
+        <span>{reset ? t('plans.quota.usedWithReset', { percent, reset }) : t('plans.quota.used', { percent })}</span>
       </div>
       <div className="track" data-testid={`quota-track-${window.label}`}>
         <i className={severity} style={{ width: `${Math.min(100, Math.max(0, percent))}%` }} />
@@ -332,13 +340,13 @@ function formatResetTime(resetsAt: string | null): string | null {
   const reset = Date.parse(resetsAt)
   if (!Number.isFinite(reset)) return null
   const remainingMinutes = Math.floor((reset - Date.now()) / 60_000)
-  if (remainingMinutes <= 0) return 'now'
+  if (remainingMinutes <= 0) return t('plans.reset.now')
   const days = Math.floor(remainingMinutes / (24 * 60))
   const hours = Math.floor((remainingMinutes % (24 * 60)) / 60)
   const minutes = remainingMinutes % 60
-  if (days > 0) return `in ${days}d${hours > 0 ? ` ${hours}h` : ''}`
-  if (hours > 0) return `in ${hours}h${minutes > 0 ? ` ${minutes}m` : ''}`
-  return `in ${minutes}m`
+  if (days > 0) return hours > 0 ? t('plans.reset.daysHours', { days, hours }) : t('plans.reset.days', { days })
+  if (hours > 0) return minutes > 0 ? t('plans.reset.hoursMinutes', { hours, minutes }) : t('plans.reset.hours', { hours })
+  return t('plans.reset.minutes', { minutes })
 }
 
 function PlanPanel({ plan }: { plan: JsonPlanSummary }) {
@@ -348,11 +356,13 @@ function PlanPanel({ plan }: { plan: JsonPlanSummary }) {
   const trackClass = hasBudget ? (over ? 'over' : undefined) : 'mut'
   const overage = Math.max(0, plan.spent - plan.budget)
   const right = hasBudget
-    ? `${formatConverted(plan.spent)} · ${fmtPct(plan.percentUsed)}${overage > 0 ? ` · ${formatConverted(overage)} over` : ''}`
-    : `${formatConverted(plan.spent)} this cycle`
+    ? overage > 0
+      ? t('plans.card.spentPercentOver', { spent: formatConverted(plan.spent), percent: fmtPct(plan.percentUsed), overage: formatConverted(overage) })
+      : t('plans.card.spentPercent', { spent: formatConverted(plan.spent), percent: fmtPct(plan.percentUsed) })
+    : t('plans.card.spentThisCycle', { spent: formatConverted(plan.spent) })
   const detail = hasBudget
-    ? `${formatConverted(plan.budget)} / month budget · API-equivalent, not a live provider window · ${plan.provider}`
-    : `${plan.provider} · pay as you go, no plan`
+    ? t('plans.card.budgetDetail', { budget: formatConverted(plan.budget), provider: plan.provider })
+    : t('plans.card.noPlanDetail', { provider: plan.provider })
 
   return (
     <Panel
@@ -371,20 +381,20 @@ function PlanPanel({ plan }: { plan: JsonPlanSummary }) {
 
 function PaceLine({ plan }: { plan: JsonPlanSummary }) {
   const end = cycleEndDate(plan)
-  const endLabel = end ? formatShortDate(end) : 'unknown'
+  const endLabel = end ? formatShortDate(end) : t('plans.date.unknown')
   if (plan.status === 'over' || plan.projectedMonthEnd > plan.budget) {
     return (
       <div className="pace hot">
-        On pace to exceed; projected {formatConverted(plan.projectedMonthEnd)} by {endLabel}
+        {t('plans.pace.exceed', { projected: formatConverted(plan.projectedMonthEnd), date: endLabel })}
       </div>
     )
   }
   if (plan.status === 'near') {
     return (
       <div className="pace hot">
-        {fmtPct(plan.percentUsed)} of budget used; projected {formatConverted(plan.projectedMonthEnd)} by {endLabel}
+        {t('plans.pace.near', { percent: fmtPct(plan.percentUsed), projected: formatConverted(plan.projectedMonthEnd), date: endLabel })}
       </div>
     )
   }
-  return <div className="pace ok">On track</div>
+  return <div className="pace ok">{t('plans.pace.onTrack')}</div>
 }
