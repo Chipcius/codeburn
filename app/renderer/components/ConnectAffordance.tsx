@@ -7,7 +7,8 @@ import type { QuotaProvider } from '../lib/types'
 // The exact terminal login command per provider. No interactive login is
 // attempted from the app — we only show the command to copy and a Refresh.
 // Providers without a CLI login (Copilot signs in from an editor plugin;
-// Antigravity is local-only) get a note instead of a command.
+// Antigravity is local-only; ZCode signs in inside its own app) get a note
+// instead of a command.
 // hint/note are translation keys (resolved with t() at render time), not text.
 const LOGIN: Record<QuotaProvider['provider'], { command?: string; hintKey?: string; noteKey?: string }> = {
   claude: { command: 'claude', hintKey: 'shell.connect.claude.hint' },
@@ -16,6 +17,7 @@ const LOGIN: Record<QuotaProvider['provider'], { command?: string; hintKey?: str
   copilot: { noteKey: 'shell.connect.copilot.note' },
   antigravity: { noteKey: 'shell.connect.antigravity.note' },
   kimi: { command: 'kimi', hintKey: 'shell.connect.signInPrompt' },
+  zcode: { noteKey: 'shell.connect.zcode.note' },
   grokbot: { noteKey: 'shell.connect.grokbot.note' },
 }
 
