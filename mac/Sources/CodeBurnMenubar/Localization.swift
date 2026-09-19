@@ -40,7 +40,7 @@ enum L10n {
 
     /// Locales shipped today. Mirrored by `CFBundleLocalizations` in the two
     /// packaging scripts and asserted by `LocalizationCatalogTests`.
-    static let supportedLocalizations = ["en", "zh-Hans"]
+    static let supportedLocalizations = ["en", "fr", "ja", "ko", "zh-Hans", "zh-Hant"]
 }
 
 /// Localized copy for `key`, falling back to the key (its English text) when a
