@@ -7,6 +7,7 @@ export const PROVIDER_NAMES: Record<ProviderName, string> = {
   copilot: 'Copilot',
   antigravity: 'Antigravity',
   kimi: 'Kimi Code',
+  zcode: 'ZCode',
   grokbot: 'Grok Bot',
 }
 
@@ -18,6 +19,7 @@ export const PROVIDER_OWNERS: Record<ProviderName, string> = {
   copilot: 'GitHub',
   antigravity: 'Google',
   kimi: 'Moonshot AI',
+  zcode: 'Z.ai',
   // The weekly allowance is served by Cursor's dashboard, so Cursor is who
   // rate limits it.
   grokbot: 'Cursor',

@@ -6,7 +6,8 @@ import type { QuotaProvider } from '../lib/types'
 // The exact terminal login command per provider. No interactive login is
 // attempted from the app — we only show the command to copy and a Refresh.
 // Providers without a CLI login (Copilot signs in from an editor plugin;
-// Antigravity is local-only) get a note instead of a command.
+// Antigravity is local-only; ZCode signs in inside its own app) get a note
+// instead of a command.
 const LOGIN: Record<QuotaProvider['provider'], { command?: string; hint?: string; note?: string }> = {
   claude: { command: 'claude', hint: 'then type /login' },
   codex: { command: 'codex login' },
@@ -14,6 +15,7 @@ const LOGIN: Record<QuotaProvider['provider'], { command?: string; hint?: string
   copilot: { note: 'Sign in to GitHub Copilot in your editor (VS Code or JetBrains), then Refresh.' },
   antigravity: { note: 'Open Antigravity and sign in, then Refresh. Quota comes from its local server only.' },
   kimi: { command: 'kimi', hint: 'then sign in when prompted' },
+  zcode: { note: 'Open the ZCode app and sign in to your coding plan, then Refresh.' },
   grokbot: { note: 'Sign in to the Cursor app with the account Grok Bot uses, then Refresh — the weekly allowance is read from that session.' },
 }
 
