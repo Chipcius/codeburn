@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
+import { t } from '../i18n'
 import { codeburn } from '../lib/ipc'
 import { showToast } from '../lib/toast'
 import { PluginDetailsModal } from './PluginDetails'
@@ -40,9 +41,9 @@ function PluginsComingSoon() {
     <div className={styles.container}>
       <div className={styles.soon}>
         <Icon name="puzzle" className={styles.soonMark} />
-        <div className={styles.soonTitle}>Plugins are coming to Windows</div>
+        <div className={styles.soonTitle}>{t('plugins.comingSoon.title')}</div>
         <p className={styles.soonBody}>
-          They arrive in a later Windows release; on macOS and Linux they are available today.
+          {t('plugins.comingSoon.body')}
         </p>
       </div>
     </div>
@@ -53,7 +54,7 @@ function PluginsComingSoon() {
  *  yet, so the control slot carries a label and the card explains itself instead. */
 function TeamsCard() {
   const [about, setAbout] = useState(false)
-  const description = 'Shares your session outcomes, retries and kind of work with your team dashboard. Nothing else leaves the machine.'
+  const description = t('plugins.teams.description')
   return (
     <div
       className={`${styles.row} ${styles.art}`}
@@ -62,11 +63,11 @@ function TeamsCard() {
     >
       <div className={`${styles.info} ${styles.teamsInfo}`}>
         <div className={styles.nameRow}>
-          <div className={styles.name}>Teams</div>
+          <div className={styles.name}>{t('plugins.teams.name')}</div>
           <button
             type="button"
             className={`ov-info ${styles.infoDot}`}
-            aria-label="What Teams will do"
+            aria-label={t('plugins.teams.aboutAria')}
             onClick={() => setAbout(true)}
           >
             <Icon name="info" />
@@ -78,11 +79,11 @@ function TeamsCard() {
           className={`set-text-button ${styles.betaLink}`}
           onClick={() => { void codeburn.openExternal(TEAMS_BETA_URL) }}
         >
-          Register for beta testing
+          {t('plugins.teams.registerBeta')}
         </button>
       </div>
       <div className={styles.controls}>
-        <span className={styles.pill}>Coming soon</span>
+        <span className={styles.pill}>{t('plugins.teams.pill')}</span>
       </div>
       {about && <TeamsAboutModal onClose={() => setAbout(false)} />}
     </div>
@@ -93,7 +94,7 @@ export function PluginsSection() {
   // Decided before the loader renders rather than inside it, so its effects never run.
   return (
     <>
-      <div className="bar"><BarNav /><h1 className="t">Plugins</h1></div>
+      <div className="bar"><BarNav /><h1 className="t">{t('plugins.title')}</h1></div>
       {isWindowsPlatform() ? <PluginsComingSoon /> : <PluginsList />}
     </>
   )
@@ -129,7 +130,7 @@ function PluginsList() {
   async function verifyPlugin(name: string) {
     try {
       const result = await codeburn.pluginVerify(name)
-      showToast(result.ok ? 'Plugin verified' : (result.stderr || 'Verification failed'), result.ok ? 'ok' : 'error')
+      showToast(result.ok ? t('plugins.list.toastVerified') : (result.stderr || t('plugins.list.toastVerifyFailed')), result.ok ? 'ok' : 'error')
       if (result.ok) void loadPlugins()
     } catch (err) {
       showToast(err instanceof Error ? err.message : String(err), 'error')
@@ -140,7 +141,7 @@ function PluginsList() {
     setRemoving(name)
     try {
       const result = await codeburn.pluginRemove(name)
-      showToast(result.ok ? `Removed ${name}` : (result.stderr || 'Removal failed'), result.ok ? 'ok' : 'error')
+      showToast(result.ok ? t('plugins.list.toastRemoved', { name }) : (result.stderr || t('plugins.list.toastRemoveFailed')), result.ok ? 'ok' : 'error')
       if (result.ok) {
         setConfirming(null)
         void loadPlugins()
@@ -153,7 +154,7 @@ function PluginsList() {
   }
 
   if (loading) {
-    return <div className={styles.container}>Loading plugins…</div>
+    return <div className={styles.container}>{t('plugins.list.loading')}</div>
   }
 
   return (
@@ -177,38 +178,38 @@ function PluginsList() {
                 {plugin.capabilities && (
                   <div className={styles.caps}>
                     {plugin.capabilities.commands.length > 0 && (
-                      <span>commands {plugin.capabilities.commands.length}</span>
+                      <span>{t('plugins.list.commandsCount', { count: plugin.capabilities.commands.length })}</span>
                     )}
                     {plugin.capabilities.syncAttributes.length > 0 && (
-                      <span>fields {plugin.capabilities.syncAttributes.length}</span>
+                      <span>{t('plugins.list.fieldsCount', { count: plugin.capabilities.syncAttributes.length })}</span>
                     )}
                     {plugin.capabilities.payloadSections.length > 0 && (
-                      <span>sections {plugin.capabilities.payloadSections.length}</span>
+                      <span>{t('plugins.list.sectionsCount', { count: plugin.capabilities.payloadSections.length })}</span>
                     )}
                   </div>
                 )}
               </div>
               {plugin.status === 'loaded' && (
                 <div className={styles.actions}>
-                  <button className="btnp" onClick={() => setDetailsPlugin(plugin.name)} title="View plugin details">
-                    Details
+                  <button className="btnp" onClick={() => setDetailsPlugin(plugin.name)} title={t('plugins.list.detailsTitle')}>
+                    {t('plugins.list.detailsButton')}
                   </button>
-                  <button className="btnp" onClick={() => void verifyPlugin(plugin.name)} title="Verify plugin signature">
-                    Verify
+                  <button className="btnp" onClick={() => void verifyPlugin(plugin.name)} title={t('plugins.list.verifyTitle')}>
+                    {t('plugins.list.verifyButton')}
                   </button>
                   {confirming === plugin.name ? (
                     <span style={{ display: 'flex', gap: 'var(--sp-1)', alignItems: 'center' }}>
-                      <span style={{ fontSize: 'var(--fs-body)', color: 'var(--mut)' }}>Remove {plugin.name}?</span>
+                      <span style={{ fontSize: 'var(--fs-body)', color: 'var(--mut)' }}>{t('plugins.list.confirmRemove', { name: plugin.name })}</span>
                       <button className="btnp" onClick={() => void removePlugin(plugin.name)} disabled={removing === plugin.name} style={{ fontSize: 'var(--fs-label)' }}>
-                        {removing === plugin.name ? 'Removing…' : 'Yes'}
+                        {removing === plugin.name ? t('plugins.list.removing') : t('plugins.list.confirmYes')}
                       </button>
                       <button className="btnp" onClick={() => setConfirming(null)} style={{ fontSize: 'var(--fs-label)' }}>
-                        No
+                        {t('plugins.list.confirmNo')}
                       </button>
                     </span>
                   ) : (
-                    <button className="btnp" onClick={() => setConfirming(plugin.name)} title="Remove plugin">
-                      Remove
+                    <button className="btnp" onClick={() => setConfirming(plugin.name)} title={t('plugins.list.removeTitle')}>
+                      {t('plugins.list.removeButton')}
                     </button>
                   )}
                 </div>
@@ -219,7 +220,7 @@ function PluginsList() {
       )}
       {plugins.length > 0 && (
         <button className="btnp btnp-primary" onClick={() => setShowInstallFlow(true)} style={{ marginTop: 'var(--sp-6)' }}>
-          Install plugin
+          {t('plugins.list.installButton')}
         </button>
       )}
 

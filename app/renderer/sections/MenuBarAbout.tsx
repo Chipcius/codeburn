@@ -3,24 +3,25 @@ import { createPortal } from 'react-dom'
 
 import { Icon, type IconName } from '../components/icons'
 import { useEscape } from '../hooks/useEscape'
+import { t } from '../i18n'
 import { MENUBAR_QUOTA_PROVIDERS } from '../lib/menubarProviders'
 import { isMacPlatform } from '../lib/platform'
 import styles from './Plugins.module.css'
 
-type Line = { icon: IconName; text: string }
+type Line = { icon: IconName; key: string }
 
 const MENU_BAR: Line[] = [
-  { icon: 'coins', text: "Shows today's spend and per-provider quotas in the menu bar" },
-  { icon: 'chart-column', text: 'Opens a panel with session counts, cost and the providers you used' },
-  { icon: 'refresh-cw', text: 'Refreshes on its own schedule, whether or not the desktop app is open' },
-  { icon: 'settings', text: 'Has its own Settings window for refresh cadence, currency and language' },
+  { icon: 'coins', key: 'plugins.menuBar.about.spend' },
+  { icon: 'chart-column', key: 'plugins.menuBar.about.panel' },
+  { icon: 'refresh-cw', key: 'plugins.menuBar.about.refresh' },
+  { icon: 'settings', key: 'plugins.menuBar.about.settings' },
 ]
 
 const CAPACITY_DOCK: Line[] = [
-  { icon: 'panel-right', text: 'A slim rail on the screen edge with one tile per provider showing remaining quota; drag it to any edge' },
-  { icon: 'circle-check', text: 'A tile empties as quota is spent and fills again when the window resets' },
-  { icon: 'search', text: 'Hovering a tile shows the numbers behind it; clicking one opens that provider' },
-  { icon: 'sliders-horizontal', text: "Which providers get a tile is set in the menu bar app's Settings" },
+  { icon: 'panel-right', key: 'plugins.capacityDock.about.rail' },
+  { icon: 'circle-check', key: 'plugins.capacityDock.about.tileFill' },
+  { icon: 'search', key: 'plugins.capacityDock.about.hover' },
+  { icon: 'sliders-horizontal', key: 'plugins.capacityDock.about.settings' },
 ]
 
 function Column({ title, lines }: { title: string; lines: Line[] }) {
@@ -29,14 +30,14 @@ function Column({ title, lines }: { title: string; lines: Line[] }) {
       <h3 className={styles.aboutColTitle}>{title}</h3>
       <ul className={styles.aboutLines}>
         {lines.map(line => (
-          <li key={line.text}>
+          <li key={line.key}>
             <Icon name={line.icon} className={styles.aboutLineIcon} />
-            <span>{line.text}</span>
+            <span>{t(line.key)}</span>
           </li>
         ))}
       </ul>
       <div className={styles.aboutWorks}>
-        <span className={styles.aboutWorksLabel}>Works with</span>
+        <span className={styles.aboutWorksLabel}>{t('plugins.menuBar.worksWith')}</span>
         <span>{MENUBAR_QUOTA_PROVIDERS.join(', ')}</span>
       </div>
     </div>
@@ -85,7 +86,7 @@ function AboutModalShell({ label, onClose, children }: { label: string; onClose:
         onClick={event => event.stopPropagation()}
         onKeyDown={onKeyDown}
       >
-        <button ref={close} className={styles.modalClose} onClick={onClose} aria-label="Close"><Icon name="x" /></button>
+        <button ref={close} className={styles.modalClose} onClick={onClose} aria-label={t('plugins.about.close')}><Icon name="x" /></button>
         {children}
       </div>
     </div>,
@@ -96,33 +97,33 @@ function AboutModalShell({ label, onClose, children }: { label: string; onClose:
 /** What the menu bar app and its Capacity Dock actually do, as two columns of plain lines. */
 export function MenuBarAboutModal({ onClose }: { onClose: () => void }) {
   return (
-    <AboutModalShell label="What the menu bar app does" onClose={onClose}>
+    <AboutModalShell label={t('plugins.menuBar.aboutAria')} onClose={onClose}>
       <div className={styles.aboutCols}>
-        <Column title="Menu bar" lines={MENU_BAR} />
-        <Column title="Capacity Dock" lines={CAPACITY_DOCK} />
+        <Column title={t('plugins.menuBar.name')} lines={MENU_BAR} />
+        <Column title={t('plugins.menuBar.capacityDock')} lines={CAPACITY_DOCK} />
       </div>
     </AboutModalShell>
   )
 }
 
 const TEAMS_PLANNED: Line[] = [
-  { icon: 'layout-dashboard', text: "A shared team dashboard of everyone's session outcomes, retries and kind of work" },
-  { icon: 'lock', text: 'Only outcomes and counts leave each machine, never your code or prompts' },
-  { icon: 'chart-column', text: 'See where time and spend go across the team, per project and per model' },
-  { icon: 'shield', text: 'Per seat, each member keeps their own local data' },
+  { icon: 'layout-dashboard', key: 'plugins.teams.about.dashboard' },
+  { icon: 'lock', key: 'plugins.teams.about.privacy' },
+  { icon: 'chart-column', key: 'plugins.teams.about.visibility' },
+  { icon: 'shield', key: 'plugins.teams.about.perSeat' },
 ]
 
 /** What the Teams plugin will do, as one column of plain lines. */
 export function TeamsAboutModal({ onClose }: { onClose: () => void }) {
   return (
-    <AboutModalShell label="Teams" onClose={onClose}>
+    <AboutModalShell label={t('plugins.teams.name')} onClose={onClose}>
       <div className={styles.aboutCol}>
-        <h3 className={styles.aboutColTitle}>Teams</h3>
+        <h3 className={styles.aboutColTitle}>{t('plugins.teams.name')}</h3>
         <ul className={styles.aboutLines}>
           {TEAMS_PLANNED.map(line => (
-            <li key={line.text}>
+            <li key={line.key}>
               <Icon name={line.icon} className={styles.aboutLineIcon} />
-              <span>{line.text}</span>
+              <span>{t(line.key)}</span>
             </li>
           ))}
         </ul>
