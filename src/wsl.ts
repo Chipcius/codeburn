@@ -152,15 +152,12 @@ export function wslHomes(now: number = Date.now()): string[] {
 
 /// Re-check the currently reachable homes before deciding whether an
 /// undiscovered WSL cache path is merely offline or was actually deleted.
-/// Normal discovery keeps its 60s TTL; this escape hatch is used only when an
-/// orphan needs that distinction. Pinned test homes remain pinned.
-export function refreshWslHomes(): string[] {
-  const mode = wslMode()
-  if (mode === 'off') return []
-  if (cached?.pinned) return cached.homes
-  const homes = discoverWslHomes()
-  cached = { homes, expiresAt: Date.now() + WSL_HOMES_TTL_MS, mode }
-  return homes
+/// Bounded to the same 60s discovery TTL as wslHomes(): a stopped distro stays
+/// stopped, so re-spawning wsl.exe on every full parse — up to ~3s each in the
+/// resident serve/menubar — only to reconfirm "offline" is wasted work. The TTL
+/// already reflects the one transition this check must catch, offline->running.
+export function refreshWslHomes(now: number = Date.now()): string[] {
+  return wslHomes(now)
 }
 
 /// Test seam: discovery shells out to wsl.exe and stats a 9P share, neither of

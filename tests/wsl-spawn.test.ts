@@ -12,7 +12,7 @@ vi.mock('fs', () => ({
   existsSync: (...a: unknown[]) => existsSync(...a),
 }))
 
-const { setWslHomes, wslDoctorNote, wslHomes } = await import('../src/wsl.js')
+const { setWslHomes, wslDoctorNote, wslHomes, refreshWslHomes } = await import('../src/wsl.js')
 
 function utf16(lines: string[]): Buffer {
   return Buffer.from(lines.join('\r\n') + '\r\n', 'utf16le')
@@ -191,6 +191,25 @@ describe('discoverWslHomes', () => {
     expect(wslHomes(1_000)).toEqual(['\\\\wsl$\\Ubuntu\\home\\alice'])
     expect(wslHomes(1_000 + 3_600_000)).toEqual(['\\\\wsl$\\Ubuntu\\home\\alice'])
     expect(execFileSync).not.toHaveBeenCalled()
+  })
+
+  it('orphan refresh reuses the cached probe within the TTL, so an offline distro does not respawn wsl.exe every parse', () => {
+    execFileSync.mockReturnValue(utf16(['Ubuntu']))
+    readdirSync.mockImplementation((p: string) => (p === '\\\\wsl$\\Ubuntu\\home' ? [dirent('alice')] : []))
+    // A parse discovers the running set once and caches it.
+    wslHomes(1_000)
+    expect(execFileSync).toHaveBeenCalledTimes(1)
+
+    // The orphan check (a stopped distro's cached path is still classed offline)
+    // must not re-spawn within the TTL — the bug this bounds.
+    refreshWslHomes(1_000)
+    refreshWslHomes(1_000 + 59_999)
+    expect(execFileSync).toHaveBeenCalledTimes(1)
+    expect(refreshWslHomes(1_000 + 59_999)).toEqual(['\\\\wsl$\\Ubuntu\\home\\alice'])
+
+    // Past the TTL it re-probes once, catching an offline->running transition.
+    refreshWslHomes(1_000 + 60_000)
+    expect(execFileSync).toHaveBeenCalledTimes(2)
   })
 })
 
