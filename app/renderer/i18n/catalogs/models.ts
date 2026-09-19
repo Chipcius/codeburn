@@ -35,6 +35,12 @@ export const models: SectionCatalog = {
     'models.aggregate.noInput': 'No aggregate input',
     'models.aggregate.noOutput': 'No aggregate output',
     'models.aggregate.noCacheRead': 'No aggregate cache read',
+
+    'models.series.flagship': 'Flagship',
+    'models.series.premium': 'Premium',
+    'models.series.balanced': 'Balanced',
+    'models.series.fast': 'Fast',
+    'models.series.other': 'Other',
   },
   fr: {
     'models.lens.byModel': 'Par modèle',
@@ -70,6 +76,12 @@ export const models: SectionCatalog = {
     'models.aggregate.noInput': 'Aucune entrée agrégée',
     'models.aggregate.noOutput': 'Aucune sortie agrégée',
     'models.aggregate.noCacheRead': 'Aucune lecture cache agrégée',
+
+    'models.series.flagship': 'Fleuron',
+    'models.series.premium': 'Premium',
+    'models.series.balanced': 'Équilibré',
+    'models.series.fast': 'Rapide',
+    'models.series.other': 'Autre',
   },
   ja: {
     'models.lens.byModel': 'モデル別',
@@ -105,6 +117,12 @@ export const models: SectionCatalog = {
     'models.aggregate.noInput': '集計入力なし',
     'models.aggregate.noOutput': '集計出力なし',
     'models.aggregate.noCacheRead': '集計キャッシュ読取なし',
+
+    'models.series.flagship': 'フラッグシップ',
+    'models.series.premium': 'プレミアム',
+    'models.series.balanced': 'バランス',
+    'models.series.fast': '高速',
+    'models.series.other': 'その他',
   },
   ko: {
     'models.lens.byModel': '모델별',
@@ -140,6 +158,12 @@ export const models: SectionCatalog = {
     'models.aggregate.noInput': '집계 입력 없음',
     'models.aggregate.noOutput': '집계 출력 없음',
     'models.aggregate.noCacheRead': '집계 캐시 읽기 없음',
+
+    'models.series.flagship': '플래그십',
+    'models.series.premium': '프리미엄',
+    'models.series.balanced': '균형',
+    'models.series.fast': '빠름',
+    'models.series.other': '기타',
   },
   zhCN: {
     'models.lens.byModel': '按模型',
@@ -175,6 +199,12 @@ export const models: SectionCatalog = {
     'models.aggregate.noInput': '无汇总输入',
     'models.aggregate.noOutput': '无汇总输出',
     'models.aggregate.noCacheRead': '无汇总缓存读取',
+
+    'models.series.flagship': '旗舰',
+    'models.series.premium': '高级',
+    'models.series.balanced': '均衡',
+    'models.series.fast': '快速',
+    'models.series.other': '其他',
   },
   zhTW: {
     'models.lens.byModel': '依模型',
@@ -210,5 +240,11 @@ export const models: SectionCatalog = {
     'models.aggregate.noInput': '無彙總輸入',
     'models.aggregate.noOutput': '無彙總輸出',
     'models.aggregate.noCacheRead': '無彙總快取讀取',
+
+    'models.series.flagship': '旗艦',
+    'models.series.premium': '高階',
+    'models.series.balanced': '均衡',
+    'models.series.fast': '快速',
+    'models.series.other': '其他',
   },
 }

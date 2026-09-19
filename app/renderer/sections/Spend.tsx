@@ -18,7 +18,7 @@ import { reportMemoKey } from '../lib/reportMemoKey'
 import { projectFilters } from '../lib/investigation'
 import { formatSessionCount, sessionCountHelp } from '../lib/session-count-label'
 import type { CliError, DateRange, MenubarPayload, Period, SpendFlow } from '../lib/types'
-import { t } from '../i18n'
+import { localeTag, t } from '../i18n'
 
 import type { InvestigateRequest } from './Overview'
 
@@ -31,7 +31,7 @@ function projectRowKey(project: Project, index: number): string {
 /** Date-only CLI strings ("2026-07-11") formatted at local noon so the calendar day never rolls across time zones. */
 function formatProjectDay(date: string): string {
   const d = new Date(`${date}T12:00:00`)
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString(localeTag(), { month: 'short', day: 'numeric' })
 }
 
 const SPEND_CHART_DAYS = 15

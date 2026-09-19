@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
-import { t } from '../i18n'
+import { localeTag, t } from '../i18n'
 import { useEscape } from '../hooks/useEscape'
 import type { ClaudeConfigSelector, DateRange } from '../lib/types'
 import { AnchoredSurface } from './AnchoredSurface'
@@ -142,8 +142,8 @@ function formatRange(range: DateRange): string {
   const to = new Date(`${range.to}T12:00:00`)
   const sameYear = from.getFullYear() === to.getFullYear()
   const sameMonth = sameYear && from.getMonth() === to.getMonth()
-  const left = from.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: sameYear ? undefined : 'numeric' })
-  const right = to.toLocaleDateString('en-US', { month: sameMonth ? undefined : 'short', day: 'numeric', year: sameYear ? undefined : 'numeric' })
+  const left = from.toLocaleDateString(localeTag(), { month: 'short', day: 'numeric', year: sameYear ? undefined : 'numeric' })
+  const right = to.toLocaleDateString(localeTag(), { month: sameMonth ? undefined : 'short', day: 'numeric', year: sameYear ? undefined : 'numeric' })
   return `${left} – ${right}`
 }
 

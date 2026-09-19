@@ -11,7 +11,7 @@ import { ChartTip } from '../components/ChartTip'
 import { formatAxisMoney, niceTicks, ticksClearOfPeak } from '../lib/chartAxis'
 import { formatCompact, formatUsd, shortenProjectPath } from '../lib/format'
 import { Usd, tokensOf } from '../components/Usd'
-import { t } from '../i18n'
+import { localeTag, t } from '../i18n'
 import { codeburn } from '../lib/ipc'
 import { reportMemoKey } from '../lib/reportMemoKey'
 import { trackEvent } from '../lib/track'
@@ -70,12 +70,12 @@ function localKey(d: Date): string {
 
 function formatDayShort(key: string): string {
   const [y, m, d] = key.split('-').map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return new Date(y, m - 1, d).toLocaleDateString(localeTag(), { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 function formatDayTerse(key: string): string {
   const [y, m, d] = key.split('-').map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return new Date(y, m - 1, d).toLocaleDateString(localeTag(), { month: 'short', day: 'numeric' })
 }
 
 /// A column header has no room for two full dates. Drop the year, and the

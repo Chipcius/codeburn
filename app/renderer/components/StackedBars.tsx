@@ -5,7 +5,7 @@ import { t } from '../i18n'
 import { formatAxisMoney, niceTicks, ticksClearOfPeak } from '../lib/chartAxis'
 import { formatUsd } from '../lib/format'
 import { useBarGrowIn } from '../lib/motion'
-import { SERIES_LABELS, type SeriesKey, seriesClassForKey, seriesClassForModel, seriesKeyForModel } from '../lib/modelSeries'
+import { type SeriesKey, seriesClassForKey, seriesClassForModel, seriesKeyForModel, seriesLabel } from '../lib/modelSeries'
 import { formatChartDate } from '../lib/period'
 import type { DailyHistoryEntry } from '../lib/types'
 
@@ -126,7 +126,7 @@ export function StackedBars({ daily, fallbackLabel, animateKey = '', dataStart =
         {legendSeries.map(series => (
           <span key={series}>
             <i className={seriesClassForKey(series)} />
-            {SERIES_LABELS[series]}
+            {seriesLabel(series)}
           </span>
         ))}
         {usesFallback && !presentSeries.has('other') && (
