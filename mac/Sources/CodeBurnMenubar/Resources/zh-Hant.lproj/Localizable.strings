@@ -634,6 +634,7 @@
 "%lld%% left" = "剩餘 %lld%%";
 
 /* MARK: Codex credit limit */
+"Monthly" = "每月";
 "Monthly usage limit" = "每月用量上限";
 "Monthly usage limit · limit reached" = "每月用量上限 · 已達上限";
 "Monthly usage limit · %1$@ / %2$@ credits" = "每月用量上限 · %1$@ / %2$@ 點數";

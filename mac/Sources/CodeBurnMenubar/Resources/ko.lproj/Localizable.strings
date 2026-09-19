@@ -638,6 +638,7 @@
 "%lld%% left" = "%lld%% 남음";
 
 /* MARK: Codex credit limit */
+"Monthly" = "월간";
 "Monthly usage limit" = "월간 사용 한도";
 "Monthly usage limit · limit reached" = "월간 사용 한도 · 한도 도달";
 "Monthly usage limit · %1$@ / %2$@ credits" = "월간 사용 한도 · %1$@ / %2$@ 크레딧";

@@ -638,6 +638,7 @@
 "%lld%% left" = "%lld%% restant";
 
 /* MARK: Codex credit limit */
+"Monthly" = "Mensuel";
 "Monthly usage limit" = "Limite d'usage mensuelle";
 "Monthly usage limit · limit reached" = "Limite d'usage mensuelle · limite atteinte";
 "Monthly usage limit · %1$@ / %2$@ credits" = "Limite d'usage mensuelle · %1$@ / %2$@ crédits";
