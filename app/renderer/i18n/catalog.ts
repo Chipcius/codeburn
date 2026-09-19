@@ -22,6 +22,7 @@ import { pullRequests } from './catalogs/pullRequests'
 import { spend } from './catalogs/spend'
 import { onboarding } from './catalogs/onboarding'
 import { shell } from './catalogs/shell'
+import { shared } from './catalogs/shared'
 
 const SECTIONS: SectionCatalog[] = [
   common,
@@ -36,6 +37,7 @@ const SECTIONS: SectionCatalog[] = [
   spend,
   onboarding,
   shell,
+  shared,
 ]
 
 function merge(pick: (s: SectionCatalog) => Record<string, string>): Record<string, string> {
