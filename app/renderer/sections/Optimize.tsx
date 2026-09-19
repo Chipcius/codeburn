@@ -250,7 +250,7 @@ function ActionableFindingRows({ findings, byClass }: { findings: OptimizeFindin
                 )}
               </span>
               <span className="opt-finding-savings">{formatUsd(finding.estimatedSavingsUSD)}</span>
-              <span className="opt-finding-tokens">{formatCompact(finding.tokensSaved)} tokens · {finding.basis}</span>
+              <span className="opt-finding-tokens">{t('spend.optimize.finding.tokensBasis', { tokens: formatCompact(finding.tokensSaved), basis: finding.basis })}</span>
               <span className="opt-finding-chevron" aria-hidden="true"><Icon name="chevron-right" /></span>
             </button>
             {expanded && (

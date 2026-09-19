@@ -55,6 +55,7 @@ export const spend: SectionCatalog = {
     'spend.optimize.verdict.pending': 'measuring',
 
     'spend.optimize.class.fix': 'Fix now (apply-able)',
+    'spend.optimize.finding.tokensBasis': '{tokens} tokens · {basis}',
     'spend.optimize.class.nudge': 'Habits',
     'spend.optimize.class.keep': 'FYI',
     'spend.optimize.class.summary': '{header} · {tokens} tokens · {savings} · {findings}',
@@ -132,6 +133,7 @@ export const spend: SectionCatalog = {
     'spend.optimize.verdict.pending': 'mesure en cours',
 
     'spend.optimize.class.fix': 'À corriger (applicable)',
+    'spend.optimize.finding.tokensBasis': '{tokens} tokens · {basis}',
     'spend.optimize.class.nudge': 'Habitudes',
     'spend.optimize.class.keep': 'À noter',
     'spend.optimize.class.summary': '{header} · {tokens} tokens · {savings} · {findings}',
@@ -209,6 +211,7 @@ export const spend: SectionCatalog = {
     'spend.optimize.verdict.pending': '測定中',
 
     'spend.optimize.class.fix': '今すぐ修正(適用可能)',
+    'spend.optimize.finding.tokensBasis': '{tokens}トークン ・ {basis}',
     'spend.optimize.class.nudge': '習慣',
     'spend.optimize.class.keep': '参考情報',
     'spend.optimize.class.summary': '{header} ・ {tokens}トークン ・ {savings} ・ {findings}',
@@ -286,6 +289,7 @@ export const spend: SectionCatalog = {
     'spend.optimize.verdict.pending': '측정 중',
 
     'spend.optimize.class.fix': '지금 수정(적용 가능)',
+    'spend.optimize.finding.tokensBasis': '{tokens} 토큰 · {basis}',
     'spend.optimize.class.nudge': '습관',
     'spend.optimize.class.keep': '참고',
     'spend.optimize.class.summary': '{header} · {tokens} 토큰 · {savings} · {findings}',
@@ -363,6 +367,7 @@ export const spend: SectionCatalog = {
     'spend.optimize.verdict.pending': '测量中',
 
     'spend.optimize.class.fix': '立即修复(可应用)',
+    'spend.optimize.finding.tokensBasis': '{tokens} token · {basis}',
     'spend.optimize.class.nudge': '习惯',
     'spend.optimize.class.keep': '仅供参考',
     'spend.optimize.class.summary': '{header} · {tokens} token · {savings} · {findings}',
@@ -440,6 +445,7 @@ export const spend: SectionCatalog = {
     'spend.optimize.verdict.pending': '測量中',
 
     'spend.optimize.class.fix': '立即修復(可套用)',
+    'spend.optimize.finding.tokensBasis': '{tokens} token · {basis}',
     'spend.optimize.class.nudge': '習慣',
     'spend.optimize.class.keep': '僅供參考',
     'spend.optimize.class.summary': '{header} · {tokens} token · {savings} · {findings}',
