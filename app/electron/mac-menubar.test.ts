@@ -23,9 +23,12 @@ function harness(opts: {
   cli?: { ok: boolean; stdout?: string; stderr?: string }
   /** False for a menubar too old to watch the key, which only the signal can stop. */
   honoursRemoteCommand?: boolean
+  /** How many `open` calls no-op before one actually brings the process up. */
+  flakyOpen?: number
 } = {}) {
   const present = new Set(opts.present ?? [])
   let running = Boolean(opts.running)
+  let opensToIgnore = opts.flakyOpen ?? 0
   // The command the menubar has not taken out of its defaults yet. A menubar that watches the
   // key consumes it as it acts, which is what settings() waits for.
   let pendingCommand: string | null = null
@@ -52,7 +55,7 @@ function harness(opts: {
       return ''
     }
     if (command.endsWith('osascript')) { running = false; return '' }
-    if (command.endsWith('open')) return ''
+    if (command.endsWith('open')) { if (opensToIgnore > 0) opensToIgnore--; else running = true; return '' }
     return null
   })
   const runCli = vi.fn(async (args: string[]) => {
@@ -317,6 +320,16 @@ describe('MacMenubar.settings', () => {
     await menubar.setLanguage(null)
     expect(calls.some(([cmd, args]) => cmd.endsWith('defaults') && args[0] === 'delete' && args[2] === 'AppleLanguages')).toBe(true)
     expect(calls.some(([cmd]) => cmd.endsWith('osascript'))).toBe(false)
+  })
+
+  // The `open` right after a quit can activate the dying instance and no-op,
+  // leaving the switch with a dead menu bar; the relaunch must be confirmed.
+  it('opens again when the first relaunch does not bring the menu bar up', async () => {
+    const { menubar, calls, isRunning } = harness({ present: [USER_APP], running: true, flakyOpen: 1 })
+    await menubar.setLanguage('ja')
+    const opens = calls.filter(([cmd, args]) => cmd.endsWith('open') && args[0] === USER_APP)
+    expect(opens.length).toBe(2)
+    expect(isRunning()).toBe(true)
   })
 
   it('does nothing when nothing is installed', async () => {
