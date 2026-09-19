@@ -39,7 +39,7 @@ import type {
 import type { OverviewHeadlineSnapshot } from '../lib/overviewSnapshot'
 import { formatCombinedSessionCount, formatSessionCount, sessionCountIsExact, combinedSessionCountHelp, sessionCountHelp } from '../lib/session-count-label'
 import { Icon } from '../components/icons'
-import { t } from '../i18n'
+import { localeTag, t } from '../i18n'
 
 export { localDateKey } from '../lib/period'
 
@@ -380,7 +380,7 @@ export function deriveSignals(data: MenubarPayload, now: Date, rangeActive: bool
   // ————— Risks —————
   if (today && typicalWeekday > 0 && today.cost > typicalWeekday * 1.8) {
     const ratio = today.cost / typicalWeekday
-    const weekday = now.toLocaleString('en-US', { weekday: 'long' })
+    const weekday = now.toLocaleString(localeTag(), { weekday: 'long' })
     risks.push({ text: t('overview.signals.risk.spikeToday', { ratio: ratio.toFixed(1).replace(/\.0$/, ''), weekday }) })
   }
   if (!rangeActive && weekDelta !== null && weekDelta > 25) {
@@ -502,7 +502,7 @@ function deriveStats(data: MenubarPayload, now: Date, anchorKey = localDateKey(n
     priorDayCost,
     sevenDayAvg,
     dayOverDayPct,
-    prevMonthName: prevMonth.toLocaleString('en-US', { month: 'long' }),
+    prevMonthName: prevMonth.toLocaleString(localeTag(), { month: 'long' }),
   }
 }
 
