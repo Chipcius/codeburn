@@ -1095,6 +1095,13 @@ export type ProjectRow = { name: string; path: string; cost: number; sessions: n
 export type ProjectsReport = { projects: ProjectRow[] }
 
 export interface CodeburnBridge {
+  /** The Electron app's own UI language tag (app.getLocale()), for the 'system'
+   *  locale choice. Absent on preloads that predate desktop localization. */
+  readonly appLocale?: string
+  /** The persisted shared config `language` (null/absent = follow the system). */
+  getLanguage?(): Promise<string | null>
+  /** Persist the config `language` (null clears it) and propagate to the menu bar. */
+  setLanguage?(language: string | null): Promise<void>
   /** Subscribe to cold-start scan progress; returns an unsubscribe fn. */
   onProgress(cb: (event: ScanProgressEvent) => void): () => void
   /** Read the cached update-availability status (launch + 24h background check). */

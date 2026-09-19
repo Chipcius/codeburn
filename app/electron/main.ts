@@ -252,6 +252,62 @@ export function writeProjectFilter(value: unknown): ProjectFilter {
   return filter
 }
 
+// The shared CLI config. The desktop writes only its `language` key; the CLI
+// reads the same field. Path is fixed (os.homedir), matching src/config.ts.
+function configPath(): string {
+  return path.join(os.homedir(), '.config', 'codeburn', 'config.json')
+}
+
+/** The desktop's six locales; absent/other = follow the system. */
+const APP_LOCALES = new Set(['en', 'fr', 'ja', 'ko', 'zh-CN', 'zh-TW'])
+
+export function readConfigLanguage(): string | null {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(configPath(), 'utf8')) as { language?: unknown }
+    return typeof parsed.language === 'string' && APP_LOCALES.has(parsed.language) ? parsed.language : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Persist config `language` (null clears it), preserving every other key. Staged
+ * and renamed like writeProjectFilter, so a torn write never corrupts the shared
+ * config. A missing file starts fresh; any other read error aborts rather than
+ * clobber a config that is merely unreadable this instant.
+ */
+export function writeConfigLanguage(language: string | null): void {
+  const target = configPath()
+  let config: Record<string, unknown> = {}
+  try {
+    config = JSON.parse(fs.readFileSync(target, 'utf8')) as Record<string, unknown>
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+  }
+  if (language === null) delete config.language
+  else config.language = language
+  fs.mkdirSync(path.dirname(target), { recursive: true })
+  const tmpPath = `${target}.${randomBytes(8).toString('hex')}.tmp`
+  try {
+    fs.writeFileSync(tmpPath, JSON.stringify(config, null, 2) + '\n')
+    fs.renameSync(tmpPath, target)
+  } catch (error) {
+    fs.rmSync(tmpPath, { force: true })
+    throw error
+  }
+}
+
+/**
+ * The menu bar reads AppleLanguages and falls back to English for locales it
+ * lacks (it ships en + zh-Hans). Chinese maps to the script tags the .lproj
+ * uses; null (System) clears the override so the OS language decides.
+ */
+export function appleLanguageFor(language: string | null): string | null {
+  if (language === 'zh-CN') return 'zh-Hans'
+  if (language === 'zh-TW') return 'zh-Hant'
+  return language
+}
+
 // `--opt=value`, never `--opt value`: a pattern routinely starts with "-", and
 // as a separate argv entry that parses as another flag.
 function projectArgs(): string[] {
@@ -419,7 +475,7 @@ type Deps = {
     'status' | 'setMenuBarEnabled' | 'setSidebarEnabled' | 'trayPrefs' | 'setTrayAppPref' | 'setTrayDockPref' | 'setLaunchAtLogin'
   > | null
   /** The macOS menubar app, as the Plugins page sees it; absent off darwin and under tests. */
-  macMenubar?: Pick<MacMenubar, 'status' | 'install' | 'open' | 'setDockEnabled' | 'quit' | 'uninstall' | 'settings'> | null
+  macMenubar?: Pick<MacMenubar, 'status' | 'install' | 'open' | 'setDockEnabled' | 'setLanguage' | 'quit' | 'uninstall' | 'settings'> | null
 }
 
 type Handler = (...args: any[]) => Promise<Envelope>
@@ -705,6 +761,17 @@ export function createBridgeHandlers(deps: Deps = { spawnCli, spawnCliAction, re
     // out of "N projects hidden". `all` is capped at six months, so `lifetime`
     // is the only horizon that can answer for the whole filter.
     'codeburn:getUnfilteredProjects': run(() => ['report', '--format', 'json', '--period', 'lifetime']),
+    'codeburn:getLanguage': async () => ({ ok: true, value: readConfigLanguage() }),
+    'codeburn:setLanguage': async (language?: unknown) => {
+      try {
+        const lang = typeof language === 'string' && APP_LOCALES.has(language) ? language : null
+        writeConfigLanguage(lang)
+        if (deps.macMenubar) await deps.macMenubar.setLanguage(appleLanguageFor(lang))
+        return { ok: true, value: undefined }
+      } catch (err) {
+        return { ok: false, error: toEnvelopeError(err) }
+      }
+    },
     'codeburn:setCurrency': runAction((code: string) => ['currency', vCurrency(code)]),
     'codeburn:resetCurrency': runAction(() => ['currency', '--reset']),
     'codeburn:addAlias': runAction((from: string, to: string) => ['model-alias', vToken(from), vToken(to)]),
@@ -1049,6 +1116,9 @@ function bootstrap(): void {
     })
     registerHandlers()
     installApplicationMenu()
+    // Seed the preload-readable app locale before any window loads. app.getLocale()
+    // needs the ready state, so this runs inside bootstrap's whenReady.
+    process.env.__CODEBURN_APP_LOCALE__ = app.getLocale()
     createWindow()
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()

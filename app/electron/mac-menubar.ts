@@ -272,6 +272,19 @@ export class MacMenubar {
   }
 
   /**
+   * Drive the menu bar's language the way it already honors it: AppleLanguages in
+   * its own defaults domain. A concrete Apple tag (en/ja/ko/fr, or zh-Hans/zh-Hant)
+   * overrides; null (System) clears the override so the OS language decides. The
+   * menu bar ships en + zh-Hans and falls back to English for the rest, so this is
+   * correct with no Swift change. `open` nudges a running copy to re-read it.
+   */
+  async setLanguage(appleLang: string | null): Promise<MacMenubarStatus> {
+    if (appleLang) await this.run('/usr/bin/defaults', ['write', MENUBAR_BUNDLE_ID, 'AppleLanguages', '-array', appleLang])
+    else await this.run('/usr/bin/defaults', ['delete', MENUBAR_BUNDLE_ID, 'AppleLanguages'])
+    return this.open()
+  }
+
+  /**
    * Ask the app to show its own Settings window. Unlike quit and uninstall the app stays up,
    * so what is waited for is the command being consumed: the menubar clears the key as it
    * acts, and a key still sitting there after the timeout means nobody was listening. `open`

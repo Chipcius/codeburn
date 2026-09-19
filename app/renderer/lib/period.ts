@@ -1,3 +1,4 @@
+import { localeTag } from '../i18n'
 import type { DailyHistoryEntry, Period } from './types'
 
 /** Same words the desktop TopBar and empty states must use. `all` is last six months, not lifetime. */
@@ -117,5 +118,5 @@ export function contiguousDailyWindow(daily: DailyHistoryEntry[], fromKey: strin
 /** Format a local date key for compact chart-axis labels such as "Jul 1". */
 export function formatChartDate(dateKey: string): string {
   const [year, month, day] = dateKey.split('-').map(Number)
-  return new Date(year, month - 1, day).toLocaleString('en-US', { month: 'short', day: 'numeric' })
+  return new Date(year, month - 1, day).toLocaleString(localeTag(), { month: 'short', day: 'numeric' })
 }

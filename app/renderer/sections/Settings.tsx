@@ -14,6 +14,7 @@ import { version as appVersion } from '../../package.json'
 import { readDailyBudget } from '../lib/budget'
 import { formatConverted, formatCount, formatUsd, shortenProjectPath } from '../lib/format'
 import { codeburn } from '../lib/ipc'
+import { useLocale, type LocaleChoice } from '../i18n'
 import { projectMatches, projectPattern } from '../lib/projectMatch'
 import { shortcutLabel } from '../lib/platform'
 import { motionClass } from '../lib/motion'
@@ -33,6 +34,18 @@ import { Icon } from '../components/icons'
 export type SettingsPane = 'general' | 'providers' | 'projects' | 'aliases' | 'pricing' | 'plans' | 'devices' | 'export' | 'privacy' | 'sharing' | 'menubar' | 'dock'
 type Pane = SettingsPane
 type Theme = 'system' | 'light' | 'dark'
+
+// Each label in its own language, System in the app's language. Stage 1 renders
+// English everywhere else; only these picker labels localize.
+const LANGUAGE_OPTIONS: { value: LocaleChoice; label: string }[] = [
+  { value: 'system', label: 'System' },
+  { value: 'en', label: 'English' },
+  { value: 'fr', label: 'Français' },
+  { value: 'ja', label: '日本語' },
+  { value: 'ko', label: '한국어' },
+  { value: 'zh-CN', label: '简体中文' },
+  { value: 'zh-TW', label: '繁體中文' },
+]
 
 type PlanPreset = { id: Exclude<PlanId, 'custom' | 'none'>; label: string; provider: Exclude<PlanProvider, 'all' | 'codex'> }
 
@@ -191,6 +204,7 @@ function GeneralPane({ period, refreshToken, claudeConfigs, claudeConfigSource, 
     return saved === 'light' || saved === 'dark' || saved === 'system' ? saved : 'light'
   })
   const [defaultPeriod, setDefaultPeriod] = useState(() => readSetting('codeburn.defaultPeriod') ?? 'today')
+  const { choice: languageChoice, setChoice: setLanguageChoice } = useLocale()
   const cadence = useRefreshCadence()
   const [budgetKind, setBudgetKind] = useState<'off' | 'usd' | 'tokens'>(() => readDailyBudget()?.kind ?? 'off')
   const [budgetInput, setBudgetInput] = useState(() => { const budget = readDailyBudget(); return budget ? String(budget.value) : '' })
@@ -244,6 +258,7 @@ function GeneralPane({ period, refreshToken, claudeConfigs, claudeConfigSource, 
           <div className="about-row"><span className="tx">Theme<small>Match your system or force a mode</small></span><span className="r"><span className="seg">
             {(['system', 'light', 'dark'] as Theme[]).map(value => <button key={value} className={theme === value ? 'on' : undefined} aria-pressed={theme === value} onClick={() => chooseTheme(value)}>{value[0]!.toUpperCase() + value.slice(1)}</button>)}
           </span></span></div>
+          <div className="about-row"><label className="tx" htmlFor="settings-language">Language<small>Applies right away. Menu bar follows too.</small></label><span className="r"><Dropdown id="settings-language" ariaLabel="Language" value={languageChoice} options={LANGUAGE_OPTIONS} onChange={value => { setLanguageChoice(value as LocaleChoice); trackEvent('settings_change', { setting: 'language', value }) }} width={140} /></span></div>
         </div>
         {hasConfigs && (
           <div className="about-sec">

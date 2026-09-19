@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import { isColdHydrating } from './components/CliErrorPanel'
 import { EmptyNote } from './components/EmptyState'
@@ -36,6 +36,7 @@ import {
 import { motionClass } from './lib/motion'
 import { clearOverviewHeadlines, readOverviewHeadline, writeOverviewHeadline } from './lib/overviewSnapshot'
 import { codeburn } from './lib/ipc'
+import { effectiveLocale, isLocaleChoice, LocaleContext, setCurrentLocale, type Locale, type LocaleChoice } from './i18n'
 import { trackEvent } from './lib/track'
 import { isMacPlatform, isModifierChord, shortcutLabel } from './lib/platform'
 import { localDateKey, PERIOD_LABELS } from './lib/period'
@@ -278,9 +279,41 @@ export function App() {
   )
   return (
     <RefreshCadenceContext.Provider value={cadence}>
-      <AppMain />
+      <LocaleProvider>
+        <AppMain />
+      </LocaleProvider>
     </RefreshCadenceContext.Provider>
   )
+}
+
+/**
+ * Resolves the active locale from the shared config `language` field (the same
+ * key the CLI uses) and, when that is System, the OS locale the preload exposes.
+ * Stage 1 renders English everywhere; this only wires the switch: it feeds the
+ * Intl formatters (setCurrentLocale) and the <html lang> attribute, and lets the
+ * Settings picker persist a new choice through the config-write IPC path.
+ */
+function LocaleProvider({ children }: { children: ReactNode }) {
+  const [choice, setChoiceState] = useState<LocaleChoice>('system')
+  useEffect(() => {
+    void codeburn.getLanguage?.().then(saved => {
+      if (saved && isLocaleChoice(saved)) setChoiceState(saved)
+    }).catch(() => {})
+  }, [])
+
+  const locale: Locale = effectiveLocale(choice, codeburn.appLocale)
+  useEffect(() => {
+    setCurrentLocale(locale)
+    document.documentElement.lang = locale
+  }, [locale])
+
+  const setChoice = useCallback((next: LocaleChoice) => {
+    setChoiceState(next)
+    void codeburn.setLanguage?.(next === 'system' ? null : next).catch(() => {})
+  }, [])
+
+  const value = useMemo(() => ({ locale, choice, setChoice }), [locale, choice, setChoice])
+  return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>
 }
 
 const NAV_SECTIONS = new Set<string>(['overview', 'sessions', 'pullRequests', 'spend', 'optimize', 'models', 'compare', 'plans', 'settings', 'plugins'])

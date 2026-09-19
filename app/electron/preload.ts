@@ -19,6 +19,12 @@ async function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
 // Shape matches CodeburnBridge (app/renderer/lib/types.ts); typing is enforced
 // renderer-side where `window.codeburn` is declared as CodeburnBridge.
 const bridge = {
+  // The Electron app's own UI language tag (app.getLocale()), for the renderer's
+  // 'system' locale choice. Seeded into the environment by main before the
+  // window loads, so it is sync-safe at preload time.
+  appLocale: process.env.__CODEBURN_APP_LOCALE__ ?? '',
+  getLanguage: () => invoke('codeburn:getLanguage'),
+  setLanguage: (language: string | null) => invoke('codeburn:setLanguage', language),
   getQuota: (force?: boolean, disabled?: string[]) => invoke('codeburn:getQuota', force, disabled),
   getOverview: (period: string, provider: string, range?: DateRange, configSource?: string | null, background?: boolean, scope?: string) => invoke('codeburn:getOverview', period, provider, range, configSource, background, scope),
   getTimeline: (period: string, provider: string, range?: DateRange) => invoke('codeburn:getTimeline', period, provider, range),
