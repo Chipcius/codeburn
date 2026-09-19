@@ -276,11 +276,17 @@ export class MacMenubar {
    * its own defaults domain. A concrete Apple tag (en/ja/ko/fr, or zh-Hans/zh-Hant)
    * overrides; null (System) clears the override so the OS language decides. The
    * menu bar ships en + zh-Hans and falls back to English for the rest, so this is
-   * correct with no Swift change. `open` nudges a running copy to re-read it.
+   * correct with no Swift change. AppKit reads AppleLanguages once, at launch, so a
+   * running copy is quit first — `open` then relaunches it into the new locale.
    */
   async setLanguage(appleLang: string | null): Promise<MacMenubarStatus> {
     if (appleLang) await this.run('/usr/bin/defaults', ['write', MENUBAR_BUNDLE_ID, 'AppleLanguages', '-array', appleLang])
     else await this.run('/usr/bin/defaults', ['delete', MENUBAR_BUNDLE_ID, 'AppleLanguages'])
+    const path = await this.locate()
+    if (path && (await this.status()).running) {
+      await this.run('/usr/bin/osascript', ['-e', 'quit app "CodeBurnMenubar"'])
+      await this.waitForExit(join(path, 'Contents', 'MacOS', 'CodeBurnMenubar'), EXIT_TIMEOUT_MS)
+    }
     return this.open()
   }
 

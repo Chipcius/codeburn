@@ -258,7 +258,7 @@ function GeneralPane({ period, refreshToken, claudeConfigs, claudeConfigSource, 
           <div className="about-row"><span className="tx">Theme<small>Match your system or force a mode</small></span><span className="r"><span className="seg">
             {(['system', 'light', 'dark'] as Theme[]).map(value => <button key={value} className={theme === value ? 'on' : undefined} aria-pressed={theme === value} onClick={() => chooseTheme(value)}>{value[0]!.toUpperCase() + value.slice(1)}</button>)}
           </span></span></div>
-          <div className="about-row"><label className="tx" htmlFor="settings-language">Language<small>Applies right away. Menu bar follows too.</small></label><span className="r"><Dropdown id="settings-language" ariaLabel="Language" value={languageChoice} options={LANGUAGE_OPTIONS} onChange={value => { setLanguageChoice(value as LocaleChoice); trackEvent('settings_change', { setting: 'language', value }) }} width={140} /></span></div>
+          <div className="about-row"><label className="tx" htmlFor="settings-language">Language<small>Sets the app and menu bar language. Menu bar follows too.</small></label><span className="r"><Dropdown id="settings-language" ariaLabel="Language" value={languageChoice} options={LANGUAGE_OPTIONS} onChange={value => { setLanguageChoice(value as LocaleChoice); trackEvent('settings_change', { setting: 'language', value }) }} width={140} /></span></div>
         </div>
         {hasConfigs && (
           <div className="about-sec">

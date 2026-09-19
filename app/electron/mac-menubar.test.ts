@@ -51,6 +51,7 @@ function harness(opts: {
       if (args[2] === REMOTE_COMMAND_KEY) pendingCommand = null
       return ''
     }
+    if (command.endsWith('osascript')) { running = false; return '' }
     if (command.endsWith('open')) return ''
     return null
   })
@@ -296,6 +297,26 @@ describe('MacMenubar.settings', () => {
     const result = await menubar.settings()
     expect(result).toMatchObject({ ok: false, error: NO_ANSWER })
     expect(calls.some(([cmd, args]) => cmd.endsWith('defaults') && args[0] === 'delete' && args[2] === REMOTE_COMMAND_KEY)).toBe(true)
+  })
+
+  // AppKit reads AppleLanguages only at launch, so a running menu bar must be quit and
+  // reopened for the switch to show — and the quit is AppleScript, which every version honors.
+  it('writes AppleLanguages and relaunches a running menu bar so it re-reads it', async () => {
+    const { menubar, calls } = harness({ present: [USER_APP], running: true })
+    await menubar.setLanguage('zh-Hans')
+    const write = calls.find(([cmd, args]) => cmd.endsWith('defaults') && args[0] === 'write' && args[2] === 'AppleLanguages')
+    expect(write?.[1].at(-1)).toBe('zh-Hans')
+    const quitIdx = calls.findIndex(([cmd]) => cmd.endsWith('osascript'))
+    const openIdx = calls.findIndex(([cmd, args]) => cmd.endsWith('open') && args[0] === USER_APP)
+    expect(quitIdx).toBeGreaterThanOrEqual(0)
+    expect(openIdx).toBeGreaterThan(quitIdx)
+  })
+
+  it('clears the override for System and never quits a menu bar that is down', async () => {
+    const { menubar, calls } = harness({ present: [USER_APP], running: false })
+    await menubar.setLanguage(null)
+    expect(calls.some(([cmd, args]) => cmd.endsWith('defaults') && args[0] === 'delete' && args[2] === 'AppleLanguages')).toBe(true)
+    expect(calls.some(([cmd]) => cmd.endsWith('osascript'))).toBe(false)
   })
 
   it('does nothing when nothing is installed', async () => {
