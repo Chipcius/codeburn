@@ -9,7 +9,7 @@ import type { Section } from '../components/Sidebar'
 import { StaleBanner } from '../components/StaleBanner'
 import { BarNav } from '../components/TopBar'
 import { usePolled } from '../hooks/usePolled'
-import { t } from '../i18n'
+import { localeTag, t } from '../i18n'
 import { formatConverted } from '../lib/format'
 import { codeburn } from '../lib/ipc'
 import { motionClass } from '../lib/motion'
@@ -51,7 +51,7 @@ function cycleEndDate(plan: JsonPlanSummary): Date | null {
 function formatShortDate(value: string | Date): string {
   const date = value instanceof Date ? value : new Date(value)
   if (Number.isNaN(date.getTime())) return t('plans.date.unknown')
-  return new Intl.DateTimeFormat('en-US', {
+  return new Intl.DateTimeFormat(localeTag(), {
     month: 'short',
     day: 'numeric',
   }).format(date)
