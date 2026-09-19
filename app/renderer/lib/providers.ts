@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import type { MenubarPayload, ProviderName } from './types'
 
 export const PROVIDER_NAMES: Record<ProviderName, string> = {
@@ -72,7 +73,7 @@ export function detectedProviders(current: MenubarPayload['current'] | undefined
 
 /** Title-cases a lowercased provider key from the legacy providers map. */
 export function providerLabel(provider: string): string {
-  if (provider === 'all') return 'All providers'
+  if (provider === 'all') return t('shell.provider.all')
   return provider
     .split(/[-\s]+/)
     .filter(Boolean)
