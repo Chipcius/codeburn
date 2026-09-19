@@ -284,7 +284,12 @@ describe('Linux cwd recorded on a Windows host', () => {
     expect(await parseAsWin32()).toContain('/home/me/proj')
   })
 
-  it('does not walk a POSIX cwd on win32, so a worktree marker cannot rewrite it', async () => {
+  // Skipped on a real Windows host: the scenario needs an on-disk worktree the
+  // walk WOULD canonicalize, but this fixture builds it under tmpdir(), which on
+  // Windows is a C:\ path the win32 guard rightly walks (there is no way to lay a
+  // /home/... tree on the Windows filesystem). The mocked-win32 ubuntu/macos runs
+  // still prove the guard; the literal /home/... case above covers Windows.
+  it.skipIf(process.platform === 'win32')('does not walk a POSIX cwd on win32, so a worktree marker cannot rewrite it', async () => {
     // A real POSIX tree the walk WOULD canonicalize to `main` if it ran: the
     // #984 guard must reject the path before that, because on Windows a
     // /home/... cwd names nothing on the local filesystem.
