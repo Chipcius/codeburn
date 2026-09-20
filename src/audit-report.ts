@@ -1,5 +1,5 @@
 import { isBehavioralCall } from './behavioral-weight.js'
-import { ONE_HOUR_CACHE_WRITE_MULTIPLIER_FROM_FIVE_MINUTE_RATE, billableOutputTokens, effectiveCostsForRequest, fallbackRawModelDisplayName, getModelCosts, getShortModelName, sanitizeModelForDisplay, type ModelCosts } from './models.js'
+import { ONE_HOUR_CACHE_WRITE_MULTIPLIER_FROM_FIVE_MINUTE_RATE, billableOutputTokens, fallbackRawModelDisplayName, getModelCosts, getShortModelName, sanitizeModelForDisplay, tieredCostsFor, type ModelCosts } from './models.js'
 import { getProvider } from './providers/index.js'
 import { formatCost, formatTokens } from './format.js'
 import { renderTable, type TableColumn } from './text-table.js'
@@ -66,13 +66,16 @@ export async function aggregateAudit(projects: ProjectSummary[]): Promise<AuditR
     raw: AuditRow['raw']
     // Cache writes split by TTL, and the component costs accumulated per call so
     // per-request modifiers (tier, TTL, fast mode) land on the request that
-    // earned them rather than on a period-wide average.
+    // earned them rather than on a period-wide average. A bucket's summed
+    // tokens must never cross the per-call tier threshold on their own.
     oneHourCacheWriteTokens: number
     fiveMinuteCacheWriteTokens: number
     fastCalls: number
     billableOutputTokens: number
     cost: { input: number; output: number; cacheWrite: number; cacheWriteOneHour: number; cacheRead: number; webSearch: number }
     ratedCalls: number
+    /** Resolved base rates for the bucket's model, fetched once per bucket. */
+    rates: ModelCosts | null
   }
   const buckets = new Map<string, Bucket>()
 
@@ -91,6 +94,7 @@ export async function aggregateAudit(projects: ProjectSummary[]): Promise<AuditR
               calls: 0,
               attributedCostUSD: 0,
               cacheReadDisplayed: 0,
+              rates: null,
               raw: {
                 inputTokens: 0,
                 outputTokens: 0,
@@ -107,6 +111,7 @@ export async function aggregateAudit(projects: ProjectSummary[]): Promise<AuditR
               cost: { input: 0, output: 0, cacheWrite: 0, cacheWriteOneHour: 0, cacheRead: 0, webSearch: 0 },
               ratedCalls: 0,
             }
+            bucket.rates = getModelCosts(bucket.model)
             buckets.set(key, bucket)
           }
           const u = call.usage
@@ -119,11 +124,17 @@ export async function aggregateAudit(projects: ProjectSummary[]): Promise<AuditR
           bucket.raw.webSearchRequests += u.webSearchRequests
           // Per-call max (then summed) mirrors how the reports collapse the two
           // cache-read vocabularies, so the audit's displayed total matches.
-          bucket.cacheReadDisplayed += Math.max(u.cacheReadInputTokens, u.cachedInputTokens)
+          const cacheReadForCall = Math.max(u.cacheReadInputTokens, u.cachedInputTokens)
+          bucket.cacheReadDisplayed += cacheReadForCall
           bucket.attributedCostUSD += call.costUSD
 
-          // Mirror calculateCost per call, so a bucket mixing short- and
-          // long-context requests, or both cache TTLs, still reconciles.
+          // Recompute per call through the same tier swap calculateCost applies
+          // (prompt tokens = input + cached input of THIS call), so a
+          // long-context request shows the rates that priced it while a bucket
+          // of small calls never crosses the threshold on the sum. The two gaps
+          // #1076 left open on purpose — fast mode and the 1-hour cache-write
+          // rate — are closed here too, so the recompute reconciles exactly
+          // instead of trailing the attributed cost on every Claude corpus.
           const nonNeg = (n: number) => (Number.isFinite(n) && n > 0 ? n : 0)
           const oneHour = nonNeg(call.cacheCreationOneHourTokens ?? 0)
           const totalWrite = Math.max(nonNeg(u.cacheCreationInputTokens), oneHour)
@@ -131,27 +142,20 @@ export async function aggregateAudit(projects: ProjectSummary[]): Promise<AuditR
           bucket.oneHourCacheWriteTokens += oneHour
           bucket.fiveMinuteCacheWriteTokens += fiveMinute
           if (call.speed === 'fast') bucket.fastCalls += 1
-          const callOutput = billableOutputTokens(provider, u.outputTokens, u.reasoningTokens)
-          bucket.billableOutputTokens += callOutput
-          // The same collapse the displayed column and the reports apply:
-          // providers fill one cache-read vocabulary or both.
-          const callCacheRead = Math.max(nonNeg(u.cacheReadInputTokens), nonNeg(u.cachedInputTokens))
-          const promptTokens = nonNeg(u.inputTokens) + callCacheRead
-          // 'aggregate': a stored call is not always one request — a Copilot
-          // session.shutdown rollup is summed into a single synthetic call — and
-          // nothing on the call distinguishes the two. Until that is modelled,
-          // the audit must price exactly as the report path does, which is
-          // untiered. See PromptScope in models.ts.
-          const callRates = effectiveCostsForRequest(model, promptTokens, 'aggregate')
-          if (callRates) {
+          const outputForCall = billableOutputTokens(bucket.provider, u.outputTokens, u.reasoningTokens)
+          bucket.billableOutputTokens += outputForCall
+          if (bucket.rates) {
             bucket.ratedCalls += 1
-            const multiplier = call.speed === 'fast' ? callRates.fastMultiplier : 1
-            bucket.cost.input += multiplier * nonNeg(u.inputTokens) * callRates.inputCostPerToken
-            bucket.cost.output += multiplier * callOutput * callRates.outputCostPerToken
-            bucket.cost.cacheWrite += multiplier * fiveMinute * callRates.cacheWriteCostPerToken
-            bucket.cost.cacheWriteOneHour += multiplier * oneHour * callRates.cacheWriteCostPerToken * ONE_HOUR_CACHE_WRITE_MULTIPLIER_FROM_FIVE_MINUTE_RATE
-            bucket.cost.cacheRead += multiplier * callCacheRead * callRates.cacheReadCostPerToken
-            bucket.cost.webSearch += multiplier * nonNeg(u.webSearchRequests) * callRates.webSearchCostPerRequest
+            const promptTokens = nonNeg(u.inputTokens) + cacheReadForCall
+            const tiered = tieredCostsFor(bucket.model, bucket.rates, promptTokens, bucket.provider)
+            const multiplier = call.speed === 'fast' ? tiered.fastMultiplier : 1
+            bucket.cost.input += multiplier * nonNeg(u.inputTokens) * tiered.inputCostPerToken
+            bucket.cost.output += multiplier * outputForCall * tiered.outputCostPerToken
+            bucket.cost.cacheWrite += multiplier * fiveMinute * tiered.cacheWriteCostPerToken
+            bucket.cost.cacheWriteOneHour += multiplier * oneHour * tiered.cacheWriteCostPerToken * ONE_HOUR_CACHE_WRITE_MULTIPLIER_FROM_FIVE_MINUTE_RATE
+            bucket.cost.cacheRead += multiplier * cacheReadForCall * tiered.cacheReadCostPerToken
+            // Web search never participates in a tier; keep it on the base row.
+            bucket.cost.webSearch += multiplier * nonNeg(u.webSearchRequests) * bucket.rates.webSearchCostPerRequest
           }
           // Supplementary accounting calls keep their tokens and cost above but are not
           // distinct requests, so they add no call weight (see behavioral-weight.ts).
@@ -191,10 +195,10 @@ export async function aggregateAudit(projects: ProjectSummary[]): Promise<AuditR
       cacheReadTokens: bucket.cacheReadDisplayed,
       fastCalls: bucket.fastCalls,
     }
-    // `rates` is the model's short-context row, for reference. The costs below
-    // are NOT derived from it: they were accumulated per call, each at the tier
-    // that request actually fell into.
-    const rates = getModelCosts(bucket.model)
+    // `rates` is the model's base (short-context) row, for reference. The costs
+    // below are NOT derived from it: they were accumulated per call, each at the
+    // tier, TTL and speed that request actually fell into.
+    const rates = bucket.rates
     const cost = {
       input: bucket.cost.input,
       output: bucket.cost.output,

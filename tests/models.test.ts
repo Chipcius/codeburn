@@ -127,6 +127,98 @@ describe('getModelCosts', () => {
     expect(calculateCost('gpt-5.6-codex-max', 1_000_000, 1_000_000, 0, 0, 0)).toBeGreaterThan(0)
   })
 
+  describe('long-context tiers (#1076)', () => {
+    it('bundles the source long-context tiers with their real thresholds', () => {
+      // Straight from the regenerated snapshot: OpenAI's family tiers at 272k
+      // (NOT 128k - #1075 verified 128k fabricates +64% spend), Anthropic's at
+      // 200k, with each tier's own cache rates where the source publishes them.
+      const gpt = getModelCosts('gpt-5.6')
+      expect(gpt?.longContextTier).toEqual({
+        thresholdTokens: 272_000,
+        inputCostPerToken: 8e-6,
+        outputCostPerToken: 3e-5,
+        cacheWriteCostPerToken: 1e-5,
+        cacheReadCostPerToken: 8e-7,
+      })
+      const claude = getModelCosts('claude-sonnet-4-5')
+      expect(claude?.longContextTier?.thresholdTokens).toBe(200_000)
+      expect(claude?.longContextTier?.inputCostPerToken).toBe(6e-6)
+      // A model without a published tier resolves to no tier at all.
+      expect(getModelCosts('gpt-5.6-codex')?.longContextTier).toBeUndefined()
+    })
+
+    it('applies the tier to every token at and after the threshold, and only then', () => {
+      // prompt tokens = input + cached input; below the threshold the base
+      // rates apply, at it the tier's rates price the WHOLE request.
+      const below = calculateCost('gpt-5.6', 271_999, 0, 0, 0, 0, 'standard', 0, 'codex')
+      expect(below).toBeCloseTo(271_999 * 4e-6, 9)
+      const at = calculateCost('gpt-5.6', 272_000, 0, 0, 0, 0, 'standard', 0, 'codex')
+      expect(at).toBeCloseTo(272_000 * 8e-6, 9)
+      const above = calculateCost('gpt-5.6', 271_000, 0, 0, 1_000, 0, 'standard', 0, 'codex')
+      expect(above).toBeCloseTo(271_000 * 8e-6 + 1_000 * 8e-7, 9)
+      // The tier applies only where billing evidence exists for it: the same
+      // call through a provider not in TIERED_PRICING_PROVIDERS (or none, the
+      // default for every legacy caller) keeps the base rate.
+      const notEligible = calculateCost('gpt-5.6', 300_000, 0, 0, 0, 0)
+      expect(notEligible).toBeCloseTo(300_000 * 4e-6, 9)
+      const copilot = calculateCost('gpt-5.6', 300_000, 0, 0, 0, 0, 'standard', 0, 'copilot')
+      expect(copilot).toBeCloseTo(300_000 * 4e-6, 9)
+    })
+
+    it('keeps the base rate for slots the tier omits', () => {
+      // gpt-5.5's tier publishes cache read but no cache write: crossing the
+      // threshold must not invent a tier cache-write rate, nor drop the base.
+      const base = getModelCosts('gpt-5.5')!
+      const tiered = calculateCost('gpt-5.5', 300_000, 0, 1_000, 0, 0, 'standard', 0, 'codex')
+      expect(tiered).toBeCloseTo(300_000 * base.longContextTier!.inputCostPerToken + 1_000 * base.cacheWriteCostPerToken, 9)
+      expect(base.longContextTier!.cacheWriteCostPerToken).toBeUndefined()
+    })
+
+    it('still prices below-threshold requests exactly as before the extension', () => {
+      // Compat: the tier is inert below the threshold, so pre-extension
+      // pricing on any sub-threshold call is byte-for-byte unchanged.
+      expect(calculateCost('gpt-5.6', 100_000, 50_000, 1_000, 2_000, 0))
+        .toBeCloseTo(100_000 * 4e-6 + 50_000 * 2e-5 + 1_000 * 5e-6 + 2_000 * 4e-7, 9)
+    })
+
+    it('an exact price override still beats the tier', () => {
+      setPriceOverrides({ 'gpt-5.6': { input: 2, output: 6 } })
+      expect(calculateCost('gpt-5.6', 300_000, 0, 0, 0, 0, 'standard', 0, 'codex')).toBeCloseTo(300_000 * 2e-6, 9)
+    })
+
+    it('parses the tier from a live LiteLLM entry, plain context suffixes only', () => {
+      const costs = parseLiteLLMEntry({
+        input_cost_per_token: 1e-6,
+        output_cost_per_token: 2e-5,
+        input_cost_per_token_above_272k_tokens: 5e-6,
+        output_cost_per_token_above_272k_tokens: 6e-5,
+        cache_read_input_token_cost_above_272k_tokens: 5e-7,
+        // Service-tier variants are not context thresholds and must be ignored.
+        input_cost_per_token_above_272k_priority_tokens: 9e-5,
+        input_cost_per_token_above_272k_flex_tokens: 8e-6,
+      } as never)
+      expect(costs?.longContextTier).toEqual({
+        thresholdTokens: 272_000,
+        inputCostPerToken: 5e-6,
+        outputCostPerToken: 6e-5,
+        cacheReadCostPerToken: 5e-7,
+      })
+      const none = parseLiteLLMEntry({
+        input_cost_per_token: 1e-6,
+        output_cost_per_token: 2e-5,
+        input_cost_per_token_above_272k_priority_tokens: 9e-5,
+      } as never)
+      expect(none?.longContextTier).toBeUndefined()
+    })
+
+    it('old five-slot tuples still parse without a tier', () => {
+      // The compat path: bundles predating the sixth slot load unchanged.
+      const legacy = parseLiteLLMEntry({ input_cost_per_token: 1e-6, output_cost_per_token: 2e-5 })!
+      expect(legacy.longContextTier).toBeUndefined()
+      expect(legacy.inputCostPerToken).toBe(1e-6)
+    })
+  })
+
   describe('grok-4.6 prompt tier', () => {
     it('uses the low tier below 200000 prompt tokens', () => {
       expect(calculateCost('grok-4.6', 100_000, 10_000, 0, 99_999, 0)).toBeCloseTo(0.3099995, 12)
@@ -145,59 +237,6 @@ describe('getModelCosts', () => {
       setPriceOverrides({ 'grok-4.6': { input: 2, output: 6, cacheRead: 0.5 } })
 
       expect(calculateCost('xai-oauth/grok-4.6', 100_000, 10_000, 0, 100_000, 0)).toBeCloseTo(0.31, 12)
-    })
-  })
-
-  // OpenAI publishes a second "long context" column and prices a request that
-  // crosses the threshold ENTIRELY at it. The tier is per-REQUEST, so it only
-  // applies when the caller says the token counts describe one request: the same
-  // function also prices session and rollup aggregates, where a large sum means
-  // "many small requests", not "one long-context request".
-  describe('OpenAI long-context tier', () => {
-    // gpt-6-astra short: $10 in / $50 out / $1 cached. Long: $20 / $75 / $2.
-    it('uses the short column at or below 272000 prompt tokens', () => {
-      expect(calculateCost('gpt-6-astra', 272_000, 0, 0, 0, 0, 'standard', 0, 'request')).toBeCloseTo(2.72, 10)
-    })
-
-    it('prices every token of a request above 272000 prompt tokens at the long column', () => {
-      // 272_001 input: long input rate applies to the whole request, not the excess.
-      expect(calculateCost('gpt-6-astra', 272_001, 0, 0, 0, 0, 'standard', 0, 'request')).toBeCloseTo(5.44002, 10)
-    })
-
-    it('counts cached prompt tokens toward the threshold and prices them at the long cached rate', () => {
-      // 100K uncached + 200K cached = 300K prompt: over the line.
-      // 100_000 * $20/M + 200_000 * $2/M = 2.0 + 0.4
-      expect(calculateCost('gpt-6-astra', 100_000, 0, 0, 200_000, 0, 'standard', 0, 'request')).toBeCloseTo(2.4, 10)
-    })
-
-    it('prices output at the long rate too', () => {
-      // 300K input at $20/M, 10K output at $75/M.
-      expect(calculateCost('gpt-6-astra', 300_000, 10_000, 0, 0, 0, 'standard', 0, 'request')).toBeCloseTo(6.75, 10)
-    })
-
-    it('leaves an aggregate of many small requests on the short column', () => {
-      // The Copilot session.shutdown rollup shape: a 12.6M-token SUM over a
-      // handful of requests, none of them long-context. Tiering this would
-      // invent spend against a real vendor bill (#parser c4).
-      const aggregate = calculateCost('gpt-5.6-terra', 12_600_000, 0, 0, 0, 0)
-      expect(aggregate).toBeCloseTo(25.2, 10) // 12.6M * $2/M, the short rate
-    })
-
-    it('applies to every model the vendor publishes a long column for', () => {
-      // sol $4->$8, terra $2->$4, luna $0.20->$0.40 per 1M input.
-      expect(calculateCost('gpt-5.6-sol', 1_000_000, 0, 0, 0, 0, 'standard', 0, 'request')).toBeCloseTo(8, 10)
-      expect(calculateCost('gpt-5.6-terra', 1_000_000, 0, 0, 0, 0, 'standard', 0, 'request')).toBeCloseTo(4, 10)
-      expect(calculateCost('gpt-5.6-luna', 1_000_000, 0, 0, 0, 0, 'standard', 0, 'request')).toBeCloseTo(0.4, 10)
-    })
-
-    it('leaves a model the vendor publishes no long column for on its single rate', () => {
-      // gpt-5.6-cyber is listed with "none" for long context: $12.50/M throughout.
-      expect(calculateCost('gpt-5.6-cyber', 1_000_000, 0, 0, 0, 0, 'standard', 0, 'request')).toBeCloseTo(12.5, 10)
-    })
-
-    it('lets an exact price override win over the built-in tier', () => {
-      setPriceOverrides({ 'gpt-6-astra': { input: 1, output: 2 } })
-      expect(calculateCost('gpt-6-astra', 1_000_000, 0, 0, 0, 0, 'standard', 0, 'request')).toBeCloseTo(1, 10)
     })
   })
 
