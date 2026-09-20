@@ -251,40 +251,6 @@
   }
 }
 
-/* Windows: plugins have no runtime there yet, so the page says so instead of loading.
-   A panel of its own, with the section's own glyph above it. */
-.soon {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  text-align: left;
-  gap: var(--sp-3);
-  padding: var(--sp-6);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--fill);
-}
-
-.soonMark {
-  width: 30px;
-  height: 30px;
-  color: var(--accent);
-  opacity: .9;
-}
-
-.soonTitle {
-  color: var(--ink);
-  font-size: var(--fs-subhead);
-  font-weight: var(--fw-subhead);
-}
-
-.soonBody {
-  margin: 0;
-  max-width: 42ch;
-  color: var(--mut);
-  font-size: var(--fs-body);
-  line-height: 1.55;
-}
 
 /* The macOS menu bar app's card (MenuBarCard.tsx). Same .row shell as a plugin; the switch
    sits outside .actions because that rule repaints every button under it, which would strip
@@ -557,6 +523,14 @@
   box-shadow: none;
   animation: none;
 }
+
+/* The Windows companion card's toggles sit on the light card surface, not over the artwork's
+   darker right edge the way the macOS card's controls do, so they key off the theme tokens the
+   Settings switches use rather than the bare switch painted for the dark onboarding sheet. */
+.companionCard :global(.switch) { border-color: var(--line2); background: var(--hover); }
+.companionCard :global(.switch .switch-knob) { background: var(--mut); }
+.companionCard :global(.switch.on) { background: var(--accent); border-color: var(--accent); }
+.companionCard :global(.switch.on .switch-knob) { background: #fff; }
 
 /* Teams has nothing to press, so the slot the other card fills with buttons carries a label. */
 .pill {

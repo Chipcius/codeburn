@@ -19,8 +19,13 @@ let updateChecker: UpdateChecker | null = null
 let companion: MenubarCompanion | null = null
 let macMenubar: MacMenubar | null = null
 
-/** What the sidebar switches read on a platform that has no tray app to bundle. */
-export const NO_COMPANION: CompanionStatus = { supported: false, menuBar: false, sidebar: false, store: false }
+/** What the companion card reads on a platform that has no tray app to bundle. */
+export const NO_COMPANION: CompanionStatus = {
+  supported: false, menuBar: false, sidebar: false, store: false,
+  canInstall: false, installed: false, running: false, version: null, outdated: false,
+}
+/** The discrete-action fallback (install/quit/uninstall) where there is no companion. */
+export const NO_COMPANION_ACTION = { ok: false, error: null, status: NO_COMPANION }
 
 /** The slice of Telemetry the bridge handlers use — injectable for tests. */
 export type TelemetryBridge = Pick<Telemetry, 'status' | 'setEnabled' | 'completeOnboarding' | 'track'>
@@ -472,7 +477,8 @@ type Deps = {
   /** The bundled tray app and Capacity Dock; absent off Windows and under tests. */
   companion?: Pick<
     MenubarCompanion,
-    'status' | 'setMenuBarEnabled' | 'setSidebarEnabled' | 'trayPrefs' | 'setTrayAppPref' | 'setTrayDockPref' | 'setLaunchAtLogin'
+    'status' | 'trayPrefs' | 'setTrayAppPref' | 'setTrayDockPref' | 'setLaunchAtLogin'
+    | 'install' | 'open' | 'quit' | 'uninstall' | 'setDockEnabled'
   > | null
   /** The macOS menubar app, as the Plugins page sees it; absent off darwin and under tests. */
   macMenubar?: Pick<MacMenubar, 'status' | 'install' | 'open' | 'setDockEnabled' | 'setLanguage' | 'quit' | 'uninstall' | 'settings'> | null
@@ -819,11 +825,19 @@ export function createBridgeHandlers(deps: Deps = { spawnCli, spawnCliAction, re
     // The bundled tray app and its Capacity Dock (Windows). Every setter answers with the
     // whole status, so the sidebar renders the state that actually took rather than the one
     // it asked for: an install that was cancelled leaves the switch where it was.
-    'codeburn:companionStatus': async () => ({ ok: true, value: deps.companion ? deps.companion.status() : NO_COMPANION }),
-    'codeburn:setMenuBarEnabled': async (enabled?: boolean) =>
-      ({ ok: true, value: deps.companion ? await deps.companion.setMenuBarEnabled(Boolean(enabled)) : NO_COMPANION }),
-    'codeburn:setSidebarEnabled': async (enabled?: boolean) =>
-      ({ ok: true, value: deps.companion ? await deps.companion.setSidebarEnabled(Boolean(enabled)) : NO_COMPANION }),
+    'codeburn:companionStatus': async () => ({ ok: true, value: deps.companion ? await deps.companion.status() : NO_COMPANION }),
+    // The Plugins card's discrete actions, mirroring the macOS card: install/reinstall, show
+    // the tray UI, quit without uninstalling, and remove. Each answers with the whole status.
+    'codeburn:companionInstall': async () =>
+      ({ ok: true, value: deps.companion ? await deps.companion.install() : NO_COMPANION_ACTION }),
+    'codeburn:companionOpen': async () =>
+      ({ ok: true, value: deps.companion ? await deps.companion.open() : NO_COMPANION }),
+    'codeburn:companionQuit': async () =>
+      ({ ok: true, value: deps.companion ? await deps.companion.quit() : NO_COMPANION_ACTION }),
+    'codeburn:companionUninstall': async () =>
+      ({ ok: true, value: deps.companion ? await deps.companion.uninstall() : NO_COMPANION_ACTION }),
+    'codeburn:companionSetDock': async (enabled?: boolean) =>
+      ({ ok: true, value: deps.companion ? await deps.companion.setDockEnabled(Boolean(enabled)) : NO_COMPANION }),
     // The tray app's own settings, which live in the files it reads them from. Every setter
     // answers with the whole set, so the panes render what landed rather than what was sent.
     'codeburn:trayPrefs': async () => ({ ok: true, value: deps.companion ? await deps.companion.trayPrefs() : null }),
@@ -1094,7 +1108,11 @@ function bootstrap(): void {
     // before the handlers so the sidebar's switches have something to read, and installed in
     // the background so a `/passive` msiexec run never holds the first window back.
     companion = new MenubarCompanion({
-      resourcesPath: app.isPackaged ? process.resourcesPath : null,
+      // Packaged: the real resources dir. Dev: null, unless CODEBURN_MENUBAR_RESOURCES points at
+      // a packaged-style layout (a `menubar` dir under it, with CodeBurn.exe beside it), so the
+      // tray install can be exercised without packaging. A dev convenience like CODEBURN_BIN and
+      // CODEBURN_DEV_REPO_ROOT; the CLI still validates the staged path in full (menubar-installer.ts).
+      resourcesPath: app.isPackaged ? process.resourcesPath : (process.env.CODEBURN_MENUBAR_RESOURCES ?? null),
       stateDir: app.getPath('userData'),
       // Electron sets this in an installed AppX package, which is the Store route.
       store: (process as NodeJS.Process & { windowsStore?: boolean }).windowsStore === true,

@@ -1,6 +1,6 @@
 import { isAbsolute } from 'path'
 import { Command, Option } from 'commander'
-import { installMenubarApp } from './menubar-installer.js'
+import { installMenubarApp, uninstallMenubarApp } from './menubar-installer.js'
 import { exportCsv, exportJson, type PeriodExport } from './export.js'
 import { findUnpricedModels, modelRowKey, loadPricing, sanitizeModelForDisplay, setModelAliases, setPriceOverrides, setLocalModelSavings, setFlatRateModels, setFlatRateRemoved, setProxyPaths, normalizeProxyPath, unpricedModelHint, isBuiltInFlatRateModel, isSameFlatRateModel, getProxyPathsConfigHash, getModelAliasesConfigHash, getPriceOverridesConfigHash, getLocalModelSavingsConfigHash, getFlatRateModelsConfigHash, getPricingGenerationKey } from './models.js'
 import { cachedProjectIdentitiesForRange } from './daily-cache.js'
@@ -1476,14 +1476,19 @@ program
   .description('Install and launch the menubar app on macOS and Windows (one command, no clone)')
   .option('--force', 'Reinstall even if a copy is already installed')
   .option('--staged-msi <path>', 'Windows: install the CodeBurn.Menubar .msi staged inside an installed CodeBurn desktop app, by absolute path')
-  .action(async (opts: { force?: boolean; stagedMsi?: string }) => {
+  .option('--uninstall', 'Windows: remove the installed CodeBurn Menubar (msiexec /x)')
+  .action(async (opts: { force?: boolean; stagedMsi?: string; uninstall?: boolean }) => {
     try {
+      if (opts.uninstall) {
+        await uninstallMenubarApp({ cliVersion: version })
+        return
+      }
       const result = await installMenubarApp({ force: opts.force, cliVersion: version, stagedMsi: opts.stagedMsi })
       // A cancelled Windows installer leaves nothing to point at.
       if (result.installedPath) console.log(`\n  Ready. ${result.installedPath}\n`)
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
-      console.error(`\n  Menubar install failed: ${message}\n`)
+      console.error(`\n  Menubar ${opts.uninstall ? 'uninstall' : 'install'} failed: ${message}\n`)
       process.exit(1)
     }
   })

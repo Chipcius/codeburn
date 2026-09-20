@@ -2,9 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 
 import { version } from '../../package.json'
 import { t } from '../i18n'
-import { codeburn } from '../lib/ipc'
 import { isModifierChord, shortcutLabel } from '../lib/platform'
-import type { CompanionStatus } from '../lib/types'
 import { AboutModal } from './AboutModal'
 import { Icon } from './icons'
 
@@ -118,7 +116,6 @@ export function Sidebar({
           </div>
         ))}
         <div className="push" />
-        <CompanionSwitches />
         <div className="foot">
           <a className="about" href="#about" data-tip={t('shell.sidebar.about')} onClick={event => { event.preventDefault(); setAboutOpens(opens => opens + 1) }}>
             <Icon name="info" />
@@ -142,82 +139,4 @@ function readCollapsed(): boolean {
 
 function writeCollapsed(collapsed: boolean): void {
   try { globalThis.localStorage?.setItem(COLLAPSE_KEY, collapsed ? '1' : '0') } catch { /* storage can be unavailable */ }
-}
-
-/**
- * The two surfaces the Windows desktop app carries besides its own window: the tray app
- * ("Menu bar") and the Capacity Dock rail it draws ("Sidebar"). Both are on by default and
- * live above About.
- *
- * Nothing renders until the main process says this build has a tray app staged, which is why
- * there is no placeholder row and no disabled switch: on macOS, on Linux, and in a dev build
- * with nothing staged, the corner is exactly what it always was.
- */
-function CompanionSwitches() {
-  const [status, setStatus] = useState<CompanionStatus | null>(null)
-  const [busy, setBusy] = useState<'menuBar' | 'sidebar' | null>(null)
-
-  useEffect(() => {
-    let live = true
-    // `codeburn` is the preload bridge, absent in a plain browser and under tests, and
-    // `companionStatus` is absent on a preload that predates these two switches.
-    void codeburn?.companionStatus?.()
-      .then(next => { if (live) setStatus(next) })
-      .catch(() => {})
-    return () => { live = false }
-  }, [])
-
-  if (!status?.supported) return null
-
-  // Every setter answers with the whole status, so a switch shows what took rather than what
-  // was asked for: an install the person cancelled at the UAC prompt leaves it where it was.
-  const toggle = (key: 'menuBar' | 'sidebar') => {
-    if (busy) return
-    const call = key === 'menuBar' ? codeburn.setMenuBarEnabled : codeburn.setSidebarEnabled
-    if (!call) return
-    setBusy(key)
-    void call.call(codeburn, !status[key])
-      .then(setStatus)
-      .catch(() => {})
-      .finally(() => setBusy(null))
-  }
-
-  // The rail is a window of the tray app, and every setting it reads belongs to the tray app,
-  // so there is no rail without one. With Menu bar off the Sidebar switch has nothing to
-  // control and says so, rather than looking available and turning the tray app on underneath.
-  const railBlocked = !status.menuBar
-
-  const row = (key: 'menuBar' | 'sidebar', label: string, hint: string) => {
-    const blocked = key === 'sidebar' && railBlocked
-    const title = blocked ? t('shell.sidebar.railBlocked') : hint
-    return (
-      <div className={blocked ? 'companion-row blocked' : 'companion-row'} data-tip={label}>
-        <span className="companion-label" title={title}>{label}</span>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={status[key]}
-          aria-label={label}
-          title={title}
-          disabled={busy !== null || blocked}
-          className={status[key] ? 'switch sm on' : 'switch sm'}
-          onClick={() => toggle(key)}
-        >
-          <span className="switch-knob" />
-        </button>
-      </div>
-    )
-  }
-
-  return (
-    <div className="companion">
-      {row('menuBar', t('shell.sidebar.menuBar'), t('shell.sidebar.menuBarHint'))}
-      {row('sidebar', t('shell.sidebar.dockLabel'), t('shell.sidebar.dockHint'))}
-      {/* Windows finishes an install it could not complete at the next restart, and until
-          then the old tray app is what is on disk, so nothing was started. */}
-      {status.restartRequired ? (
-        <p className="companion-note">{t('shell.sidebar.restartRequired')}</p>
-      ) : null}
-    </div>
-  )
 }

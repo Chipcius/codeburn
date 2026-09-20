@@ -31,7 +31,7 @@ import { CapacityDockPane, MenuBarPane } from './SettingsTray'
 import type { ActionResult, AliasRow, ClaudeConfigSelector, CompanionStatus, CliError, CombinedUsage, DeviceScanResult, Identity, JsonPlanSummary, MenubarPayload, Period, PlanId, PlanProvider, PriceOverrideList, PriceOverrideRow, PriceRates, ProjectFilter, ProjectRow, ProjectsReport, ProviderName, QuotaProvider, Scope, ShareStatus, StatusJson, TelemetryStatus } from '../lib/types'
 import { Icon, type IconName } from '../components/icons'
 
-export type SettingsPane = 'general' | 'providers' | 'projects' | 'aliases' | 'pricing' | 'plans' | 'devices' | 'export' | 'privacy' | 'sharing' | 'menubar' | 'dock'
+export type SettingsPane = 'general' | 'providers' | 'projects' | 'aliases' | 'pricing' | 'plans' | 'devices' | 'export' | 'privacy' | 'sharing' | 'menubar'
 type Pane = SettingsPane
 type Theme = 'system' | 'light' | 'dark'
 
@@ -90,10 +90,10 @@ const RAIL_ITEMS: Array<{ id: Pane; labelKey: string; icon: React.ReactNode }> =
   { id: 'privacy', labelKey: 'settings.rail.privacy', icon: <Icon name="shield" /> },
 ]
 
-/// Appended to the rail only while the matching switch in the sidebar corner is on.
-const TRAY_RAIL_ITEMS: Record<'menubar' | 'dock', { id: Pane; labelKey: string; icon: React.ReactNode }> = {
+/// Appended to the rail only while the Menu bar is on. The Capacity Dock settings render inside
+/// this one pane (CapacityDockPane below MenuBarPane), so there is no separate dock rail entry.
+const TRAY_RAIL_ITEMS: Record<'menubar', { id: Pane; labelKey: string; icon: React.ReactNode }> = {
   menubar: { id: 'menubar', labelKey: 'settings.rail.menubar', icon: <Icon name="panel-top" /> },
-  dock: { id: 'dock', labelKey: 'settings.rail.dock', icon: <Icon name="panel-right" /> },
 }
 
 /// The sidebar's two switches decide which tray panes exist, so this reads the same status
@@ -151,10 +151,11 @@ export function Settings({ period, refreshToken = 0, onNavigate, initialPane, cl
   // sidebar corner is on: there is nothing to configure about a tray app that is not running,
   // and the rail is one of its windows.
   const companion = useCompanionStatus()
+  // One tray pane, not two: the Capacity Dock settings live inside the Menu bar pane (it is the
+  // tray app that draws the rail), so there is a single rail entry and a single place to open.
   const railItems = [
     ...RAIL_ITEMS,
     ...(companion?.supported && companion.menuBar ? [TRAY_RAIL_ITEMS.menubar] : []),
-    ...(companion?.supported && companion.sidebar ? [TRAY_RAIL_ITEMS.dock] : []),
   ]
   // A pane whose switch has just been turned off cannot stay on screen.
   const paneExists = railItems.some(item => item.id === pane)
@@ -185,8 +186,14 @@ export function Settings({ period, refreshToken = 0, onNavigate, initialPane, cl
           {pane === 'export' && <ExportPane period={period} refreshToken={refreshToken} />}
           {pane === 'sharing' && <SharingPane />}
           {pane === 'privacy' && <PrivacyPane />}
-          {pane === 'menubar' && <MenuBarPane />}
-          {pane === 'dock' && <CapacityDockPane refreshToken={refreshToken} />}
+          {pane === 'menubar' && (
+            // A clear gap between the Menu bar card and the Capacity Dock card, since the two
+            // sections share one pane rather than sitting behind separate rail entries.
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-7)' }}>
+              <MenuBarPane />
+              <CapacityDockPane refreshToken={refreshToken} />
+            </div>
+          )}
         </main>
       </div>
       <Hint items={[{ k: shortcutLabel('1-9'), label: t('settings.hint.navigate') }, { k: shortcutLabel(','), label: t('settings.hint.settings') }, { k: shortcutLabel('R'), label: t('settings.hint.refresh') }]} right={t('settings.hint.pairing')} />

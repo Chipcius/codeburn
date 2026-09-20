@@ -947,7 +947,7 @@ function AppMain() {
         ) : section === 'settings' ? (
           <Settings period={period} refreshToken={refreshToken} onNavigate={navigate} initialPane={settingsPane} claudeConfigs={claudeConfigs} claudeConfigSource={claudeConfigSource} onConfigMutated={onConfigMutated} scope={scope} onScopeChange={onScopeChange} projectFiltered={projectFiltered} />
         ) : section === 'plugins' ? (
-          <PluginsSection />
+          <PluginsSection onNavigate={navigate} />
         ) : (
           <>
             <TopBar

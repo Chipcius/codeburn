@@ -34,6 +34,10 @@ export function Sankey({ flow }: { flow: SpendFlow }) {
   const [width, setWidth] = useState(FALLBACK_W)
   const [gutters, setGutters] = useState({ left: FALLBACK_GUTTER, right: FALLBACK_GUTTER })
   const [nameCap, setNameCap] = useState<Record<string, number>>({})
+  // Identifies the current layout: caps reset (allowing labels to un-truncate) only when the
+  // width or the flow's shape changes, and otherwise tighten monotonically to a fixed point.
+  const capsLayoutRef = useRef('')
+  const layoutKey = `${width}:${flow.models.length}:${flow.projects.length}:${flow.links.length}`
 
   useLayoutEffect(() => {
     const host = hostRef.current
@@ -61,27 +65,45 @@ export function Sankey({ flow }: { flow: SpendFlow }) {
     const labels = [...svg.querySelectorAll<SVGTextElement>('text[data-node]')]
     if (!labels.length || typeof labels[0].getComputedTextLength !== 'function') return
     const cap = width * LABEL_SHARE
-    const nextCap: Record<string, number> = {}
+    const measuredCaps: Record<string, number> = {}
     let left = 0
     let right = 0
     for (const label of labels) {
       const drawn = (label.textContent ?? '').length
       const measured = label.getComputedTextLength()
       if (!drawn || !measured) continue
+      // Decide from the label's FULL width, estimated as per-character width times the
+      // untruncated name length (data-name carries the full label). Measuring the drawn text
+      // let a capped label read as short, so it un-capped, grew past the cap, and re-capped
+      // forever ("Maximum update depth exceeded"). The full length does not swing with the cap.
       const perChar = measured / drawn
-      if (measured > cap) {
-        const drop = Math.ceil((measured - cap) / perChar) + 1
-        const name = label.dataset.name ?? ''
-        nextCap[label.dataset.node ?? ''] = Math.max(4, name.length - drop)
+      const name = label.dataset.name ?? ''
+      const fullWidth = perChar * name.length
+      if (fullWidth > cap) {
+        const drop = Math.ceil((fullWidth - cap) / perChar) + 1
+        measuredCaps[label.dataset.node ?? ''] = Math.max(4, name.length - drop)
       }
-      const final = Math.min(measured, cap)
+      const final = Math.min(fullWidth, cap)
       if (label.dataset.side === 'left') left = Math.max(left, final)
       else right = Math.max(right, final)
     }
     const next = { left: Math.ceil(left) + LABEL_GAP + NODE_W, right: Math.ceil(right) + LABEL_GAP }
     setGutters(prev => (Math.abs(prev.left - next.left) < 1 && Math.abs(prev.right - next.right) < 1 ? prev : next))
-    setNameCap(prev => (sameCaps(prev, nextCap) ? prev : nextCap))
-  }, [flow, width, gutters.left, gutters.right, nameCap])
+    // Caps only ever tighten for a given layout, and reset when the layout (width or the flow's
+    // shape) changes. Monotonic tightening bounded below by 4 guarantees the measure -> cap ->
+    // remeasure cycle terminates instead of oscillating between a capped and an uncapped label.
+    const fresh = capsLayoutRef.current !== layoutKey
+    capsLayoutRef.current = layoutKey
+    setNameCap(prev => {
+      const base = fresh ? {} : prev
+      const merged = { ...base }
+      let changed = fresh && Object.keys(prev).length > 0
+      for (const [node, capValue] of Object.entries(measuredCaps)) {
+        if (merged[node] === undefined || capValue < merged[node]) { merged[node] = capValue; changed = true }
+      }
+      return changed ? merged : prev
+    })
+  }, [flow, width, gutters.left, gutters.right, nameCap, layoutKey])
 
   const modelById = new Map(models.map(node => [node.id, node]))
   const projectById = new Map(projects.map(node => [node.id, node]))
@@ -151,7 +173,7 @@ export function Sankey({ flow }: { flow: SpendFlow }) {
             <text
               data-node={node.id}
               data-side="left"
-              data-name={node.displayLabel}
+              data-name={node.axLabel}
               x={round(leftX - NODE_W - LABEL_GAP)}
               y={round(node.y + node.h / 2 + 3)}
               textAnchor="end"
@@ -168,7 +190,7 @@ export function Sankey({ flow }: { flow: SpendFlow }) {
             <text
               data-node={node.id}
               data-side="right"
-              data-name={node.displayLabel}
+              data-name={node.axLabel}
               x={round(rightX + NODE_W + LABEL_GAP)}
               y={round(node.y + node.h / 2 + 3)}
               aria-label={`${node.axLabel} ${formatUsd(node.cost)}`}
@@ -181,12 +203,6 @@ export function Sankey({ flow }: { flow: SpendFlow }) {
       </svg>
     </div>
   )
-}
-
-function sameCaps(a: Record<string, number>, b: Record<string, number>): boolean {
-  const keys = new Set([...Object.keys(a), ...Object.keys(b)])
-  for (const key of keys) if (a[key] !== b[key]) return false
-  return true
 }
 
 function layoutNodes(nodes: SpendFlowNode[], x: number, modelSide: boolean, nameCap: Record<string, number>): LayoutNode[] {

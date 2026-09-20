@@ -611,23 +611,24 @@ describe('Settings', () => {
     expect(screen.queryByRole("button", { name: "Capacity Dock" })).toBeNull()
   })
 
-  it("offers both tray panes while both switches are on", async () => {
+  it("shows the Menu bar and Capacity Dock settings together in one pane", async () => {
     mocks.companionStatus.mockResolvedValue({ supported: true, menuBar: true, sidebar: true, store: false })
     const user = userEvent.setup()
     render(<Settings period="month" />)
 
     await user.click(await screen.findByRole("button", { name: "Menu bar" }))
     expect(await screen.findByRole("heading", { name: "Menu bar" })).toBeInTheDocument()
-
-    await user.click(screen.getByRole("button", { name: "Capacity Dock" }))
+    // The Capacity Dock settings live inside the same pane, not behind a second rail entry.
     expect(await screen.findByRole("heading", { name: "Capacity Dock" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Capacity Dock" })).toBeNull()
   })
 
-  it("drops the Capacity Dock pane when the Sidebar switch is off", async () => {
+  it("keeps the Capacity Dock settings in the Menu bar pane even when the rail is off", async () => {
     mocks.companionStatus.mockResolvedValue({ supported: true, menuBar: true, sidebar: false, store: false })
+    const user = userEvent.setup()
     render(<Settings period="month" />)
 
-    expect(await screen.findByRole("button", { name: "Menu bar" })).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "Capacity Dock" })).toBeNull()
+    await user.click(await screen.findByRole("button", { name: "Menu bar" }))
+    expect(await screen.findByRole("heading", { name: "Capacity Dock" })).toBeInTheDocument()
   })
 })

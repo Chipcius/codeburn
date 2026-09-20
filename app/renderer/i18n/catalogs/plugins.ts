@@ -4,8 +4,6 @@ export const plugins: SectionCatalog = {
   en: {
     'plugins.title': 'Plugins',
 
-    'plugins.comingSoon.title': 'Plugins are coming to Windows',
-    'plugins.comingSoon.body': 'They arrive in a later Windows release; on macOS and Linux they are available today.',
 
     'plugins.teams.name': 'Teams',
     'plugins.teams.aboutAria': 'What Teams will do',
@@ -88,8 +86,6 @@ export const plugins: SectionCatalog = {
   fr: {
     'plugins.title': 'Plugins',
 
-    'plugins.comingSoon.title': 'Les plugins arrivent sur Windows',
-    'plugins.comingSoon.body': "Ils arrivent dans une prochaine version Windows ; sur macOS et Linux, ils sont disponibles dès aujourd'hui.",
 
     'plugins.teams.name': 'Teams',
     'plugins.teams.aboutAria': 'Ce que Teams fera',
@@ -172,8 +168,6 @@ export const plugins: SectionCatalog = {
   ja: {
     'plugins.title': 'プラグイン',
 
-    'plugins.comingSoon.title': 'プラグインは間もなくWindowsに対応します',
-    'plugins.comingSoon.body': '今後のWindowsリリースで利用可能になります。macOSとLinuxでは現在ご利用いただけます。',
 
     'plugins.teams.name': 'Teams',
     'plugins.teams.aboutAria': 'Teamsでできること',
@@ -256,8 +250,6 @@ export const plugins: SectionCatalog = {
   ko: {
     'plugins.title': '플러그인',
 
-    'plugins.comingSoon.title': '플러그인이 곧 Windows에 제공됩니다',
-    'plugins.comingSoon.body': '이후 Windows 릴리스에서 제공됩니다. macOS와 Linux에서는 지금 이용할 수 있습니다.',
 
     'plugins.teams.name': 'Teams',
     'plugins.teams.aboutAria': 'Teams가 하게 될 일',
@@ -340,8 +332,6 @@ export const plugins: SectionCatalog = {
   zhCN: {
     'plugins.title': '插件',
 
-    'plugins.comingSoon.title': '插件即将登陆 Windows',
-    'plugins.comingSoon.body': '它们将在后续的 Windows 版本中推出;在 macOS 和 Linux 上,现在即可使用。',
 
     'plugins.teams.name': 'Teams',
     'plugins.teams.aboutAria': 'Teams 将会做什么',
@@ -424,8 +414,6 @@ export const plugins: SectionCatalog = {
   zhTW: {
     'plugins.title': '外掛',
 
-    'plugins.comingSoon.title': '外掛即將登陸 Windows',
-    'plugins.comingSoon.body': '它們將在後續的 Windows 版本中推出;在 macOS 和 Linux 上,現在即可使用。',
 
     'plugins.teams.name': 'Teams',
     'plugins.teams.aboutAria': 'Teams 將會做什麼',

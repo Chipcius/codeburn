@@ -179,39 +179,24 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
 .sb-collapse { display: inline-flex; margin-left: auto; padding: 4px; border: 0; border-radius: 6px; background: transparent; color: var(--mut); cursor: pointer; }
 .sb-collapse:hover { background: var(--nav-hover); color: var(--nav-ink); }
 .sb.collapsed { flex-basis: 56px; }
-.sb.collapsed :is(.app b, .ni-label, .grp-label, .foot .ver, .companion-label) {
+.sb.collapsed :is(.app b, .ni-label, .grp-label, .foot .ver) {
   flex: 0 1 0; min-width: 0; margin: 0; padding: 0; border-width: 0; overflow: hidden; opacity: 0;
   transition: opacity var(--dur-fast) var(--ease-out);
 }
-.sb.collapsed :is(.app, .ni, .foot .about, .companion-row) { gap: 0; padding: 0; justify-content: center; overflow: hidden; }
+.sb.collapsed :is(.app, .ni, .foot .about) { gap: 0; padding: 0; justify-content: center; overflow: hidden; }
 .sb.collapsed .app { padding-bottom: 14px; }
 .sb.collapsed .sb-collapse { margin-left: 0; }
 .sb.collapsed .ni { width: 36px; height: 36px; margin: 0 auto; }
 .sb.collapsed .foot .about { width: 36px; height: 36px; margin: 0 auto; }
-.sb.collapsed .companion-row .switch { margin-left: 0; }
-.sb.collapsed .companion-note { display: none; }
 /* Hovering a rail row names it to the right, in the chart tooltip's palette. */
-.sb.collapsed :is(.ni, .foot .about, .sb-collapse, .companion-row):hover::after {
+.sb.collapsed :is(.ni, .foot .about, .sb-collapse):hover::after {
   content: attr(data-tip); position: absolute; left: calc(100% + 10px); top: 50%; z-index: 40;
   padding: 5px 9px; border: 1px solid color-mix(in srgb, var(--tip-ink) 14%, transparent); border-radius: 7px;
   background: var(--tip-bg); color: var(--tip-ink); font-size: var(--fs-meta); line-height: 1.35;
   white-space: nowrap; pointer-events: none; transform: translateY(-50%);
   box-shadow: 0 6px 20px rgba(0,0,0,.22);
 }
-.sb.collapsed :is(.foot .about, .sb-collapse, .companion-row) { position: relative; }
-/* Windows only: the tray app and the Capacity Dock rail, above About. Same 8px gutter and
-   12.5px type as a nav item, so the corner reads as one column rather than two. */
-.companion { padding: 8px 0 2px; border-top: 1px solid var(--line); }
-.companion-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
-.companion-label { color: var(--mut); font-size: var(--fs-body); font-weight: 480; }
-.companion-row .switch { margin-left: auto; }
-/* The one line the corner ever says out loud: an install Windows can only finish at the next
-   restart, which is why neither switch has started anything. */
-.companion-note { margin: 2px 0 4px; color: var(--mut); font-size: var(--fs-meta); line-height: 1.35; }
-/* Sidebar while the menu bar app is off: the rail is one of its windows, so there is nothing
-   to switch. Dimmed rather than hidden, so the row does not appear and vanish under a pointer
-   on its way to About. */
-.companion-row.blocked .companion-label { opacity: .5; }
+.sb.collapsed :is(.foot .about, .sb-collapse) { position: relative; }
 
 /* The two tray-app panes in Settings: an accent picker, a size slider and a provider row. */
 .tray-accents { display: inline-flex; gap: var(--sp-1); align-items: center; }
@@ -224,12 +209,6 @@ body { overflow: hidden; background: var(--bg); color: var(--ink); }
 .set-dock-prov { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .set-dock-prov img, .set-dock-prov svg { width: 16px; height: 16px; flex: 0 0 auto; }
 .set-dock-prov small { flex-basis: 100%; }
-/* The bare .switch is painted for the dark onboarding sheet; on the sidebar it keys off the
-   theme tokens, exactly as the Settings surface does. */
-.companion .switch { border-color: var(--line2); background: var(--hover); }
-.companion .switch .switch-knob { background: var(--mut); }
-.companion .switch.on { background: var(--accent); border-color: var(--accent); }
-.companion .switch.on .switch-knob { background: #fff; }
 
 /* About overlay: a compact, portal-free card using the reskin's surface tokens.
    Same held-mount exit as the session drawer, at --dur-base. */
