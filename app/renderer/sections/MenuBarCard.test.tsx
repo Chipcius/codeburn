@@ -429,12 +429,13 @@ describe('the Plugins page', () => {
     expect(bridge.macMenubarStatus).not.toHaveBeenCalled()
   })
 
-  it('renders no card on win32, where the page is its own coming-soon panel', async () => {
+  // Windows has its own companion card (WindowsCompanionCard), driven by companionStatus, so the
+  // macOS card never renders and its status is never queried here. The Teams card still shows.
+  it('renders no macOS menu bar card on win32', async () => {
     ;(window as unknown as { codeburn?: { platform?: string } }).codeburn = { platform: 'win32' }
     bridge.pluginList.mockResolvedValue([])
     render(<PluginsSection />)
-    await waitFor(() => expect(screen.getByText('Plugins are coming to Windows')).toBeTruthy())
-    expect(screen.queryByText('Menu bar')).toBeNull()
+    await waitFor(() => expect(screen.getByText('Teams')).toBeTruthy())
     expect(bridge.macMenubarStatus).not.toHaveBeenCalled()
   })
 })

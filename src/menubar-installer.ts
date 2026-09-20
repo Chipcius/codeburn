@@ -629,6 +629,10 @@ export type InstalledWindowsMenubar = {
 export const BUNDLED_MSI_ENV = 'CODEBURN_MENUBAR_MSI'
 /// The flag that replaced it.
 export const STAGED_MSI_FLAG = '--staged-msi'
+/// Removes the installed tray app (`codeburn menubar --uninstall`): reads the product code from
+/// the uninstall registry or the install marker and runs `msiexec /x`. Lets the desktop app's
+/// Plugins card offer a discrete Uninstall the way the macOS card does.
+export const UNINSTALL_FLAG = '--uninstall'
 /// One line on stdout so the caller that staged the MSI learns what happened without reading
 /// prose. Everything else the install prints stays human-readable. Unchanged by the move from
 /// the environment variable to the flag: it is the desktop app's only parse of this command.
@@ -697,7 +701,7 @@ export async function assertStagedMsiPath(msiPath: string): Promise<string> {
   return resolved
 }
 
-export type BundledInstallAction = 'installed' | 'up-to-date' | 'kept-newer' | 'cancelled'
+export type BundledInstallAction = 'installed' | 'up-to-date' | 'kept-newer' | 'cancelled' | 'uninstalled'
 
 export type BundledInstallResult = {
   action: BundledInstallAction
@@ -878,6 +882,72 @@ async function installStagedWindowsMenubar(
   const installedBy = await writeMenubarMarker(installed, before === undefined ? 'desktop' : 'manual', env)
   log(`Installed CodeBurn Menubar ${installed.version}.`)
   return report('installed', installed, installedBy)
+}
+
+/// The `{GUID}` inside a Windows uninstall string (`MsiExec.exe /I{...}` or `/X{...}`), which is
+/// the product code `msiexec /x` takes. Null when the string is missing or not an MSI one.
+export function extractMsiProductCode(uninstallString: string | null | undefined): string | null {
+  if (!uninstallString) return null
+  const match = /\{[0-9A-Fa-f-]{36}\}/.exec(uninstallString)
+  return match ? match[0] : null
+}
+
+async function removeMenubarMarker(env: NodeJS.ProcessEnv): Promise<void> {
+  // Best effort: the marker is an optimisation for the desktop uninstaller, not a source of
+  // truth, and a machine that never had one is exactly the state we are moving towards.
+  try { await rm(menubarMarkerPath(env), { force: true }) } catch { /* nothing to remove */ }
+}
+
+/// Remove the installed tray app: stop it, run `msiexec /x <product code>`, and drop the marker.
+/// The product code comes from the uninstall registry, or the install marker when the registry
+/// hive this process can see does not hold it. Prints one CODEBURN_MENUBAR_RESULT line, the same
+/// contract the staged install uses, so the desktop app reads the outcome without its prose.
+/// Idempotent: a machine with nothing installed reports 'uninstalled' and changes nothing.
+async function uninstallWindowsMenubar(options: InstallOptions): Promise<InstallResult> {
+  const hooks = options.windows ?? {}
+  const log = hooks.log ?? console.log
+  const env = hooks.env ?? process.env
+  const queryRegistry = hooks.queryRegistry ?? (() => queryWindowsUninstallRegistry(env))
+
+  const installed = parseInstalledWindowsMenubar(await queryRegistry())
+  const marker = await readMenubarMarker(env)
+  const uninstallString = installed?.uninstallString ?? marker?.uninstallString ?? null
+
+  const report = (removedVersion: string | null): InstallResult => {
+    const result: BundledInstallResult = {
+      action: 'uninstalled',
+      bundledVersion: removedVersion ?? '',
+      previousVersion: removedVersion,
+      exePath: '',
+      uninstallString,
+      installedBy: marker?.installedBy ?? null,
+    }
+    log(`${BUNDLED_RESULT_PREFIX}${JSON.stringify(result)}`)
+    return { installedPath: '', launched: false }
+  }
+
+  if (!installed && !uninstallString) {
+    log('CodeBurn Menubar is not installed.')
+    await removeMenubarMarker(env)
+    return report(null)
+  }
+
+  await stopRunningMenubar(installed?.exePath, hooks, log, env)
+
+  const productCode = extractMsiProductCode(uninstallString)
+  if (!productCode) {
+    throw new Error('CodeBurn Menubar is installed, but its uninstall product code could not be read.')
+  }
+  log('Uninstalling...')
+  const msiexec = resolveSystem32Path('msiexec.exe', env)
+  const exitCode = await (hooks.runInstaller ?? runMsiexec)(msiexec, ['/x', productCode, '/passive', '/norestart'])
+  if (exitCode !== 0 && exitCode !== MSI_EXIT_REBOOT_REQUIRED) {
+    throw new Error(`msiexec exited with ${exitCode} while removing CodeBurn Menubar.`)
+  }
+  if (exitCode === MSI_EXIT_REBOOT_REQUIRED) log('Windows wants a restart to finish the removal.')
+  await removeMenubarMarker(env)
+  log('Removed CodeBurn Menubar.')
+  return report(installed?.version ?? marker?.version ?? null)
 }
 
 /// Windows' `CreateProcess` searches the current directory before `PATH`, so spawning `msiexec`
@@ -1226,6 +1296,15 @@ async function installWindowsMenubarApp(options: InstallOptions): Promise<Instal
   } finally {
     if (!hooks.stagingDir) await rm(stagingDir, { recursive: true, force: true })
   }
+}
+
+/// Remove the installed tray app. Windows only: the macOS bundle is removed by the desktop app
+/// itself over the cooperative remote-command protocol (app/electron/mac-menubar.ts), not here.
+export async function uninstallMenubarApp(options: InstallOptions = {}): Promise<InstallResult> {
+  if ((options.platform ?? platform()) !== 'win32') {
+    throw new Error(`${UNINSTALL_FLAG} is a Windows option; this is ${options.platform ?? platform()}.`)
+  }
+  return uninstallWindowsMenubar(options)
 }
 
 export async function installMenubarApp(options: InstallOptions = {}): Promise<InstallResult> {

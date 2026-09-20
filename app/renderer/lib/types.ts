@@ -1042,7 +1042,18 @@ export type CompanionStatus = {
    *  the next restart. Nothing is started until then, so the corner says so rather than
    *  showing two switches on with nothing running. */
   restartRequired?: boolean
+  // Mirrors MacMenubarStatus so the Plugins card renders one companion card per platform. All
+  // reflect on-disk truth, never intent. Optional so a preload predating them still parses.
+  canInstall?: boolean
+  installed?: boolean
+  running?: boolean
+  version?: string | null
+  outdated?: boolean
 }
+
+/** The discrete companion actions' return shape (install/quit/uninstall): the outcome plus the
+ *  status that followed. Mirrors MacMenubarInstall. */
+export type CompanionActionResult = { ok: boolean; error: string | null; status: CompanionStatus }
 
 /** The macOS menubar app (mac/) as the Plugins page sees it (app/electron/mac-menubar.ts). */
 export type MacMenubarStatus = {
@@ -1175,6 +1186,13 @@ export interface CodeburnBridge {
   companionStatus?(): Promise<CompanionStatus>
   setMenuBarEnabled?(enabled: boolean): Promise<CompanionStatus>
   setSidebarEnabled?(enabled: boolean): Promise<CompanionStatus>
+  /** The Plugins card's discrete actions, mirroring the macOS card. Optional for the same
+   *  reason: a preload that predates them leaves the buttons inert rather than throwing. */
+  companionInstall?(): Promise<CompanionActionResult>
+  companionOpen?(): Promise<CompanionStatus>
+  companionQuit?(): Promise<CompanionActionResult>
+  companionUninstall?(): Promise<CompanionActionResult>
+  companionSetDock?(enabled: boolean): Promise<CompanionStatus>
   /** The tray app's own settings. Null when there is no tray app to have any. */
   trayPrefs?(): Promise<TrayPrefs | null>
   setTrayAppPref?(patch: Record<string, unknown>): Promise<TrayPrefs | null>

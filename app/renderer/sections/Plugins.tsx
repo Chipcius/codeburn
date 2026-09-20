@@ -10,7 +10,10 @@ import { isMacPlatform, isWindowsPlatform } from '../lib/platform'
 import { Icon } from '../components/icons'
 import { BarNav } from '../components/TopBar'
 import { MenuBarCard } from './MenuBarCard'
+import { WindowsCompanionCard } from './WindowsCompanionCard'
 import { TeamsAboutModal } from './MenuBarAbout'
+import type { Section } from '../components/Sidebar'
+import type { SettingsPane } from './Settings'
 import teamsArt from '../assets/teams-card-art.jpg'
 import teamsArtLight from '../assets/teams-card-art-light.jpg'
 
@@ -31,20 +34,18 @@ interface PluginInfo {
 }
 
 /**
- * The plugin runtime has not shipped for Windows, so the CLI there never answers and the page
- * sat on "Loading plugins..." for good. This branch loads nothing at all: no CLI call, no
- * spinner, no timer, and none of the loader's hooks even mount, because the dispatcher below
- * returns before reaching them.
+ * The CLI plugin runtime has not shipped for Windows, so the list is never fetched there (no CLI
+ * call, no spinner, no timer). What Windows does carry is its companion: the tray app and the
+ * Capacity Dock, configured from the same card the macOS menubar uses, plus the Teams card.
  */
-function PluginsComingSoon() {
+function WindowsPluginsList({ onNavigate }: { onNavigate?: (section: Section, pane?: SettingsPane) => void }) {
   return (
     <div className={styles.container}>
-      <div className={styles.soon}>
-        <Icon name="puzzle" className={styles.soonMark} />
-        <div className={styles.soonTitle}>{t('plugins.comingSoon.title')}</div>
-        <p className={styles.soonBody}>
-          {t('plugins.comingSoon.body')}
-        </p>
+      <div className={styles.artGrid}>
+        {/* Settings opens the desktop app's own Menu bar pane, where the tray's settings live on
+            Windows (there is no separate tray settings window to drive from here). */}
+        <WindowsCompanionCard onOpenSettings={onNavigate ? () => onNavigate('settings', 'menubar') : undefined} />
+        <TeamsCard />
       </div>
     </div>
   )
@@ -90,12 +91,12 @@ function TeamsCard() {
   )
 }
 
-export function PluginsSection() {
+export function PluginsSection({ onNavigate }: { onNavigate?: (section: Section, pane?: SettingsPane) => void } = {}) {
   // Decided before the loader renders rather than inside it, so its effects never run.
   return (
     <>
       <div className="bar"><BarNav /><h1 className="t">{t('plugins.title')}</h1></div>
-      {isWindowsPlatform() ? <PluginsComingSoon /> : <PluginsList />}
+      {isWindowsPlatform() ? <WindowsPluginsList onNavigate={onNavigate} /> : <PluginsList />}
     </>
   )
 }
