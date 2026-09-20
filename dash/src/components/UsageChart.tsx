@@ -371,7 +371,7 @@ export function DeviceUsageChart({ devices, unit = 'cost' }: { devices: DeviceUs
     const dates = [...new Set(named.flatMap((d) => dailyOf(d).map((e) => e.date)))].sort((a, b) => a.localeCompare(b))
     const series: Series[] = named.map((d) => ({
       key: keyOf(d),
-      label: d.name + (d.local ? ' (this Mac)' : ''),
+      label: d.name + (d.local ? ' (this device)' : ''),
       color: colorOf(d.id),
     }))
     const rowData = dates.map((date) => {

@@ -404,7 +404,7 @@ function CombinedView({ devices, unit }: { devices: DeviceUsage[]; unit: Unit })
             { key: 'sessions', label: 'Sessions', num: true },
           ]}
           rows={rows.map((r) => ({
-            device: r.name + (r.local ? ' · this Mac' : ''),
+            device: r.name + (r.local ? ' · this device' : ''),
             cost: r.error ? <span className="text-tertiary-foreground">unreachable</span> : usd(r.cost),
             tokens: r.error ? '—' : fmtTokens(r.tokens),
             calls: r.error ? '—' : fmtNum(r.calls),
@@ -581,7 +581,7 @@ export function App() {
   }, [])
 
   const showCombined = multi && view === 'all'
-  const viewTitle = showCombined ? 'All devices' : (primary ? primary.name + (primary.local ? ' · this Mac' : '') : 'Loading…')
+  const viewTitle = showCombined ? 'All devices' : (primary ? primary.name + (primary.local ? ' · this device' : '') : 'Loading…')
   const label = local?.payload?.current?.label ?? ''
 
   return (
@@ -721,7 +721,7 @@ export function App() {
                   onClick={() => { setView(d.id); setSidebarOpen(false) }}
                 >
                   {d.name}
-                  {d.local ? ' · this Mac' : ''}
+                  {d.local ? ' · this device' : ''}
                 </SideLink>
               ))}
               {devices.length === 0 && <p className="px-2.5 py-1 text-xs text-tertiary-foreground">Loading…</p>}

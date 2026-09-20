@@ -5,6 +5,7 @@ import { createHash } from 'crypto'
 import { getCodeburnCacheDir } from './cache-dir.js'
 import snapshotData from './data/litellm-snapshot.json' with { type: 'json' }
 import fallbackData from './data/pricing-fallback.json' with { type: 'json' }
+import freeModelsData from './data/free-models.json' with { type: 'json' }
 import { fetchWithTimeout } from './fetch-utils.js'
 
 export type ModelCosts = {
@@ -832,6 +833,10 @@ function isFlatRateRemoved(model: string): boolean {
 /// Match raw ids and path-prefixed ids (`cline-pass/auto-genius`). Display
 /// names from getShortModelName are matched only when the aggregation key
 /// is not the raw leaf (Warp Auto *, Grok Composer *).
+const PUBLISHED_FREE_MODELS: ReadonlySet<string> = new Set(
+  (freeModelsData as string[]).map(id => id.toLowerCase()),
+)
+
 export function isBuiltInFlatRateModel(model: string): boolean {
   const leaf = flatRateLeaf(model)
   // Warp's product SKU is the bare id `auto`. Kiro rewrites its own `auto`
@@ -843,6 +848,12 @@ export function isBuiltInFlatRateModel(model: string): boolean {
   ) return true
   if (leaf.startsWith('grok-composer-')) return true
   if (leaf.startsWith('warp-auto-')) return true
+  // Ids a gateway biller publishes at a real price of zero (OpenCode Zen's
+  // free tier), bundled from models.dev. $0 is the right answer for these, so
+  // they must not sit in the unpriced warning telling the user to go find a
+  // rate that does not exist. A zero-rate pricing row cannot carry this on its
+  // own: hasBillableRate() reads it the same as no row at all.
+  if (PUBLISHED_FREE_MODELS.has(leaf)) return true
   const display = model.trim()
   if (/^grok composer\b/i.test(display)) return true
   if (/^warp auto\b/i.test(display)) return true

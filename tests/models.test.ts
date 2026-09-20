@@ -5,6 +5,7 @@ import { describe, it, expect, beforeAll, afterEach } from 'vitest'
 
 import {
   findUnpricedModels,
+  isBuiltInFlatRateModel,
   getModelCosts,
   getShortModelName,
   resolveCanonicalModelId,
@@ -1399,6 +1400,21 @@ describe('findUnpricedModels', () => {
     expect(findUnpricedModels([{ model, calls: 1, cost: 0, tokens: 10 }])).toEqual([])
   })
 
+  // A gateway that bills for a provider codeburn parses can publish a model at
+  // a real price of zero. That is an answer, not a gap, so it must not sit in
+  // the unpriced warning telling the user to go find a rate that does not
+  // exist. The bundler records those ids from models.dev into free-models.json.
+  it('skips a model a gateway biller publishes at a real price of zero', () => {
+    // OpenCode Zen's free tier: cost {input: 0, output: 0} on models.dev.
+    expect(findUnpricedModels([
+      { model: 'big-pickle', calls: 4, cost: 0, tokens: 33_900 },
+      { model: 'minimax-m2.5-free', calls: 2, cost: 0, tokens: 1_000 },
+    ])).toEqual([])
+    expect(isBuiltInFlatRateModel('big-pickle')).toBe(true)
+    // A paid sibling on the same gateway is untouched by the free list.
+    expect(isBuiltInFlatRateModel('minimax-m2.5')).toBe(false)
+  })
+
   it('skips subscription / flat-rate product SKUs where $0 is correct', () => {
     const rows = [
       { model: 'auto-genius', calls: 898, cost: 0, tokens: 35_300_000 },
@@ -1422,7 +1438,9 @@ describe('findUnpricedModels', () => {
       // it is stale data, not evidence of missing pricing). It still left
       // the flat-rate list, verified separately in the "Codex activity ids
       // (#1047)" describe block below.
-      { model: 'big-pickle', calls: 4, tokens: 33_900 },
+      // Note: NOT 'big-pickle' — OpenCode Zen publishes it at a real 0/0 on
+      // models.dev, so it is a known-free model, not one whose price we are
+      // missing. The bundler records those ids in free-models.json.
       { model: 'zz-mystery-paid-model-999', calls: 3, tokens: 1200 },
       { model: 'Codex Auto Review', calls: 2, tokens: 100 },
     ])

@@ -25,6 +25,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const dataDir = join(__dirname, '..', 'src', 'data')
 const snapshotPath = join(dataDir, 'litellm-snapshot.json')
 const fallbackPath = join(dataDir, 'pricing-fallback.json')
+const freeModelsPath = join(dataDir, 'free-models.json')
+
+// Ids a gateway biller publishes at a real price of zero (OpenCode Zen's free
+// tier). Sorted on write so a refresh that changes nothing is a no-op diff.
+const freeModels = new Set()
 
 // models.dev provider ids that are the actual model MAKERS (publish official
 // list prices), as opposed to gateways/resellers (openrouter, nano-gpt, vercel,
@@ -35,6 +40,20 @@ const MODELS_DEV_FIRST_PARTY = new Set([
   'xai', 'minimax', 'minimax-cn', 'moonshotai', 'zhipuai', 'alibaba',
   'alibaba-cn', 'cohere', 'perplexity', 'inception', 'morph',
 ])
+
+// Gateways that are nonetheless the ACTUAL biller for a provider codeburn
+// parses, so their rates are the right ones for those sessions — unlike a
+// generic reseller, whose markup would misprice a model bought direct.
+// OpenCode Zen is the biller for every `opencode` session. It resells
+// first-party models under their own names (claude-opus-5, gemini-3-pro, …),
+// but this pass only reaches `addGap`, and `seen` is pre-seeded with every
+// primary key and its bareKey form, so a resold name can never shadow the
+// direct price — only Zen-exclusive ids (big-pickle, the minimax-* line, …)
+// are added. Zen also publishes genuinely FREE models, priced 0/0 on purpose;
+// those are admitted here (see zenRates) so they read as "costs nothing"
+// rather than "we have no idea", which is what put big-pickle in the unpriced
+// warning while $0 was the correct answer all along.
+const MODELS_DEV_GATEWAY_BILLERS = new Set(['opencode'])
 
 const MANUAL_ENTRIES = {
   'MiniMax-M2.7':           [0.3e-6, 1.2e-6, 0.375e-6, 0.06e-6],
@@ -220,22 +239,38 @@ try {
   for (const id of MODELS_DEV_FIRST_PARTY) {
     if (!md[id]) console.warn(`note: models.dev no longer lists first-party id '${id}' - allowlist may be stale`)
   }
+  for (const id of MODELS_DEV_GATEWAY_BILLERS) {
+    if (!md[id]) console.warn(`note: models.dev no longer lists gateway-biller id '${id}' - allowlist may be stale`)
+  }
   let added = 0
   for (const pid of Object.keys(md).sort()) {
-    if (!MODELS_DEV_FIRST_PARTY.has(pid)) continue
+    const isGatewayBiller = MODELS_DEV_GATEWAY_BILLERS.has(pid)
+    if (!MODELS_DEV_FIRST_PARTY.has(pid) && !isGatewayBiller) continue
     const models = md[pid].models ?? {}
     for (const mid of Object.keys(models).sort()) {
       const c = models[mid].cost
       if (!c) continue
       const inp = finite(c.input), out = finite(c.output)
-      if (!validRates(inp, out)) continue
+      // A gateway biller may publish a real 0/0 price (a free model). Elsewhere
+      // 0/0 means the source has no data, so the global guard still rejects it.
+      const free = isGatewayBiller && inp === 0 && out === 0
+      if (!free && !validRates(inp, out)) continue
+      // A published 0/0 is an answer, not a gap: record the id so the unpriced
+      // warning can tell "this costs nothing" from "we have no rate for this".
+      // It does NOT become a pricing row — the fallback forbids a 0/0 entry
+      // (tests/pricing-fallback-data.test.ts), and a zero tuple would say
+      // nothing anyway, since hasBillableRate() reads it the same as no row.
+      if (free) {
+        freeModels.add(bareKey(mid))
+        continue
+      }
       // models.dev cost is per MILLION tokens; snapshot is per token.
       const cw = nonNeg(c.cache_write != null ? finite(c.cache_write) : null)
       const cr = nonNeg(c.cache_read != null ? finite(c.cache_read) : null)
       if (addGap(bareKey(mid), [inp / 1e6, out / 1e6, cw != null ? cw / 1e6 : null, cr != null ? cr / 1e6 : null, null])) added++
     }
   }
-  console.log(`models.dev (first-party): +${added} models`)
+  console.log(`models.dev (first-party + gateway billers): +${added} models`)
 } catch (e) {
   console.warn(`models.dev skipped: ${e.message}`)
 }
@@ -275,10 +310,27 @@ const coveredByKey = (key) =>
 for (const [k, v] of [...Object.entries(previousSnapshot), ...Object.entries(previousFallback)]) {
   if (coveredByKey(k)) continue
   if (fallback[k] !== undefined) continue
+  // A model this refresh learned is published free is not a priced row that
+  // went missing, so carrying it forward would reintroduce the 0/0 entry the
+  // fallback forbids. It is recorded in free-models.json instead.
+  if (freeModels.has(k) || freeModels.has(bareKey(k).toLowerCase())) continue
   fallback[k] = v
   carried += 1
 }
 if (carried > 0) console.log(`carried ${carried} previously-priced entries forward (dropped primary rows + fallback)`)
 writeFileSync(snapshotPath, JSON.stringify(snapshot))
 writeFileSync(fallbackPath, JSON.stringify(fallback))
-console.log(`Bundled ${Object.keys(snapshot).length} primary + ${Object.keys(fallback).length} fallback models`)
+// Carry a previously-known free id forward if this refresh could not reach its
+// source, for the same reason priced entries carry: a transient fetch failure
+// must not silently turn "free" back into "unpriced".
+const previousFree = (() => {
+  try {
+    const parsed = JSON.parse(readFileSync(freeModelsPath, 'utf8'))
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+})()
+for (const id of previousFree) if (typeof id === 'string' && id) freeModels.add(id)
+writeFileSync(freeModelsPath, JSON.stringify([...freeModels].sort()))
+console.log(`Bundled ${Object.keys(snapshot).length} primary + ${Object.keys(fallback).length} fallback models + ${freeModels.size} published-free`)
