@@ -8,8 +8,6 @@ import { Sidebar } from './Sidebar'
 // assigned onto `window` after the fact.
 const bridge = vi.hoisted(() => ({
   companionStatus: vi.fn(),
-  setMenuBarEnabled: vi.fn(),
-  setSidebarEnabled: vi.fn(),
   openExternal: vi.fn(),
 }))
 vi.mock('../lib/ipc', () => ({ codeburn: bridge, normalizeCliError: (err: unknown) => err }))

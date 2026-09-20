@@ -83,8 +83,6 @@ const CHANNELS = [
   'codeburn:telemetryTrack',
   'codeburn:getUpdateStatus',
   'codeburn:companionStatus',
-  'codeburn:setMenuBarEnabled',
-  'codeburn:setSidebarEnabled',
   'codeburn:companionInstall',
   'codeburn:companionOpen',
   'codeburn:companionQuit',

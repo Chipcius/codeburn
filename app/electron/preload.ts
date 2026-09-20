@@ -88,8 +88,6 @@ const bridge = {
   // The bundled tray app and its Capacity Dock (Windows). Every setter answers with the
   // whole status, so the sidebar renders what took rather than what it asked for.
   companionStatus: () => invoke('codeburn:companionStatus'),
-  setMenuBarEnabled: (enabled: boolean) => invoke('codeburn:setMenuBarEnabled', enabled),
-  setSidebarEnabled: (enabled: boolean) => invoke('codeburn:setSidebarEnabled', enabled),
   // The Plugins card's discrete actions, mirroring the macOS card.
   companionInstall: () => invoke('codeburn:companionInstall'),
   companionOpen: () => invoke('codeburn:companionOpen'),

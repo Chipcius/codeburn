@@ -1184,8 +1184,6 @@ export interface CodeburnBridge {
   /** The bundled tray app and Capacity Dock (Windows). Optional so a preload that
    *  predates them degrades to "not supported" rather than throwing. */
   companionStatus?(): Promise<CompanionStatus>
-  setMenuBarEnabled?(enabled: boolean): Promise<CompanionStatus>
-  setSidebarEnabled?(enabled: boolean): Promise<CompanionStatus>
   /** The Plugins card's discrete actions, mirroring the macOS card. Optional for the same
    *  reason: a preload that predates them leaves the buttons inert rather than throwing. */
   companionInstall?(): Promise<CompanionActionResult>

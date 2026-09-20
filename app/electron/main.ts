@@ -477,7 +477,7 @@ type Deps = {
   /** The bundled tray app and Capacity Dock; absent off Windows and under tests. */
   companion?: Pick<
     MenubarCompanion,
-    'status' | 'setMenuBarEnabled' | 'setSidebarEnabled' | 'trayPrefs' | 'setTrayAppPref' | 'setTrayDockPref' | 'setLaunchAtLogin'
+    'status' | 'trayPrefs' | 'setTrayAppPref' | 'setTrayDockPref' | 'setLaunchAtLogin'
     | 'install' | 'open' | 'quit' | 'uninstall' | 'setDockEnabled'
   > | null
   /** The macOS menubar app, as the Plugins page sees it; absent off darwin and under tests. */
@@ -826,10 +826,6 @@ export function createBridgeHandlers(deps: Deps = { spawnCli, spawnCliAction, re
     // whole status, so the sidebar renders the state that actually took rather than the one
     // it asked for: an install that was cancelled leaves the switch where it was.
     'codeburn:companionStatus': async () => ({ ok: true, value: deps.companion ? await deps.companion.status() : NO_COMPANION }),
-    'codeburn:setMenuBarEnabled': async (enabled?: boolean) =>
-      ({ ok: true, value: deps.companion ? await deps.companion.setMenuBarEnabled(Boolean(enabled)) : NO_COMPANION }),
-    'codeburn:setSidebarEnabled': async (enabled?: boolean) =>
-      ({ ok: true, value: deps.companion ? await deps.companion.setSidebarEnabled(Boolean(enabled)) : NO_COMPANION }),
     // The Plugins card's discrete actions, mirroring the macOS card: install/reinstall, show
     // the tray UI, quit without uninstalling, and remove. Each answers with the whole status.
     'codeburn:companionInstall': async () =>

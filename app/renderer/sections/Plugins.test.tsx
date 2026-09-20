@@ -12,8 +12,6 @@ const bridge = vi.hoisted(() => ({
   pluginVerify: vi.fn(),
   syncAutoStatus: vi.fn(),
   companionStatus: vi.fn(),
-  setMenuBarEnabled: vi.fn(),
-  setSidebarEnabled: vi.fn(),
 }))
 vi.mock('../lib/ipc', () => ({ codeburn: bridge, normalizeCliError: (err: unknown) => err }))
 

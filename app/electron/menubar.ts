@@ -642,7 +642,7 @@ export class MenubarCompanion {
     const installedExe = store
       ? findPackagedTrayExe(menubarResourcesDir(this.deps))
       : (this.settings.trayExePath && this.exists(this.settings.trayExePath) ? this.settings.trayExePath : null)
-    const installed = installedExe !== null
+    const installed = supported && installedExe !== null
     const staged = supported && !store ? findStagedMsi(menubarResourcesDir(this.deps)) : null
     return {
       supported,

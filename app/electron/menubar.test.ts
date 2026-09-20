@@ -1241,6 +1241,16 @@ describe('MenubarCompanion', () => {
       expect(await unsupported().setLaunchAtLogin(true)).toEqual(NEUTRAL)
       expect(regCalls).toEqual([])
     })
+
+    it('status treats a leftover trayExePath as not installed, and never probes for the process', async () => {
+      stageMsi()
+      writeCompanionSettings(stateDir, { ...DEFAULT_COMPANION_SETTINGS, menuBar: true, sidebar: true, trayExePath: TRAY_EXE, seeded: true })
+      const isRunning = vi.fn(async () => true)
+      const status = await new MenubarCompanion(deps({ platform: 'darwin', isRunning })).status()
+
+      expect(status).toMatchObject({ supported: false, installed: false, running: false })
+      expect(isRunning).not.toHaveBeenCalled()
+    })
   })
 
   it('Sidebar off with the tray app off writes the preference and tells nobody', async () => {
