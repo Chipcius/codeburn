@@ -75,7 +75,10 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000
 // the on-disk LiteLLM cache, not just the on-disk cache itself.
 export const CACHE_SCHEMA_VERSION = 3
 const WEB_SEARCH_COST = 0.01
-const ONE_HOUR_CACHE_WRITE_MULTIPLIER_FROM_FIVE_MINUTE_RATE = 1.6
+// Anthropic prices a 1-hour cache write at 2x base input and a 5-minute write at
+// 1.25x, so the 1h rate is 1.6x the 5m rate this table stores. Exported so the
+// audit report can reproduce a cost that mixes both TTLs.
+export const ONE_HOUR_CACHE_WRITE_MULTIPLIER_FROM_FIVE_MINUTE_RATE = 1.6
 
 // Explicit USD/token prices that must override LiteLLM/cache data. Cursor
 // publishes house-model rates in the models table at cursor.com/docs/models
@@ -118,16 +121,81 @@ function buildCosts(
 const GROK_4_6_PROMPT_TOKEN_THRESHOLD = 200_000
 const GROK_4_6_HIGH_PROMPT_COSTS = buildCosts(4e-6, 12e-6, null, 1e-6, null)
 
+// OpenAI publishes a second "long context" column: a request whose prompt
+// exceeds the threshold is priced ENTIRELY at that column, not marginally on the
+// excess, the same all-or-nothing shape xAI uses for grok-4.6. Rates below are
+// the vendor's long-context columns verbatim (input, output, cache write, cache
+// read), from developers.openai.com/api/docs/pricing. Every published tier works
+// out to 2x input / 2x cached / 2x cache write / 1.5x output, but they are
+// written out rather than derived so a model that breaks the pattern cannot be
+// silently mispriced. Models the vendor lists with no long-context tier
+// (gpt-5.6-cyber, gpt-5.5-cyber, the gpt-5.4-mini/nano line, gpt-5.2 and
+// earlier) are deliberately absent: absence means "no tier", not "unknown".
+const OPENAI_LONG_CONTEXT_PROMPT_TOKEN_THRESHOLD = 272_000
+const OPENAI_LONG_CONTEXT_COSTS: Record<string, ModelCosts> = {
+  'gpt-6-astra': buildCosts(20e-6, 75e-6, 25e-6, 2e-6, null),
+  'gpt-5.6-sol': buildCosts(8e-6, 30e-6, 10e-6, 0.8e-6, null),
+  'gpt-5.6-terra': buildCosts(4e-6, 18e-6, 5e-6, 0.4e-6, null),
+  'gpt-5.6-luna': buildCosts(0.4e-6, 1.8e-6, 0.5e-6, 0.04e-6, null),
+  'gpt-5.5': buildCosts(10e-6, 45e-6, null, 1e-6, null),
+  'gpt-5.5-pro': buildCosts(60e-6, 270e-6, null, null, null),
+  'gpt-5.4': buildCosts(5e-6, 22.5e-6, null, 0.5e-6, null),
+  'gpt-5.4-pro': buildCosts(60e-6, 270e-6, null, null, null),
+}
+
 // Swap in the vendor's high tier when a request's prompt crosses the published
 // threshold. A user-set exact priceOverride still wins over the built-in tier.
 // Kept as a helper so the next tiered model extends this one branch instead of
 // copy-pasting the inline condition.
-function tieredCostsFor(model: string, baseCosts: ModelCosts, promptTokens: number): ModelCosts {
+//
+// `promptScope` is why the OpenAI tier is gated. A threshold test is only
+// meaningful when the token counts describe ONE request, and calculateCost is
+// also called with session- and rollup-level aggregates (the Copilot
+// session.shutdown rollup sums every request in the session; a 12.6M-token sum
+// over many small requests is not a long-context request). Only a caller that
+// knows it is pricing a single request passes 'request'; everything else keeps
+// the short-context column, which is what those aggregate paths were already
+// reconciled against.
+function tieredCostsFor(
+  model: string,
+  baseCosts: ModelCosts,
+  promptTokens: number,
+  promptScope: PromptScope = 'aggregate',
+): ModelCosts {
   if (exactPriceOverrideFor(model)) return baseCosts
-  if (resolveCanonicalModelId(model) === 'grok-4.6' && promptTokens >= GROK_4_6_PROMPT_TOKEN_THRESHOLD) {
+  const canonical = resolveCanonicalModelId(model)
+  if (canonical === 'grok-4.6' && promptTokens >= GROK_4_6_PROMPT_TOKEN_THRESHOLD) {
     return GROK_4_6_HIGH_PROMPT_COSTS
   }
+  // "Prompts over 272K" — strictly above, so a request sitting exactly on the
+  // threshold stays in the short-context column.
+  if (promptScope === 'request' && promptTokens > OPENAI_LONG_CONTEXT_PROMPT_TOKEN_THRESHOLD) {
+    const longContext = Object.hasOwn(OPENAI_LONG_CONTEXT_COSTS, canonical)
+      ? OPENAI_LONG_CONTEXT_COSTS[canonical]
+      : undefined
+    if (longContext) return longContext
+  }
   return baseCosts
+}
+
+/// Whether a set of token counts describes one request (so a long-context
+/// threshold applies to it) or a sum over several (so it cannot).
+export type PromptScope = 'request' | 'aggregate'
+
+/// The rates a single request is actually priced at, tier included. Exported so
+/// `audit` can reproduce a per-call cost instead of multiplying a period's
+/// aggregate tokens by one flat row — which cannot reconcile once any per-call
+/// modifier exists (a long-context tier, a 1-hour cache write, fast mode).
+/// `promptTokens` must be computed the same way calculateCost does: input plus
+/// cache reads. Callers pass 'aggregate' when the counts sum several requests.
+export function effectiveCostsForRequest(
+  model: string,
+  promptTokens: number,
+  promptScope: PromptScope = 'request',
+): ModelCosts | null {
+  const base = getModelCosts(model)
+  if (!base) return null
+  return tieredCostsFor(model, base, promptTokens, promptScope)
 }
 
 
@@ -1217,6 +1285,10 @@ export function calculateCost(
   webSearchRequests: number,
   speed: 'standard' | 'fast' = 'standard',
   oneHourCacheCreationTokens = 0,
+  /// 'request' when these counts are one API request, which is what lets a
+  /// vendor long-context tier apply. Defaults to 'aggregate' so a caller summing
+  /// several requests cannot accidentally trip a per-request threshold.
+  promptScope: PromptScope = 'aggregate',
 ): number {
   const costs = getModelCosts(model)
   if (!costs) {
@@ -1239,7 +1311,7 @@ export function calculateCost(
   const safeCacheCreation = Math.max(safe(cacheCreationTokens), safeOneHourCacheCreation)
   const safeFiveMinuteCacheCreation = Math.max(0, safeCacheCreation - safeOneHourCacheCreation)
   const promptTokens = safe(inputTokens) + safe(cacheReadTokens)
-  const tieredCosts = tieredCostsFor(model, costs, promptTokens)
+  const tieredCosts = tieredCostsFor(model, costs, promptTokens, promptScope)
   const multiplier = speed === 'fast' ? tieredCosts.fastMultiplier : 1
 
   // Clamp negative inputs to 0. A corrupt JSONL that emits a negative token

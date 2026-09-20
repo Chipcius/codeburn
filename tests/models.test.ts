@@ -148,6 +148,108 @@ describe('getModelCosts', () => {
     })
   })
 
+  // OpenAI publishes a second "long context" column and prices a request that
+  // crosses the threshold ENTIRELY at it. The tier is per-REQUEST, so it only
+  // applies when the caller says the token counts describe one request: the same
+  // function also prices session and rollup aggregates, where a large sum means
+  // "many small requests", not "one long-context request".
+  describe('OpenAI long-context tier', () => {
+    // gpt-6-astra short: $10 in / $50 out / $1 cached. Long: $20 / $75 / $2.
+    it('uses the short column at or below 272000 prompt tokens', () => {
+      expect(calculateCost('gpt-6-astra', 272_000, 0, 0, 0, 0, 'standard', 0, 'request')).toBeCloseTo(2.72, 10)
+    })
+
+    it('prices every token of a request above 272000 prompt tokens at the long column', () => {
+      // 272_001 input: long input rate applies to the whole request, not the excess.
+      expect(calculateCost('gpt-6-astra', 272_001, 0, 0, 0, 0, 'standard', 0, 'request')).toBeCloseTo(5.44002, 10)
+    })
+
+    it('counts cached prompt tokens toward the threshold and prices them at the long cached rate', () => {
+      // 100K uncached + 200K cached = 300K prompt: over the line.
+      // 100_000 * $20/M + 200_000 * $2/M = 2.0 + 0.4
+      expect(calculateCost('gpt-6-astra', 100_000, 0, 0, 200_000, 0, 'standard', 0, 'request')).toBeCloseTo(2.4, 10)
+    })
+
+    it('prices output at the long rate too', () => {
+      // 300K input at $20/M, 10K output at $75/M.
+      expect(calculateCost('gpt-6-astra', 300_000, 10_000, 0, 0, 0, 'standard', 0, 'request')).toBeCloseTo(6.75, 10)
+    })
+
+    it('leaves an aggregate of many small requests on the short column', () => {
+      // The Copilot session.shutdown rollup shape: a 12.6M-token SUM over a
+      // handful of requests, none of them long-context. Tiering this would
+      // invent spend against a real vendor bill (#parser c4).
+      const aggregate = calculateCost('gpt-5.6-terra', 12_600_000, 0, 0, 0, 0)
+      expect(aggregate).toBeCloseTo(25.2, 10) // 12.6M * $2/M, the short rate
+    })
+
+    it('applies to every model the vendor publishes a long column for', () => {
+      // sol $4->$8, terra $2->$4, luna $0.20->$0.40 per 1M input.
+      expect(calculateCost('gpt-5.6-sol', 1_000_000, 0, 0, 0, 0, 'standard', 0, 'request')).toBeCloseTo(8, 10)
+      expect(calculateCost('gpt-5.6-terra', 1_000_000, 0, 0, 0, 0, 'standard', 0, 'request')).toBeCloseTo(4, 10)
+      expect(calculateCost('gpt-5.6-luna', 1_000_000, 0, 0, 0, 0, 'standard', 0, 'request')).toBeCloseTo(0.4, 10)
+    })
+
+    it('leaves a model the vendor publishes no long column for on its single rate', () => {
+      // gpt-5.6-cyber is listed with "none" for long context: $12.50/M throughout.
+      expect(calculateCost('gpt-5.6-cyber', 1_000_000, 0, 0, 0, 0, 'standard', 0, 'request')).toBeCloseTo(12.5, 10)
+    })
+
+    it('lets an exact price override win over the built-in tier', () => {
+      setPriceOverrides({ 'gpt-6-astra': { input: 1, output: 2 } })
+      expect(calculateCost('gpt-6-astra', 1_000_000, 0, 0, 0, 0, 'standard', 0, 'request')).toBeCloseTo(1, 10)
+    })
+  })
+
+  // Anthropic bills a 1-hour cache write at 2x base input and a 5-minute write
+  // at 1.25x, so the two TTLs cannot share one line.
+  describe('cache-write TTL pricing', () => {
+    it('prices a 1-hour write at 1.6x the stored 5-minute rate', () => {
+      // Opus 5: base input $5/M, 5m write $6.25/M, so 1h write is $10/M.
+      const fiveMinute = calculateCost('claude-opus-5', 0, 0, 1_000_000, 0, 0)
+      const oneHour = calculateCost('claude-opus-5', 0, 0, 1_000_000, 0, 0, 'standard', 1_000_000)
+      expect(fiveMinute).toBeCloseTo(6.25, 10)
+      expect(oneHour).toBeCloseTo(10, 10)
+    })
+
+    it('splits a mixed-TTL request across both rates', () => {
+      // 600K at 5m ($6.25/M) + 400K at 1h ($10/M) = 3.75 + 4.00
+      expect(calculateCost('claude-opus-5', 0, 0, 1_000_000, 0, 0, 'standard', 400_000)).toBeCloseTo(7.75, 10)
+    })
+  })
+
+  // Rates verified against platform.claude.com/docs/en/about-claude/pricing and
+  // developers.openai.com/api/docs/pricing. Cache read/write are the columns a
+  // long-session corpus actually spends in, so they are pinned explicitly.
+  describe('published cache read/write rates', () => {
+    const cases: Array<[string, number, number, number]> = [
+      // model, base input, 5m cache write, cache read (USD per token)
+      ['claude-opus-5', 5e-6, 6.25e-6, 0.5e-6],
+      ['claude-opus-4-8', 5e-6, 6.25e-6, 0.5e-6],
+      // Fable 5.1 cache hits are 0.025x base input, not the usual 0.1x.
+      ['claude-fable-5-1', 10e-6, 12.5e-6, 0.25e-6],
+      ['claude-fable-5', 10e-6, 12.5e-6, 1e-6],
+      ['claude-sonnet-5', 2e-6, 2.5e-6, 0.2e-6],
+      ['claude-haiku-4-5', 1e-6, 1.25e-6, 0.1e-6],
+      ['gpt-6-astra', 10e-6, 12.5e-6, 1e-6],
+      ['gpt-5.6-sol', 4e-6, 5e-6, 0.4e-6],
+      ['gpt-5.6-terra', 2e-6, 2.5e-6, 0.2e-6],
+      ['gpt-5.6-luna', 0.2e-6, 0.25e-6, 0.02e-6],
+      ['gpt-5.6-cyber', 12.5e-6, 15.625e-6, 1.25e-6],
+    ]
+    for (const [model, input, cacheWrite, cacheRead] of cases) {
+      it(`${model} carries the published input / cache-write / cache-read rates`, () => {
+        const costs = getModelCosts(model)
+        expect(costs).not.toBeNull()
+        expect(costs!.inputCostPerToken).toBeCloseTo(input, 12)
+        expect(costs!.cacheWriteCostPerToken).toBeCloseTo(cacheWrite, 12)
+        expect(costs!.cacheReadCostPerToken).toBeCloseTo(cacheRead, 12)
+        // A real published rate, not the 1.25x/0.1x fabrication.
+        expect(costs!.cacheWriteCostIsExplicit).toBe(true)
+      })
+    }
+  })
+
   it('prices claude-haiku-4.5 (copilot session-store raw id), aliased to the existing claude-haiku-4-5 row (#1093)', () => {
     const haiku45 = getModelCosts('claude-haiku-4.5')
     const haiku45Dash = getModelCosts('claude-haiku-4-5')
