@@ -467,12 +467,79 @@ function ThemeToggle() {
   )
 }
 
+/// Today as YYYY-MM-DD in LOCAL time. Days are bucketed by local midnight
+/// server-side, so a UTC-derived string would offer (or refuse) the wrong day
+/// either side of midnight for anyone not on UTC.
+function todayStr(): string {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+/// Which view you are looking at lives in the query string, so a refresh (or a
+/// copied link) comes back to the same place instead of resetting to the
+/// default period on the usage page.
+///
+/// Every value is re-validated on the way in: the query string is user-editable,
+/// so `period` must be one the picker offers and `day` must be a real date, or
+/// they would reach the API as-is and come back a 400 on first paint.
+type UrlState = {
+  page: 'usage' | 'context'
+  period: Period | null
+  provider: string | null
+  view: string | null
+  unit: Unit | null
+  day: string | null
+}
+
+function readUrlState(): UrlState {
+  let params: URLSearchParams
+  try {
+    params = new URLSearchParams(window.location.search)
+  } catch {
+    params = new URLSearchParams()
+  }
+  const get = (key: string): string | null => {
+    const raw = params.get(key)
+    return raw && raw.length <= 200 ? raw : null
+  }
+  const period = get('period')
+  const unit = get('unit')
+  const day = get('day')
+  const provider = get('provider')
+  return {
+    page: get('page') === 'context' ? 'context' : 'usage',
+    period: PERIODS.some(p => p.key === period) ? (period as Period) : null,
+    // Providers are discovered at runtime, so the set cannot be checked here.
+    // Constrain the shape instead; an unknown-but-well-formed name simply
+    // returns no usage rather than breaking the page.
+    provider: provider && /^[a-z0-9][a-z0-9_.-]*$/i.test(provider) ? provider : null,
+    view: get('view'),
+    unit: unit === 'tokens' || unit === 'cost' ? unit : null,
+    day: day && /^\d{4}-\d{2}-\d{2}$/.test(day) && !Number.isNaN(Date.parse(day)) ? day : null,
+  }
+}
+
 export function App() {
-  const [page, setPage] = useState<'usage' | 'context'>('usage')
-  const [period, setPeriod] = useState<Period>('today')
-  const [provider, setProvider] = useState('all')
-  const [view, setView] = useState<string>('all')
-  const [unit, setUnit] = useState<Unit>('cost')
+  // The URL wins where it says anything, then what the server prewarmed, then
+  // the defaults. Read once: later changes are written back, not re-read.
+  const urlState = useRef(readUrlState()).current
+  const [page, setPage] = useState<'usage' | 'context'>(urlState.page)
+  // Open on the period the server prewarmed, so `--period 30days` shows 30 days
+  // under a selected "30 days" tab rather than under "Today".
+  const bootstrapPeriod = window.__CODEBURN_BOOTSTRAP__?.period ?? 'today'
+  const bootstrapProvider = window.__CODEBURN_BOOTSTRAP__?.provider ?? 'all'
+  // A single pinned day, as YYYY-MM-DD. Sent as from=to=day, which the server
+  // reads the same way `--from`/`--to` do: an explicit range wins over `period`.
+  const bootstrapDay = (() => {
+    const b = window.__CODEBURN_BOOTSTRAP__
+    return b?.from && b.from === b.to ? b.from : null
+  })()
+  const [period, setPeriod] = useState<Period>(urlState.period ?? bootstrapPeriod)
+  const [provider, setProvider] = useState(urlState.provider ?? bootstrapProvider)
+  const [day, setDay] = useState<string | null>(urlState.day ?? bootstrapDay)
+  const [view, setView] = useState<string>(urlState.view ?? 'all')
+  const [unit, setUnit] = useState<Unit>(urlState.unit ?? 'cost')
   const [searchOpen, setSearchOpen] = useState(false)
   // Mobile only: the sidebar collapses to an off-canvas drawer below md.
   // On desktop this flag is inert (the max-md: transform classes don't apply).
@@ -482,9 +549,12 @@ export function App() {
   const qc = useQueryClient()
 
   const { data, isError, error, refetch } = useQuery({
-    queryKey: ['devices', period, provider],
-    queryFn: () => fetchDevices(period, provider),
-    initialData: () => (period === 'today' && provider === 'all' ? window.__CODEBURN_BOOTSTRAP__ : undefined),
+    queryKey: ['devices', period, provider, day],
+    queryFn: () => fetchDevices(period, provider, day ?? undefined, day ?? undefined),
+    // Only reuse the inlined payload for the query it actually answers. Seeding
+    // it into a different period showed that period's tab above another
+    // period's numbers.
+    initialData: () => (period === bootstrapPeriod && provider === bootstrapProvider && day === bootstrapDay ? window.__CODEBURN_BOOTSTRAP__ : undefined),
     // Bootstrap paints instantly but is stale by definition, so refetch at once
     // (the default 30s staleTime would otherwise hide a live peer until then).
     initialDataUpdatedAt: 0,
@@ -527,10 +597,36 @@ export function App() {
   const primary = viewing ?? local
   const c0 = primary?.payload?.current
 
-  // #1111: the dashboard opens on Today and falls back to 7 days once, when the
-  // first local payload shows today still has no sessions. Disarmed by the
-  // period picker, so it can never move a period the user chose.
-  const autoPeriod = useRef(true)
+  // #1111: when the dashboard opens on Today it falls back to 7 days once, if
+  // the first local payload shows today still has no sessions. Disarmed by the
+  // period picker, so it can never move a period the user chose, and inert when
+  // the server prewarmed some other period.
+  // Mirror the current view into the query string. replaceState, not pushState:
+  // toggling a unit or flipping a tab is not a navigation step, and pushing each
+  // one would make Back walk through every fiddle instead of leaving the page.
+  // Defaults are omitted so an untouched dashboard keeps a clean URL, and a
+  // pinned day drops `period` because the range is what the server honours.
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (page !== 'usage') params.set('page', page)
+    if (day) params.set('day', day)
+    else if (period !== 'today') params.set('period', period)
+    if (provider !== 'all') params.set('provider', provider)
+    if (view !== 'all') params.set('view', view)
+    if (unit !== 'cost') params.set('unit', unit)
+    const query = params.toString()
+    const next = `${window.location.pathname}${query ? `?${query}` : ''}`
+    if (next === `${window.location.pathname}${window.location.search}`) return
+    try {
+      window.history.replaceState(null, '', next)
+    } catch {
+      /* a sandboxed frame can refuse history access; the UI still works */
+    }
+  }, [page, period, provider, view, unit, day])
+
+  // A period restored from the URL is a period the user chose, so the fallback
+  // below starts already disarmed for it.
+  const autoPeriod = useRef(urlState.period === null && urlState.day === null)
   useEffect(() => {
     const sessions = local?.payload?.current?.sessions
     if (!autoPeriod.current || sessions === undefined) return
@@ -633,15 +729,49 @@ export function App() {
                 <button
                   key={p.key}
                   type="button"
-                  onClick={() => { autoPeriod.current = false; setPeriod(p.key) }}
+                  onClick={() => { autoPeriod.current = false; setDay(null); setPeriod(p.key) }}
                   className={cn(
                     'rounded-[5px] px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors max-md:inline-flex max-md:min-h-9 max-md:items-center max-md:justify-center',
-                    period === p.key ? 'bg-active-primary text-foreground shadow-sm' : 'text-tertiary-foreground hover:text-foreground',
+                    period === p.key && !day ? 'bg-active-primary text-foreground shadow-sm' : 'text-tertiary-foreground hover:text-foreground',
                   )}
                 >
                   {p.label}
                 </button>
               ))}
+            </div>
+            {/* Pin one day. A native date input is the whole picker: a real
+                calendar on every platform, keyboard-accessible, no dependency.
+                `max` is today because there is no usage to show past it. */}
+            <div className={cn(
+              'flex shrink-0 items-center gap-1 rounded-md border border-border bg-interactive-secondary px-1.5 py-0.5',
+              day && 'border-active-primary',
+            )}>
+              <label htmlFor="day-picker" className="sr-only">Show a single day</label>
+              <input
+                id="day-picker"
+                type="date"
+                value={day ?? ''}
+                max={todayStr()}
+                onChange={(e) => {
+                  autoPeriod.current = false
+                  setDay(e.target.value || null)
+                }}
+                className={cn(
+                  'w-[8.5rem] bg-transparent px-1 py-0.5 text-xs font-medium outline-none max-md:min-h-9',
+                  day ? 'text-foreground' : 'text-tertiary-foreground',
+                )}
+              />
+              {day && (
+                <button
+                  type="button"
+                  onClick={() => setDay(null)}
+                  title="Clear the pinned day"
+                  aria-label="Clear the pinned day"
+                  className="rounded-[4px] px-1.5 py-0.5 text-xs font-medium text-tertiary-foreground transition-colors hover:text-foreground"
+                >
+                  ×
+                </button>
+              )}
             </div>
             <div className="flex shrink-0 rounded-md border border-border bg-interactive-secondary p-0.5">
               {(['cost', 'tokens'] as Unit[]).map((u) => (

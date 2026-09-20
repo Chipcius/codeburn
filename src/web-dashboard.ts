@@ -189,7 +189,17 @@ export async function runWebDashboard(opts: {
     const html = await readFile(filePath, 'utf8')
     const payload = await getLocalPayload(opts.period, opts.provider, opts.from, opts.to)
     const devices = [{ id: 'local', name: hostname(), local: true, payload }]
-    const injected = injectDashboardBootstrap(html, { devices })
+    // Say WHICH period/provider this payload answers for. The client seeded it
+    // as its 'today' query regardless, so `codeburn web --period 30days` opened
+    // with the Today tab selected above 30-day numbers; it now opens on the
+    // period actually requested and only reuses the payload for a matching one.
+    const injected = injectDashboardBootstrap(html, {
+      devices,
+      period: opts.period,
+      provider: opts.provider,
+      ...(opts.from ? { from: opts.from } : {}),
+      ...(opts.to ? { to: opts.to } : {}),
+    })
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
     res.end(injected)
   }

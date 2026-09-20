@@ -100,7 +100,16 @@ export type DeviceUsage = {
 
 declare global {
   interface Window {
-    __CODEBURN_BOOTSTRAP__?: { devices: DeviceUsage[] }
+    // `period`/`provider` say what the inlined payload answers for. Absent on a
+    // bootstrap from an older server, which is why the reader defaults them to
+    // the values that build implicitly used.
+    __CODEBURN_BOOTSTRAP__?: {
+      devices: DeviceUsage[]
+      period?: Period
+      provider?: string
+      from?: string
+      to?: string
+    }
   }
 }
 
@@ -196,8 +205,14 @@ function normalizePayload(p?: Payload): Payload | undefined {
   }
 }
 
-export async function fetchDevices(period: Period, provider: string): Promise<{ devices: DeviceUsage[] }> {
-  const res = await fetch(`/api/devices?period=${encodeURIComponent(period)}&provider=${encodeURIComponent(provider)}`)
+/// `from`/`to` (YYYY-MM-DD) pin an explicit range; the server's date-range flags
+/// take precedence over `period` when both arrive, exactly as on the CLI, so the
+/// caller still sends whichever period it would otherwise be showing.
+export async function fetchDevices(period: Period, provider: string, from?: string, to?: string): Promise<{ devices: DeviceUsage[] }> {
+  const query = new URLSearchParams({ period, provider })
+  if (from) query.set('from', from)
+  if (to) query.set('to', to)
+  const res = await fetch(`/api/devices?${query.toString()}`)
   if (!res.ok) throw new Error(`Request failed (${res.status})`)
   const data = (await res.json()) as { devices: DeviceUsage[] }
   return { devices: (data.devices ?? []).map((d) => ({ ...d, payload: normalizePayload(d.payload) })) }
