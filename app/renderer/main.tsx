@@ -3,6 +3,11 @@ import { createRoot } from 'react-dom/client'
 
 import { App } from './App'
 import { installPageHiddenClass } from './lib/pageVisibility'
+// Bundled so the UI renders in the same faces on every OS instead of the platform's system
+// font (SF Pro on macOS, Segoe UI on Windows). Loaded before the stylesheets that reference
+// them through --sans / --mono.
+import '@fontsource-variable/inter'
+import '@fontsource-variable/jetbrains-mono'
 import './styles/indigo.css'
 import './styles/plain.css'
 
