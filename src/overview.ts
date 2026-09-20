@@ -298,10 +298,15 @@ export function renderOverview(
     .filter(([, v]) => v.cost > 0 || v.tokens > 0)
     .sort((a, b) => b[1].cost - a[1].cost)
   if (providerRows.length) {
+    // Share is each row against the SUM OF THE ROWS, not the headline cost: the
+    // rows come from the live parse and the headline from the durable day cache,
+    // so a day the cache under-read makes the column read 261% / 160% / 2% and a
+    // day whose transcripts expired makes it fall short of 100%.
+    const providerCostTotal = providerRows.reduce((sum, [, v]) => sum + v.cost, 0)
     out.push(heading('By tool'))
     out.push(renderTable(c,
       [{ header: 'Tool' }, { header: 'Cost', right: true }, { header: 'Tokens', right: true }, { header: 'Share', right: true }],
-      providerRows.map(([name, v]) => [name, formatCost(v.cost), formatTokens(v.tokens), cost > 0 ? `${Math.round((v.cost / cost) * 100)}%` : '0%']),
+      providerRows.map(([name, v]) => [name, formatCost(v.cost), formatTokens(v.tokens), providerCostTotal > 0 ? `${Math.round((v.cost / providerCostTotal) * 100)}%` : '0%']),
     ))
     out.push('')
   }

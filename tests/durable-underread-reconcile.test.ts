@@ -235,6 +235,71 @@ describe('a frozen under-read no longer suppresses the sources on disk', () => {
   })
 })
 
+// A day the cache holds NO row for is the same evidence problem one rung worse:
+// `isPartialSurvival` and the watermark pull-backs all reason about rows that
+// EXIST, and gapStart is lastComputedDate + 1, so a date behind the watermark
+// with no row is never re-derived and never reconciled. On a real corpus this
+// dropped 13 of 20 days out of a month's headline — $3,146 reported against
+// $13,290 actually spent — while the panels underneath printed the missing work.
+describe('a date the cache never recorded is filled from the parse that can see it', () => {
+  const hole = daysAgoStr(3)
+  const recorded = daysAgoStr(5)
+
+  it('reports the live day when the cache holds no row for it at all', async () => {
+    await seedHistoricalSession(hole)
+    const live = await liveOnly(weekRange())
+    expect(live.calls).toBe(4)
+
+    // The watermark (yesterday) sits past the hole, so nothing re-derives it.
+    await seedCache([dayEntry(recorded, { claude: slice(100, 40) }, { carried: true })])
+
+    clearSessionCache()
+    const durable = await buildDurablePeriod({ range: weekRange(), label: 'p' })
+
+    expect(durable.data.calls).toBe(live.calls + 40)
+    expect(durable.data.cost).toBeCloseTo(live.cost + 100, 6)
+    // The filled day is re-read from disk, not preserved from expired logs.
+    expect(durable.carriedCostUSD).toBe(100)
+  })
+
+  it('fills the hole even when the cache holds no rows whatsoever', async () => {
+    await seedHistoricalSession(hole)
+    const live = await liveOnly(weekRange())
+    await seedCache([])
+
+    clearSessionCache()
+    const durable = await buildDurablePeriod({ range: weekRange(), label: 'p' })
+
+    expect(durable.data.calls).toBe(live.calls)
+    expect(durable.data.cost).toBeCloseTo(live.cost, 6)
+  })
+
+  it('invents no day for a date with no activity on either side', async () => {
+    await seedHistoricalSession(hole)
+    await seedCache([dayEntry(recorded, { claude: slice(100, 40) })])
+
+    clearSessionCache()
+    const durable = await buildDurablePeriod({ range: weekRange(), label: 'p' })
+
+    // An idle date produces no live day, so it fills nothing: only the two dates
+    // that carry work appear.
+    expect(durable.days.map(d => d.date).sort()).toEqual([recorded, hole].sort())
+  })
+
+  it('does not reach outside the requested range to fill a hole', async () => {
+    // A turn anchored before the range start survives range slicing whole
+    // (#1130), so the parse can surface a day the period never asked for.
+    await seedHistoricalSession(daysAgoStr(20))
+    await seedCache([dayEntry(recorded, { claude: slice(100, 40) })])
+
+    clearSessionCache()
+    const durable = await buildDurablePeriod({ range: weekRange(), label: 'p' })
+
+    expect(durable.days.map(d => d.date)).toEqual([recorded])
+    expect(durable.data.calls).toBe(40)
+  })
+})
+
 describe("mergeDayEntries 'prefer-richer' guard mode", () => {
   const recent = daysAgoStr(2)
 

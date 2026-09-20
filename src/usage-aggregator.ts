@@ -580,29 +580,45 @@ function unionDaysForPeriod(
   // parsed these dates. Reconcile the two per (date, provider), keeping
   // whichever explains MORE calls: a cached day whose transcripts have expired
   // still wins (nothing live can outbid it), and an under-read cached row stops
-  // suppressing evidence that is sitting on disk. Only dates the cache already
-  // holds are reconciled — filling absent dates is a separate decision each
-  // caller makes for itself. The cache day's own `carried` flag is the only
-  // provenance there is: re-flagging here would mark every date the live parse
-  // agrees on (the common case) as preserved from expired logs.
+  // suppressing evidence that is sitting on disk. Dates the cache holds no entry
+  // for are filled from the same parse (see below). The cache day's own `carried`
+  // flag is the only provenance there is: re-flagging here would mark every date
+  // the live parse agrees on (the common case) as preserved from expired logs.
   // Only days a live slice could actually win are handed to the merge. On a
   // healthy cache that is none, so the lifetime period skips cloning every day
   // it holds — and a date the cache already explains is passed through as the
   // cache wrote it rather than rebuilt from a live day it would have to
   // reconstruct back to the same numbers.
   const cachedByDate = new Map(historicalDays.map(d => [d.date, d]))
-  const liveForCachedDates = liveHistoricalDays.filter(d => {
-    if (daysSelection && !daysSelection.has(d.date)) return false
+  // Clamp to the window the cache is answering for before anything is compared.
+  // A turn anchored before the range start survives range slicing whole, so the
+  // aggregator can emit a day just outside the parsed range (#1130); such a day
+  // must not be reconciled against, nor filled in, here.
+  const liveInWindow = liveHistoricalDays.filter(d =>
+    d.date >= rangeStartStr
+    && d.date <= historicalRangeEndStr
+    && (!daysSelection || daysSelection.has(d.date)),
+  )
+  const liveForCachedDates = liveInWindow.filter(d => {
     const cached = cachedByDate.get(d.date)
     return cached != null && Object.entries(d.providers).some(
       ([provider, slice]) => slice.calls > (Object.hasOwn(cached.providers, provider) ? cached.providers[provider].calls : 0),
     )
   })
+  // A date the cache holds NO entry for is the same evidence problem as an
+  // under-read one, and the watermark makes it permanent: gapStart is
+  // lastComputedDate + 1, so a hole BEHIND the watermark is never re-derived and
+  // every headline built from the cache omits that day forever, while the live
+  // panels beside it show the work. Nothing distinguishes such a hole from a
+  // genuinely idle day in the cache alone — but the parse this run already did
+  // is the missing witness, so a date it explains and the cache does not is
+  // filled from it. An idle date produces no live day and so fills nothing.
+  const liveForAbsentDates = liveInWindow.filter(d => !cachedByDate.has(d.date))
   const reconciledDays = liveForCachedDates.length > 0
     ? mergeDayEntries(liveForCachedDates, historicalDays, false, undefined, 'prefer-richer')
     : historicalDays
   const todayInRange = todayAllDays.filter(d => d.date >= rangeStartStr && d.date <= rangeEndStr)
-  const unfiltered = [...reconciledDays, ...todayInRange].sort((a, b) => a.date.localeCompare(b.date))
+  const unfiltered = [...reconciledDays, ...liveForAbsentDates, ...todayInRange].sort((a, b) => a.date.localeCompare(b.date))
   return daysSelection ? unfiltered.filter(d => daysSelection.has(d.date)) : unfiltered
 }
 
@@ -653,23 +669,15 @@ export function buildDurableOverviewFromNormalizedIndex(
     historicalSlice,
     normalizedDays.filter(day => day.date !== todayStr),
   )
-  const cachedDates = new Set(cache.days.map(day => day.date))
-  const rangeStartStr = toDateString(periodInfo.range.start)
-  const rangeEndStr = toDateString(periodInfo.range.end)
-  // A provider-scoped index deliberately does not rewrite the shared all-
-  // provider durable cache. When that cache has no row for a surviving
-  // historical source, fill the missing date from this same normalized index;
-  // existing durable rows stay authoritative so expired history is preserved.
-  const canFillMissingDates = cache.complete !== true || cache.days.length === 0
-  const normalizedHistoricalDays = canFillMissingDates
-    ? normalizedDays.filter(day =>
-        day.date !== todayStr
-        && day.date >= rangeStartStr
-        && day.date <= rangeEndStr
-        && !cachedDates.has(day.date)
-      )
-    : []
-  const allDays = [...cachedAllDays, ...normalizedHistoricalDays].sort((a, b) => a.date.localeCompare(b.date))
+  // Filling a date the durable cache has no row for is `unionDaysForPeriod`'s
+  // job, from the same normalized days handed to it above — a provider-scoped
+  // index deliberately does not rewrite the shared all-provider cache, so the
+  // fill has to happen on the read. It used to be repeated here behind a
+  // `cache.complete !== true || cache.days.length === 0` gate, which is the one
+  // shape the real bug never has: a cache marked complete, holding rows, with a
+  // hole behind its watermark. Doing it in one place fixes that and removes the
+  // double count the two fills produced together.
+  const allDays = [...cachedAllDays].sort((a, b) => a.date.localeCompare(b.date))
   const normalizedByDate = new Map(normalizedDays.map(day => [day.date, day]))
   const days = pf === 'all' ? allDays : allDays.map(day => {
     if (Object.hasOwn(day.providers, pf)) return sliceDayToProvider(day, pf)
