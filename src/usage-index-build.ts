@@ -8,6 +8,10 @@ export type BuildResult = IngestStats & {
   carried: number
   parseMs: number
   writeMs: number
+  /// Time spent materializing UI payloads, and how many landed.
+  payloadMs: number
+  payloads: number
+  payloadFailures: string[]
   path: string
 }
 
@@ -51,7 +55,29 @@ export async function buildIndex(opts: { provider?: string } = {}): Promise<Buil
       })),
     ))
     markIngested(index)
-    return { ...stats, carried, parseMs: parsed - started, writeMs: Date.now() - parsed, path: index.path }
+    const written = Date.now()
+
+    // Only a full, all-provider build materializes: a provider-scoped build has
+    // not refreshed the other providers, so an all-provider payload built now
+    // would mix a fresh provider with stale ones.
+    let payloads = 0
+    let payloadFailures: string[] = []
+    if (!provider) {
+      const { materializePayloads } = await import('./usage-index-payloads.js')
+      const r = await materializePayloads(index)
+      payloads = r.built
+      payloadFailures = r.failed
+    }
+    return {
+      ...stats,
+      carried,
+      parseMs: parsed - started,
+      writeMs: written - parsed,
+      payloadMs: Date.now() - written,
+      payloads,
+      payloadFailures,
+      path: index.path,
+    }
   } finally {
     index.close()
   }

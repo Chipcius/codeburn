@@ -28,7 +28,7 @@ import { loadSqliteConstructor } from './sqlite.js'
 ///   - Ingestion is incremental against a per-source watermark, so re-ingesting
 ///     an unchanged corpus is a stat sweep rather than a parse.
 
-export const USAGE_INDEX_SCHEMA_VERSION = 5
+export const USAGE_INDEX_SCHEMA_VERSION = 6
 
 export type SqliteValue = string | number | bigint | null | Uint8Array
 type Row = Record<string, SqliteValue>
@@ -171,6 +171,20 @@ CREATE TABLE IF NOT EXISTS call_tool (
 
 CREATE INDEX IF NOT EXISTS call_tool_day_idx      ON call_tool (day, tool);
 CREATE INDEX IF NOT EXISTS call_tool_call_idx     ON call_tool (call_uid);
+
+-- Finished UI payloads, materialized by the worker after each ingest. The
+-- dashboard payload leans on a dozen derived structures (tool, skill, subagent
+-- and MCP rollups, retry tax, routing waste, the granular timeline) that are
+-- all computed by codeburn's existing builder from a parsed corpus. Rather than
+-- re-derive each over this index and drift from it, the worker - which already
+-- holds the parse warm - runs that builder and stores the result. A UI read is
+-- then a primary-key lookup, and matches the live path because it IS the live
+-- path, run ahead of time.
+CREATE TABLE IF NOT EXISTS ui_payload (
+  key       TEXT PRIMARY KEY,
+  json      TEXT NOT NULL,
+  built_at  INTEGER NOT NULL
+) STRICT;
 CREATE INDEX IF NOT EXISTS call_day_idx          ON call (day);
 CREATE INDEX IF NOT EXISTS call_day_provider_idx ON call (day, provider);
 CREATE INDEX IF NOT EXISTS call_day_model_idx    ON call (day, model_key);
@@ -257,7 +271,7 @@ function migrate(index: UsageIndex): void {
   // a version change drops what it holds and re-ingests from the sources. The
   // durable daily cache remains the only store that must never lose history.
   if (current !== 0) {
-    for (const table of ['call_tool', 'call', 'session', 'source', 'carried_day']) index.run(`DROP TABLE IF EXISTS ${table}`)
+    for (const table of ['ui_payload', 'call_tool', 'call', 'session', 'source', 'carried_day']) index.run(`DROP TABLE IF EXISTS ${table}`)
   }
   index.run(SCHEMA)
   index.run('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', [
@@ -280,6 +294,22 @@ export function markIngested(index: UsageIndex, at: number = Date.now()): void {
     'INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
     ['last_ingest_at', String(at)],
   )
+}
+
+export function storePayload(index: UsageIndex, key: string, json: string, at: number = Date.now()): void {
+  index.run(
+    `INSERT INTO ui_payload (key, json, built_at) VALUES (?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET json = excluded.json, built_at = excluded.built_at`,
+    [key, json, at],
+  )
+}
+
+/// A materialized payload and when it was built, or null. The caller decides
+/// whether it is fresh enough; a missing key means "not materialized", never
+/// "no usage", so the caller must fall back rather than render nothing.
+export function readPayload(index: UsageIndex, key: string): { json: string; builtAt: number } | null {
+  const [row] = index.query<{ json: string; built_at: number }>('SELECT json, built_at FROM ui_payload WHERE key = ?', [key])
+  return row ? { json: String(row.json), builtAt: Number(row.built_at) } : null
 }
 
 export type SourceState = { path: string; mtimeMs: number; sizeBytes: number }

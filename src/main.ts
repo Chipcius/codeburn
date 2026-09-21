@@ -3089,6 +3089,8 @@ program
             `\n  Indexed ${r.calls.toLocaleString('en-US')} calls across ${r.sessions.toLocaleString('en-US')} sessions`
             + ` (parse ${(r.parseMs / 1000).toFixed(1)}s, write ${(r.writeMs / 1000).toFixed(1)}s)`
             + `\n  Carried ${r.carried.toLocaleString('en-US')} day/provider slices whose sources are gone`
+            + `\n  Materialized ${r.payloads} dashboard payloads in ${(r.payloadMs / 1000).toFixed(1)}s`
+            + (r.payloadFailures.length ? `\n  Payload failures: ${r.payloadFailures.join('; ')}` : '')
             + `\n  ${r.path}\n`,
           )
         }

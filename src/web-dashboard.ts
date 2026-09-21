@@ -134,7 +134,53 @@ export async function runWebDashboard(opts: {
     void payload.catch(() => localPayloadCache.delete(key))
     return payload
   }
-  const getLocalPayload = (period: string, provider: string, from?: string, to?: string): Promise<MenubarPayload> => {
+  /// The standard period tabs are materialized into the usage index by the
+  /// worker, so the default dashboard answers from a primary-key lookup instead
+  /// of a parse. Only an unfiltered request can use one: the materialized
+  /// payloads are all-provider with no project filter and no custom range, and
+  /// anything else is answered live exactly as before.
+  const materializedPayload = async (period: string, provider: string, from?: string, to?: string): Promise<MenubarPayload | null> => {
+    if (provider !== 'all' || from || to) return null
+    if ((opts.project?.length ?? 0) > 0 || (opts.exclude?.length ?? 0) > 0) return null
+    const { MATERIALIZED_PERIODS, payloadKey } = await import('./usage-index-payloads.js')
+    if (!(MATERIALIZED_PERIODS as readonly string[]).includes(period)) return null
+    const { existsSync } = await import('fs')
+    const { openUsageIndex, readPayload, usageIndexPath } = await import('./usage-index.js')
+    const { scheduleBackgroundIngest, INDEX_STALE_AFTER_MS } = await import('./usage-index-refresh.js')
+    if (!existsSync(usageIndexPath())) {
+      scheduleBackgroundIngest()
+      return null
+    }
+    let index
+    try {
+      index = openUsageIndex({ readOnly: true })
+    } catch {
+      scheduleBackgroundIngest()
+      return null
+    }
+    try {
+      const hit = readPayload(index, payloadKey(period, 'all'))
+      if (!hit) {
+        scheduleBackgroundIngest()
+        return null
+      }
+      const payload = JSON.parse(hit.json) as MenubarPayload
+      // Served either way; an old one is flagged and refreshed behind the read,
+      // so the dashboard never waits on a parse and never presents old figures
+      // as current without saying so.
+      if (Date.now() - hit.builtAt > INDEX_STALE_AFTER_MS) {
+        scheduleBackgroundIngest()
+        payload.stale = true
+      }
+      return payload
+    } finally {
+      index.close()
+    }
+  }
+
+  const getLocalPayload = async (period: string, provider: string, from?: string, to?: string): Promise<MenubarPayload> => {
+    const materialized = await materializedPayload(period, provider, from, to).catch(() => null)
+    if (materialized) return materialized
     const key = `${period}|${provider}|${from ?? ''}|${to ?? ''}`
     const hit = localPayloadCache.get(key)
     if (hit && Date.now() - hit.at < LOCAL_PAYLOAD_TTL_MS) {

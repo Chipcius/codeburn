@@ -121,7 +121,11 @@ export async function watchAndIngest(opts: { provider?: string } = {}): Promise<
     firstDirtyAt = 0
     try {
       const r = await buildIndex({ provider: opts.provider })
-      log(`${reason}: ${r.calls.toLocaleString('en-US')} calls in ${((r.parseMs + r.writeMs) / 1000).toFixed(1)}s`)
+      log(
+        `${reason}: ${r.calls.toLocaleString('en-US')} calls in ${((r.parseMs + r.writeMs) / 1000).toFixed(1)}s`
+        + `, ${r.payloads} payloads in ${(r.payloadMs / 1000).toFixed(1)}s`
+        + (r.payloadFailures.length ? ` (failed: ${r.payloadFailures.join('; ')})` : ''),
+      )
     } catch (err) {
       log(`build failed (${reason}): ${err instanceof Error ? err.message : String(err)}`)
       // Leave it dirty so the next event or the safety timer retries.
