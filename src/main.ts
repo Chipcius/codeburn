@@ -2953,6 +2953,71 @@ program
   })
 
 program
+  .command('index [action]')
+  .description('Compile provider data into the local usage index, or query it. Actions: build | stats | day <date>')
+  .option('--provider <provider>', 'Ingest a single provider (e.g. claude, codex, opencode)', 'all')
+  .option('--from <date>', 'Start date for a query (YYYY-MM-DD)')
+  .option('--to <date>', 'End date for a query (YYYY-MM-DD)')
+  .action(async (action: string | undefined, opts) => {
+    assertProvider(opts.provider, 'index')
+    const { openUsageIndex, dayTotals, groupTotals } = await import('./usage-index.js')
+    const { ingestProjects } = await import('./usage-ingest.js')
+
+    if (action === undefined || action === 'build') {
+      await loadPricing()
+      const index = openUsageIndex()
+      try {
+        const started = Date.now()
+        // A full parse on purpose: this is the background job the read path is
+        // being freed from, so it reads everything once rather than repeatedly.
+        const projects = await parseAllSessions(undefined, opts.provider === 'all' ? undefined : opts.provider)
+        const parsed = Date.now()
+        const stats = ingestProjects(index, projects)
+        console.log(
+          `\n  Indexed ${stats.calls.toLocaleString('en-US')} calls across ${stats.sessions.toLocaleString('en-US')} sessions`
+          + ` (parse ${((parsed - started) / 1000).toFixed(1)}s, write ${((Date.now() - parsed) / 1000).toFixed(1)}s)`
+          + `\n  ${index.path}\n`,
+        )
+      } finally {
+        index.close()
+      }
+      return
+    }
+
+    const index = openUsageIndex({ readOnly: true })
+    try {
+      if (action === 'stats') {
+        const [row] = index.query<{ calls: number; sessions: number; first: string; last: string }>(
+          `SELECT COUNT(*) AS calls,
+                  (SELECT COUNT(*) FROM session) AS sessions,
+                  MIN(day) AS first, MAX(day) AS last
+             FROM call`,
+        )
+        console.log(
+          `\n  calls ${Number(row?.calls ?? 0).toLocaleString('en-US')}`
+          + `   sessions ${Number(row?.sessions ?? 0).toLocaleString('en-US')}`
+          + `   days ${row?.first ?? '-'} .. ${row?.last ?? '-'}\n`,
+        )
+        return
+      }
+      const from = opts.from ?? action
+      const to = opts.to ?? from
+      if (!from || !/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+        console.error('\n  Usage: codeburn index [build|stats] | codeburn index <YYYY-MM-DD> | codeburn index --from <date> --to <date>\n')
+        process.exit(1)
+      }
+      for (const d of dayTotals(index, from, to)) {
+        console.log(`  ${d.day}  ${formatCost(d.cost).padStart(11)}  ${d.calls.toLocaleString('en-US').padStart(7)} calls`)
+      }
+      for (const g of groupTotals(index, 'provider', from, to)) {
+        console.log(`    ${g.key.padEnd(10)} ${formatCost(g.cost).padStart(11)}`)
+      }
+    } finally {
+      index.close()
+    }
+  })
+
+program
   .command('doctor')
   .description('Per-provider detection status: paths probed, sessions found, parse health (diagnose empty or wrong numbers)')
   .option('--provider <provider>', 'Diagnose a single provider (e.g. claude, codex, opencode)', 'all')

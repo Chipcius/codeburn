@@ -527,6 +527,18 @@ export function assertDatabaseReadable(path: string, script = TCC_PROBE): void {
   throw Object.assign(new Error(`macOS blocked access to ${path}`), { codeburnBlocked: true })
 }
 
+/// The raw `node:sqlite` constructor, driver-loaded with the SQLite
+/// ExperimentalWarning already suppressed. Exported for the usage index, which
+/// needs a WRITABLE handle to codeburn's OWN database; `openDatabase` below stays
+/// read-only because everything it opens belongs to another tool.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function loadSqliteConstructor(): any {
+  if (!loadDriver() || DatabaseSync === null) {
+    throw new Error(getSqliteLoadError())
+  }
+  return DatabaseSync
+}
+
 export function openDatabase(path: string): SqliteDatabase {
   if (!loadDriver() || DatabaseSync === null) {
     throw new Error(getSqliteLoadError())

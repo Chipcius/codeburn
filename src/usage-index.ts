@@ -1,0 +1,392 @@
+import { mkdirSync } from 'fs'
+import { join } from 'path'
+
+import { getCodeburnCacheDir } from './cache-dir.js'
+import { loadSqliteConstructor } from './sqlite.js'
+
+/// codeburn's OWN compiled dataset. Everything else under the cache dir is a
+/// whole-file JSON blob, which is why a question about one day costs hundreds of
+/// megabytes of deserialization: the September opencode shard is 1.6 MB, but a
+/// `--period today` read pulls the 143 MB March shard alongside it and spends ~38
+/// seconds doing it. A blob cannot be read in part, cannot be indexed, and cannot
+/// be written by one process while another reads it.
+///
+/// So the read path moves off the blobs entirely. Providers' own stores are
+/// WATCHED AND INGESTED, never queried to answer a UI request; the UIs query
+/// this index and nothing else. Design consequences:
+///
+///   - Embedded, not a server. This is a local CLI; a Postgres dependency would
+///     be a daemon to install, secure and keep running for a `codeburn status`.
+///     The compiled data is also far smaller than the raw stores it summarizes
+///     (aggregates and per-call rows, not 26 GB of transcripts).
+///   - WAL, so a background ingest can write while a dashboard reads. This is the
+///     property the blob design could never have, and the reason ingestion can
+///     move off the read path at all.
+///   - `day` is stored as a local-date string, matching how every existing
+///     surface buckets a day (local midnight). Storing UTC instants and grouping
+///     later would silently re-bucket every row for anyone not on UTC.
+///   - Ingestion is incremental against a per-source watermark, so re-ingesting
+///     an unchanged corpus is a stat sweep rather than a parse.
+
+export const USAGE_INDEX_SCHEMA_VERSION = 1
+
+export type SqliteValue = string | number | bigint | null | Uint8Array
+type Row = Record<string, SqliteValue>
+
+type StatementHandle = {
+  all(...params: SqliteValue[]): unknown[]
+  run(...params: SqliteValue[]): unknown
+}
+type WritableDatabase = {
+  exec(sql: string): void
+  prepare(sql: string): StatementHandle
+  close(): void
+}
+type DatabaseCtor = new (path: string, options?: Record<string, unknown>) => WritableDatabase
+
+export type UsageIndex = {
+  /// Rows for a read-only question. Never used to answer a UI request from a
+  /// provider's own store — that is what ingestion is for.
+  query<T extends Row = Row>(sql: string, params?: SqliteValue[]): T[]
+  run(sql: string, params?: SqliteValue[]): void
+  /// One transaction. Ingesting a session's calls row-by-row without this is
+  /// one fsync per row, which is slower than the blob write it replaces.
+  transaction<T>(fn: () => T): T
+  close(): void
+  path: string
+}
+
+export function usageIndexPath(): string {
+  return join(getCodeburnCacheDir(), `usage-index.v${USAGE_INDEX_SCHEMA_VERSION}.db`)
+}
+
+// `day` carries a local-date string and every range predicate is a string
+// compare, so it must be zero-padded to sort correctly.
+const SCHEMA = `
+CREATE TABLE IF NOT EXISTS meta (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+) STRICT;
+
+-- One row per ingested source file (a transcript, a rollout, a provider DB).
+-- The watermark: a source whose size and mtime are unchanged is skipped without
+-- opening it. 'partial' records a source that parsed incompletely, so a later
+-- run retries it instead of trusting a short read forever.
+CREATE TABLE IF NOT EXISTS source (
+  path         TEXT PRIMARY KEY,
+  provider     TEXT NOT NULL,
+  mtime_ms     INTEGER NOT NULL,
+  size_bytes   INTEGER NOT NULL,
+  ingested_at  INTEGER NOT NULL,
+  status       TEXT NOT NULL DEFAULT 'complete'
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS session (
+  uid           TEXT PRIMARY KEY,
+  provider      TEXT NOT NULL,
+  session_id    TEXT NOT NULL,
+  source_path   TEXT,
+  project_path  TEXT,
+  project_label TEXT,
+  first_ts      TEXT,
+  last_ts       TEXT
+) STRICT;
+
+-- The fact table. One row per API call, which is the grain every surface
+-- aggregates from: day totals, per-provider, per-model, per-project, per-session.
+-- Costs are stored as computed at ingest so a read is a SUM, never a repricing.
+CREATE TABLE IF NOT EXISTS call (
+  uid                TEXT PRIMARY KEY,
+  session_uid        TEXT NOT NULL,
+  provider           TEXT NOT NULL,
+  model              TEXT NOT NULL,
+  day                TEXT NOT NULL,
+  ts                 TEXT,
+  category           TEXT,
+  speed              TEXT,
+  input_tokens       INTEGER NOT NULL DEFAULT 0,
+  output_tokens      INTEGER NOT NULL DEFAULT 0,
+  reasoning_tokens   INTEGER NOT NULL DEFAULT 0,
+  cache_read_tokens  INTEGER NOT NULL DEFAULT 0,
+  cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+  cache_write_1h     INTEGER NOT NULL DEFAULT 0,
+  web_searches       INTEGER NOT NULL DEFAULT 0,
+  cost_usd           REAL NOT NULL DEFAULT 0,
+  savings_usd        REAL NOT NULL DEFAULT 0
+) STRICT;
+
+-- Every UI question starts by narrowing to a date window, so day leads each
+-- index; the trailing column lets the common breakdowns be answered from the
+-- index alone rather than by visiting rows.
+CREATE INDEX IF NOT EXISTS call_day_idx          ON call (day);
+CREATE INDEX IF NOT EXISTS call_day_provider_idx ON call (day, provider);
+CREATE INDEX IF NOT EXISTS call_day_model_idx    ON call (day, model);
+CREATE INDEX IF NOT EXISTS call_session_idx      ON call (session_uid);
+CREATE INDEX IF NOT EXISTS session_provider_idx  ON session (provider);
+CREATE INDEX IF NOT EXISTS session_project_idx   ON session (project_path);
+CREATE INDEX IF NOT EXISTS session_source_idx    ON session (source_path);
+`
+
+let DatabaseCtorCache: DatabaseCtor | null = null
+
+function loadDatabaseCtor(): DatabaseCtor {
+  if (DatabaseCtorCache) return DatabaseCtorCache
+  DatabaseCtorCache = loadSqliteConstructor() as DatabaseCtor
+  return DatabaseCtorCache
+}
+
+/// Open (creating if absent) and migrate. `readOnly` is for a UI process: it must
+/// never be the thing that creates or migrates the index, so a reader opening a
+/// missing index fails loudly rather than racing the ingester to build one.
+export function openUsageIndex(opts: { readOnly?: boolean } = {}): UsageIndex {
+  const Database = loadDatabaseCtor()
+  const path = usageIndexPath()
+  if (!opts.readOnly) mkdirSync(getCodeburnCacheDir(), { recursive: true })
+
+  const db = new Database(path, opts.readOnly ? { readOnly: true } : {})
+  // WAL lets the ingester write while readers read, which is the whole point of
+  // moving ingestion off the read path. NORMAL trades an fsync per commit for
+  // durability only against OS crash, not process crash — acceptable for a cache
+  // that can always be rebuilt from the sources.
+  if (!opts.readOnly) {
+    db.exec('PRAGMA journal_mode = WAL')
+    db.exec('PRAGMA synchronous = NORMAL')
+  }
+  db.exec('PRAGMA busy_timeout = 5000')
+  db.exec('PRAGMA foreign_keys = ON')
+
+  const index: UsageIndex = {
+    path,
+    query<T extends Row = Row>(sql: string, params: SqliteValue[] = []): T[] {
+      return db.prepare(sql).all(...params) as T[]
+    },
+    run(sql: string, params: SqliteValue[] = []): void {
+      // DDL and other parameterless statements go through exec: node:sqlite
+      // finalizes a prepared DDL statement out from under itself ("statement has
+      // been finalized"), and exec also accepts a multi-statement script.
+      if (params.length === 0) db.exec(sql)
+      else db.prepare(sql).run(...params)
+    },
+    transaction<T>(fn: () => T): T {
+      db.exec('BEGIN IMMEDIATE')
+      try {
+        const result = fn()
+        db.exec('COMMIT')
+        return result
+      } catch (err) {
+        try {
+          db.exec('ROLLBACK')
+        } catch {
+          /* the transaction is already gone; report the original failure */
+        }
+        throw err
+      }
+    },
+    close(): void {
+      db.close()
+    },
+  }
+
+  if (!opts.readOnly) migrate(index)
+  return index
+}
+
+function migrate(index: UsageIndex): void {
+  index.run('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT')
+  const found = index.query<{ value: string }>('SELECT value FROM meta WHERE key = ?', ['schema_version'])
+  const current = found.length > 0 ? Number(found[0]!.value) : 0
+  if (current === USAGE_INDEX_SCHEMA_VERSION) return
+  // No down-migration and no in-place upgrade yet: the index is derived data, so
+  // a version change drops what it holds and re-ingests from the sources. The
+  // durable daily cache remains the only store that must never lose history.
+  if (current !== 0) {
+    for (const table of ['call', 'session', 'source']) index.run(`DROP TABLE IF EXISTS ${table}`)
+  }
+  index.run(SCHEMA)
+  index.run('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', [
+    'schema_version',
+    String(USAGE_INDEX_SCHEMA_VERSION),
+  ])
+}
+
+export type SourceState = { path: string; mtimeMs: number; sizeBytes: number }
+
+/// Which of `sources` changed since their last ingest. Unchanged means same path,
+/// same mtime AND same size, and a source last read only partially always counts
+/// as changed so the retry it was promised actually happens.
+export function selectChangedSources(index: UsageIndex, sources: readonly SourceState[]): SourceState[] {
+  if (sources.length === 0) return []
+  const known = new Map<string, { mtime_ms: number; size_bytes: number; status: string }>()
+  for (const row of index.query<{ path: string; mtime_ms: number; size_bytes: number; status: string }>(
+    'SELECT path, mtime_ms, size_bytes, status FROM source',
+  )) {
+    known.set(row.path, { mtime_ms: Number(row.mtime_ms), size_bytes: Number(row.size_bytes), status: row.status })
+  }
+  return sources.filter(s => {
+    const prior = known.get(s.path)
+    if (!prior || prior.status !== 'complete') return true
+    return prior.mtime_ms !== s.mtimeMs || prior.size_bytes !== s.sizeBytes
+  })
+}
+
+export function recordSource(
+  index: UsageIndex,
+  source: SourceState & { provider: string; status?: 'complete' | 'partial' },
+): void {
+  index.run(
+    `INSERT INTO source (path, provider, mtime_ms, size_bytes, ingested_at, status)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(path) DO UPDATE SET
+       provider = excluded.provider, mtime_ms = excluded.mtime_ms,
+       size_bytes = excluded.size_bytes, ingested_at = excluded.ingested_at,
+       status = excluded.status`,
+    [source.path, source.provider, source.mtimeMs, source.sizeBytes, Date.now(), source.status ?? 'complete'],
+  )
+}
+
+/// Drop everything a source contributed, so re-ingesting a changed file replaces
+/// its rows instead of doubling them. Keyed on session.source_path rather than on
+/// call rows directly, since a call only knows its session.
+export function deleteSourceRows(index: UsageIndex, path: string): void {
+  index.run('DELETE FROM call WHERE session_uid IN (SELECT uid FROM session WHERE source_path = ?)', [path])
+  index.run('DELETE FROM session WHERE source_path = ?', [path])
+}
+
+export type SessionRecord = {
+  uid: string
+  provider: string
+  sessionId: string
+  sourcePath: string | null
+  projectPath: string | null
+  projectLabel: string | null
+  firstTs: string | null
+  lastTs: string | null
+}
+
+export type CallRecord = {
+  uid: string
+  sessionUid: string
+  provider: string
+  model: string
+  day: string
+  ts: string | null
+  category: string | null
+  speed: string | null
+  inputTokens: number
+  outputTokens: number
+  reasoningTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  cacheWrite1h: number
+  webSearches: number
+  costUSD: number
+  savingsUSD: number
+}
+
+export function insertSessions(index: UsageIndex, sessions: readonly SessionRecord[]): void {
+  for (const s of sessions) {
+    index.run(
+      `INSERT INTO session (uid, provider, session_id, source_path, project_path, project_label, first_ts, last_ts)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(uid) DO UPDATE SET
+         provider = excluded.provider, session_id = excluded.session_id,
+         source_path = excluded.source_path, project_path = excluded.project_path,
+         project_label = excluded.project_label, first_ts = excluded.first_ts,
+         last_ts = excluded.last_ts`,
+      [s.uid, s.provider, s.sessionId, s.sourcePath, s.projectPath, s.projectLabel, s.firstTs, s.lastTs],
+    )
+  }
+}
+
+export function insertCalls(index: UsageIndex, calls: readonly CallRecord[]): void {
+  for (const c of calls) {
+    index.run(
+      `INSERT INTO call (
+         uid, session_uid, provider, model, day, ts, category, speed,
+         input_tokens, output_tokens, reasoning_tokens, cache_read_tokens,
+         cache_write_tokens, cache_write_1h, web_searches, cost_usd, savings_usd
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(uid) DO NOTHING`,
+      [
+        c.uid, c.sessionUid, c.provider, c.model, c.day, c.ts, c.category, c.speed,
+        c.inputTokens, c.outputTokens, c.reasoningTokens, c.cacheReadTokens,
+        c.cacheWriteTokens, c.cacheWrite1h, c.webSearches, c.costUSD, c.savingsUSD,
+      ],
+    )
+  }
+}
+
+export type DayTotals = {
+  day: string
+  cost: number
+  savings: number
+  calls: number
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+}
+
+/// Day totals over an inclusive local-date range. This is the query the whole
+/// exercise exists for: it reads an index, not a corpus, so its cost scales with
+/// the days asked for rather than with everything ever recorded.
+export function dayTotals(index: UsageIndex, fromDay: string, toDay: string, provider?: string): DayTotals[] {
+  const providerClause = provider && provider !== 'all' ? ' AND provider = ?' : ''
+  const params: SqliteValue[] = [fromDay, toDay]
+  if (providerClause) params.push(provider!)
+  return index.query<Row>(
+    `SELECT day,
+            SUM(cost_usd)           AS cost,
+            SUM(savings_usd)        AS savings,
+            COUNT(*)                AS calls,
+            SUM(input_tokens)       AS input_tokens,
+            SUM(output_tokens)      AS output_tokens,
+            SUM(cache_read_tokens)  AS cache_read_tokens,
+            SUM(cache_write_tokens) AS cache_write_tokens
+       FROM call
+      WHERE day BETWEEN ? AND ?${providerClause}
+      GROUP BY day
+      ORDER BY day`,
+    params,
+  ).map(r => ({
+    day: String(r['day']),
+    cost: Number(r['cost'] ?? 0),
+    savings: Number(r['savings'] ?? 0),
+    calls: Number(r['calls'] ?? 0),
+    inputTokens: Number(r['input_tokens'] ?? 0),
+    outputTokens: Number(r['output_tokens'] ?? 0),
+    cacheReadTokens: Number(r['cache_read_tokens'] ?? 0),
+    cacheWriteTokens: Number(r['cache_write_tokens'] ?? 0),
+  }))
+}
+
+export type GroupTotals = { key: string; cost: number; calls: number; tokens: number }
+
+/// Per-provider / per-model / per-project totals for a window. One statement per
+/// grouping rather than one pass over a parsed corpus per panel.
+export function groupTotals(
+  index: UsageIndex,
+  groupBy: 'provider' | 'model' | 'project',
+  fromDay: string,
+  toDay: string,
+): GroupTotals[] {
+  const sql = groupBy === 'project'
+    ? `SELECT COALESCE(s.project_label, s.project_path, '(unknown)') AS key,
+              SUM(c.cost_usd) AS cost, COUNT(*) AS calls,
+              SUM(c.input_tokens + c.output_tokens + c.cache_read_tokens + c.cache_write_tokens) AS tokens
+         FROM call c JOIN session s ON s.uid = c.session_uid
+        WHERE c.day BETWEEN ? AND ?
+        GROUP BY key ORDER BY cost DESC`
+    : `SELECT ${groupBy} AS key,
+              SUM(cost_usd) AS cost, COUNT(*) AS calls,
+              SUM(input_tokens + output_tokens + cache_read_tokens + cache_write_tokens) AS tokens
+         FROM call
+        WHERE day BETWEEN ? AND ?
+        GROUP BY key ORDER BY cost DESC`
+  return index.query<Row>(sql, [fromDay, toDay]).map(r => ({
+    key: String(r['key']),
+    cost: Number(r['cost'] ?? 0),
+    calls: Number(r['calls'] ?? 0),
+    tokens: Number(r['tokens'] ?? 0),
+  }))
+}
