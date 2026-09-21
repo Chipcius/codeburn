@@ -6,15 +6,18 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   USAGE_INDEX_SCHEMA_VERSION,
   dayTotals,
+  dayTotalsWithCarried,
   deleteSourceRows,
   groupTotals,
   insertCalls,
   insertSessions,
   openUsageIndex,
   recordSource,
+  seedCarriedDays,
   selectChangedSources,
   usageIndexPath,
   type CallRecord,
+  type CarriedDayRow,
   type SessionRecord,
   type UsageIndex,
 } from '../src/usage-index.js'
@@ -212,6 +215,79 @@ describe('breakdowns come from the index', () => {
 
   it('respects the day window in a breakdown too', () => {
     expect(groupTotals(index, 'provider', '2026-09-14', '2026-09-14')).toEqual([])
+  })
+})
+
+// Days whose sources are gone, or only partly survive, exist ONLY in the durable
+// daily cache. The index is built from sources, so it has to carry them in or a
+// lifetime total silently shrinks. The rule is the one daily-cache.ts already
+// uses for partial survival: whichever derivation explains more calls wins.
+describe('carried days', () => {
+  const carried = (day: string, provider: string, cost: number, calls: number): CarriedDayRow => ({
+    day, provider, cost, savings: 0, calls, sessions: 1,
+    inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0,
+  })
+
+  it('carries a slice the index cannot derive at all', () => {
+    expect(seedCarriedDays(index, [carried('2026-02-01', 'claude', 99, 40)])).toBe(1)
+    const rows = dayTotalsWithCarried(index, '2026-02-01', '2026-02-01')
+    expect(rows[0]).toMatchObject({ day: '2026-02-01', cost: 99, calls: 40 })
+  })
+
+  it('carries a slice the sources only PARTLY survive, rather than reporting the fraction', () => {
+    // The real shape: a transcript deleted after the cache recorded the day, so
+    // the parse explains 2 of its 40 calls. Reporting 2 lost $2,059 across 16
+    // August days on a real corpus.
+    insertSessions(index, [session('s1')])
+    insertCalls(index, [call('c1', '2026-08-15'), call('c2', '2026-08-15')])
+    expect(seedCarriedDays(index, [carried('2026-08-15', 'claude', 630.38, 40)])).toBe(1)
+    const row = dayTotalsWithCarried(index, '2026-08-15', '2026-08-15')[0]!
+    expect(row.calls).toBe(40)
+    expect(row.cost).toBeCloseTo(630.38, 6)
+  })
+
+  it('replaces the derived slice instead of adding to it', () => {
+    insertSessions(index, [session('s1')])
+    insertCalls(index, [call('c1', '2026-08-15', { costUSD: 5 })])
+    seedCarriedDays(index, [carried('2026-08-15', 'claude', 100, 40)])
+    // 100, not 105: summing both would double-count every partial day.
+    expect(dayTotalsWithCarried(index, '2026-08-15', '2026-08-15')[0]!.cost).toBeCloseTo(100, 6)
+  })
+
+  it('leaves a day the index explains better alone', () => {
+    insertSessions(index, [session('s1')])
+    insertCalls(index, [call('c1', '2026-09-13'), call('c2', '2026-09-13'), call('c3', '2026-09-13')])
+    // The cache knows of fewer calls, so it is the stale derivation.
+    expect(seedCarriedDays(index, [carried('2026-09-13', 'claude', 0.5, 1)])).toBe(0)
+    expect(dayTotalsWithCarried(index, '2026-09-13', '2026-09-13')[0]!.calls).toBe(3)
+  })
+
+  it('keeps a carried slice for one provider while deriving another on the same day', () => {
+    insertSessions(index, [session('s2', { provider: 'codex', sourcePath: '/src/s2.jsonl' })])
+    insertCalls(index, [call('c1', '2026-08-15', { sessionUid: 's2', provider: 'codex', costUSD: 7 })])
+    seedCarriedDays(index, [carried('2026-08-15', 'claude', 100, 40)])
+    const row = dayTotalsWithCarried(index, '2026-08-15', '2026-08-15')[0]!
+    expect(row.cost).toBeCloseTo(107, 6)
+    expect(row.calls).toBe(41)
+  })
+
+  it('re-seeding drops a carried slice the index has since learned to derive', () => {
+    seedCarriedDays(index, [carried('2026-08-15', 'claude', 100, 40)])
+    expect(index.query('SELECT day FROM carried_day')).toHaveLength(1)
+    insertSessions(index, [session('s1')])
+    insertCalls(index, Array.from({ length: 41 }, (_, i) => call(`c${i}`, '2026-08-15', { costUSD: 1 })))
+    expect(seedCarriedDays(index, [carried('2026-08-15', 'claude', 100, 40)])).toBe(0)
+    expect(dayTotalsWithCarried(index, '2026-08-15', '2026-08-15')[0]!.calls).toBe(41)
+  })
+
+  it('ignores an empty cache slice', () => {
+    expect(seedCarriedDays(index, [carried('2026-02-01', 'claude', 0, 0)])).toBe(0)
+  })
+
+  it('narrows carried slices by provider like derived ones', () => {
+    seedCarriedDays(index, [carried('2026-02-01', 'claude', 99, 40), carried('2026-02-01', 'codex', 11, 5)])
+    expect(dayTotalsWithCarried(index, '2026-02-01', '2026-02-01', 'codex')[0]!.cost).toBeCloseTo(11, 6)
+    expect(dayTotalsWithCarried(index, '2026-02-01', '2026-02-01')[0]!.cost).toBeCloseTo(110, 6)
   })
 })
 

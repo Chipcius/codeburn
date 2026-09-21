@@ -28,7 +28,7 @@ import { loadSqliteConstructor } from './sqlite.js'
 ///   - Ingestion is incremental against a per-source watermark, so re-ingesting
 ///     an unchanged corpus is a stat sweep rather than a parse.
 
-export const USAGE_INDEX_SCHEMA_VERSION = 1
+export const USAGE_INDEX_SCHEMA_VERSION = 2
 
 export type SqliteValue = string | number | bigint | null | Uint8Array
 type Row = Record<string, SqliteValue>
@@ -118,6 +118,29 @@ CREATE TABLE IF NOT EXISTS call (
 -- Every UI question starts by narrowing to a date window, so day leads each
 -- index; the trailing column lets the common breakdowns be answered from the
 -- index alone rather than by visiting rows.
+-- Day/provider totals the index CANNOT derive, because the sources are gone.
+-- Claude Code deletes transcripts on a retention period, so the oldest history
+-- exists only in the durable daily cache; on this corpus that is $11.5k across
+-- 117 days. The index is built from sources, so those days must be carried in
+-- from the cache rather than recomputed, exactly as the daily cache carries a
+-- sourceless slice forward. Seeded only where the index has no calls for the
+-- pair, so live data always wins and a carried row can never shadow it.
+CREATE TABLE IF NOT EXISTS carried_day (
+  day                TEXT NOT NULL,
+  provider           TEXT NOT NULL,
+  cost_usd           REAL NOT NULL DEFAULT 0,
+  savings_usd        REAL NOT NULL DEFAULT 0,
+  calls              INTEGER NOT NULL DEFAULT 0,
+  sessions           INTEGER NOT NULL DEFAULT 0,
+  input_tokens       INTEGER NOT NULL DEFAULT 0,
+  output_tokens      INTEGER NOT NULL DEFAULT 0,
+  cache_read_tokens  INTEGER NOT NULL DEFAULT 0,
+  cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+  models_json        TEXT,
+  PRIMARY KEY (day, provider)
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS carried_day_idx        ON carried_day (day);
 CREATE INDEX IF NOT EXISTS call_day_idx          ON call (day);
 CREATE INDEX IF NOT EXISTS call_day_provider_idx ON call (day, provider);
 CREATE INDEX IF NOT EXISTS call_day_model_idx    ON call (day, model);
@@ -200,7 +223,7 @@ function migrate(index: UsageIndex): void {
   // a version change drops what it holds and re-ingests from the sources. The
   // durable daily cache remains the only store that must never lose history.
   if (current !== 0) {
-    for (const table of ['call', 'session', 'source']) index.run(`DROP TABLE IF EXISTS ${table}`)
+    for (const table of ['call', 'session', 'source', 'carried_day']) index.run(`DROP TABLE IF EXISTS ${table}`)
   }
   index.run(SCHEMA)
   index.run('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', [
@@ -358,6 +381,139 @@ export function dayTotals(index: UsageIndex, fromDay: string, toDay: string, pro
     cacheReadTokens: Number(r['cache_read_tokens'] ?? 0),
     cacheWriteTokens: Number(r['cache_write_tokens'] ?? 0),
   }))
+}
+
+export type CarriedDayRow = {
+  day: string
+  provider: string
+  cost: number
+  savings: number
+  calls: number
+  sessions: number
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  models?: Record<string, { cost: number; calls: number; tokens: number }>
+}
+
+/// Replace the carried set with the slices the cache explains BETTER than the
+/// index can. Not just the ones the index lacks entirely: a day inside the source
+/// retention window can survive only partly — a transcript deleted after the
+/// cache recorded it leaves the sources explaining a fraction of the calls. On
+/// this corpus that is 16 August/claude days worth $2,059 that a
+/// "carry only what is missing" rule silently dropped.
+///
+/// The test is call count, matching `isPartialSurvival` in daily-cache.ts: more
+/// calls means the better derivation, and ties go to the index because it is
+/// per-call and can be re-priced. A carried slice REPLACES the derived one at
+/// read time (see dayTotalsWithCarried), so this never double-counts.
+export function seedCarriedDays(index: UsageIndex, rows: readonly CarriedDayRow[]): number {
+  return index.transaction(() => {
+    index.run('DELETE FROM carried_day')
+    const derivedCalls = new Map<string, number>()
+    for (const r of index.query<{ day: string; provider: string; calls: number }>(
+      'SELECT day, provider, COUNT(*) AS calls FROM call GROUP BY day, provider',
+    )) {
+      derivedCalls.set(`${r.day}\u0000${r.provider}`, Number(r.calls))
+    }
+    let kept = 0
+    for (const row of rows) {
+      if (row.cost === 0 && row.calls === 0) continue
+      if (row.calls <= (derivedCalls.get(`${row.day}\u0000${row.provider}`) ?? 0)) continue
+      index.run(
+        `INSERT INTO carried_day (
+           day, provider, cost_usd, savings_usd, calls, sessions,
+           input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, models_json
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(day, provider) DO UPDATE SET
+           cost_usd = excluded.cost_usd, savings_usd = excluded.savings_usd,
+           calls = excluded.calls, sessions = excluded.sessions,
+           input_tokens = excluded.input_tokens, output_tokens = excluded.output_tokens,
+           cache_read_tokens = excluded.cache_read_tokens,
+           cache_write_tokens = excluded.cache_write_tokens,
+           models_json = excluded.models_json`,
+        [
+          row.day, row.provider, row.cost, row.savings, Math.round(row.calls), Math.round(row.sessions),
+          Math.round(row.inputTokens), Math.round(row.outputTokens),
+          Math.round(row.cacheReadTokens), Math.round(row.cacheWriteTokens),
+          row.models ? JSON.stringify(row.models) : null,
+        ],
+      )
+      kept++
+    }
+    return kept
+  })
+}
+
+/// Day totals, resolved per (day, provider): a carried slice REPLACES the derived
+/// one, because it is only seeded when it explains more calls. Summing the two
+/// would double-count every partly-surviving day. This is the read every headline
+/// should use — `dayTotals` alone reports only what the sources still hold, which
+/// on this corpus is $2,059 short across 16 days and misses pre-retention history
+/// entirely.
+export function dayTotalsWithCarried(index: UsageIndex, fromDay: string, toDay: string, provider?: string): DayTotals[] {
+  const scoped = provider && provider !== 'all' ? provider : null
+  const providerClause = scoped ? ' AND provider = ?' : ''
+  const params: SqliteValue[] = [fromDay, toDay]
+  if (scoped) params.push(scoped)
+
+  type Slice = {
+    cost: number; savings: number; calls: number
+    inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number
+  }
+  const slices = new Map<string, { day: string; slice: Slice }>()
+  const read = (sql: string): void => {
+    for (const r of index.query<Row>(sql, params)) {
+      slices.set(`${String(r['day'])}\u0000${String(r['provider'])}`, {
+        day: String(r['day']),
+        slice: {
+          cost: Number(r['cost'] ?? 0),
+          savings: Number(r['savings'] ?? 0),
+          calls: Number(r['calls'] ?? 0),
+          inputTokens: Number(r['input_tokens'] ?? 0),
+          outputTokens: Number(r['output_tokens'] ?? 0),
+          cacheReadTokens: Number(r['cache_read_tokens'] ?? 0),
+          cacheWriteTokens: Number(r['cache_write_tokens'] ?? 0),
+        },
+      })
+    }
+  }
+
+  // Derived first, then carried overwrites the pairs it explains better.
+  read(
+    `SELECT day, provider,
+            SUM(cost_usd) AS cost, SUM(savings_usd) AS savings, COUNT(*) AS calls,
+            SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens,
+            SUM(cache_read_tokens) AS cache_read_tokens, SUM(cache_write_tokens) AS cache_write_tokens
+       FROM call
+      WHERE day BETWEEN ? AND ?${providerClause}
+      GROUP BY day, provider`,
+  )
+  read(
+    `SELECT day, provider,
+            cost_usd AS cost, savings_usd AS savings, calls,
+            input_tokens, output_tokens, cache_read_tokens, cache_write_tokens
+       FROM carried_day
+      WHERE day BETWEEN ? AND ?${providerClause}`,
+  )
+
+  const byDay = new Map<string, DayTotals>()
+  for (const { day, slice } of slices.values()) {
+    const prior = byDay.get(day) ?? {
+      day, cost: 0, savings: 0, calls: 0,
+      inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0,
+    }
+    prior.cost += slice.cost
+    prior.savings += slice.savings
+    prior.calls += slice.calls
+    prior.inputTokens += slice.inputTokens
+    prior.outputTokens += slice.outputTokens
+    prior.cacheReadTokens += slice.cacheReadTokens
+    prior.cacheWriteTokens += slice.cacheWriteTokens
+    byDay.set(day, prior)
+  }
+  return [...byDay.values()].sort((a, b) => a.day.localeCompare(b.day))
 }
 
 export type GroupTotals = { key: string; cost: number; calls: number; tokens: number }

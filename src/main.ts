@@ -2960,7 +2960,7 @@ program
   .option('--to <date>', 'End date for a query (YYYY-MM-DD)')
   .action(async (action: string | undefined, opts) => {
     assertProvider(opts.provider, 'index')
-    const { openUsageIndex, dayTotals, groupTotals } = await import('./usage-index.js')
+    const { openUsageIndex, dayTotalsWithCarried, groupTotals } = await import('./usage-index.js')
     const { ingestProjects } = await import('./usage-ingest.js')
 
     if (action === undefined || action === 'build') {
@@ -2973,9 +2973,31 @@ program
         const projects = await parseAllSessions(undefined, opts.provider === 'all' ? undefined : opts.provider)
         const parsed = Date.now()
         const stats = ingestProjects(index, projects)
+        // Seed the days no source can explain any more. Claude Code deletes
+        // transcripts on a retention period, so the oldest history lives ONLY in
+        // the durable daily cache; without this the index is complete for recent
+        // days and silently short for everything older.
+        const { seedCarriedDays } = await import('./usage-index.js')
+        const { loadDailyCache } = await import('./daily-cache.js')
+        const cache = await loadDailyCache()
+        const carried = seedCarriedDays(index, cache.days.flatMap(day =>
+          Object.entries(day.providers).map(([provider, slice]) => ({
+            day: day.date,
+            provider,
+            cost: slice.cost,
+            savings: slice.savingsUSD ?? 0,
+            calls: slice.calls,
+            sessions: slice.sessions ?? 0,
+            inputTokens: slice.inputTokens ?? 0,
+            outputTokens: slice.outputTokens ?? 0,
+            cacheReadTokens: slice.cacheReadTokens ?? 0,
+            cacheWriteTokens: slice.cacheWriteTokens ?? 0,
+          })),
+        ))
         console.log(
           `\n  Indexed ${stats.calls.toLocaleString('en-US')} calls across ${stats.sessions.toLocaleString('en-US')} sessions`
           + ` (parse ${((parsed - started) / 1000).toFixed(1)}s, write ${((Date.now() - parsed) / 1000).toFixed(1)}s)`
+          + `\n  Carried ${carried.toLocaleString('en-US')} day/provider slices whose sources are gone`
           + `\n  ${index.path}\n`,
         )
       } finally {
@@ -3006,7 +3028,7 @@ program
         console.error('\n  Usage: codeburn index [build|stats] | codeburn index <YYYY-MM-DD> | codeburn index --from <date> --to <date>\n')
         process.exit(1)
       }
-      for (const d of dayTotals(index, from, to)) {
+      for (const d of dayTotalsWithCarried(index, from, to)) {
         console.log(`  ${d.day}  ${formatCost(d.cost).padStart(11)}  ${d.calls.toLocaleString('en-US').padStart(7)} calls`)
       }
       for (const g of groupTotals(index, 'provider', from, to)) {
