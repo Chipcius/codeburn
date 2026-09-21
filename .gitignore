@@ -19,7 +19,9 @@ Thumbs.db
 # Planning artifacts (internal, not shipped)
 docs/superpowers/
 .claude/
-/CLAUDE.md
+# /CLAUDE.md is tracked in this fork: it only imports AGENTS.md, so Claude reads
+# the same repo rules as the other agents. Personal notes go in CLAUDE.local.md.
+CLAUDE.local.md
 
 # Config / secrets
 .env
