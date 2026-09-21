@@ -170,8 +170,12 @@ export function getDateRange(period: string): { range: DateRange; label: string 
       const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
       return { range: dayRangeForDate(start), label: `Yesterday (${toDateString(start)})` }
     }
+    // "Last N days" is N calendar days INCLUDING today, so the window starts N-1
+    // days back. Starting N back made "Last 7 Days" span 8 days and "Last 30
+    // Days" span 31, and disagree with the 7-day figures the macOS forecast
+    // computes from the same history.
     case 'week': {
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7)
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6)
       return { range: { start, end }, label: 'Last 7 Days' }
     }
     case 'month': {
@@ -179,7 +183,7 @@ export function getDateRange(period: string): { range: DateRange; label: string 
       return { range: { start, end }, label: `${now.toLocaleString('default', { month: 'long' })} ${now.getFullYear()}` }
     }
     case '30days': {
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30)
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29)
       return { range: { start, end }, label: 'Last 30 Days' }
     }
     case 'all': {

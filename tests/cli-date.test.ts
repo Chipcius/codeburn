@@ -57,13 +57,20 @@ describe('getDateRange', () => {
     expect(range.end.getMinutes()).toBe(59)
   })
 
-  it('"week" returns the last 7 days', () => {
+  // "Last N days" is N calendar days INCLUDING today. The window used to start N
+  // days back, which spans N+1 calendar days: "Last 7 Days" summed 8 days.
+  const calendarDaysCovered = (range: { start: Date; end: Date }): number => {
+    let n = 0
+    for (let d = new Date(range.start); d <= range.end; d.setDate(d.getDate() + 1)) n++
+    return n
+  }
+
+  it('"week" covers exactly 7 calendar days, today included', () => {
     const { range, label } = getDateRange('week')
     expect(label).toBe('Last 7 Days')
-    // start = midnight 7 days ago, end = today 23:59:59.999 -> ~8 days span.
-    const diffDays = (range.end.getTime() - range.start.getTime()) / (1000 * 60 * 60 * 24)
-    expect(diffDays).toBeGreaterThanOrEqual(7)
-    expect(diffDays).toBeLessThanOrEqual(8)
+    expect(calendarDaysCovered(range)).toBe(7)
+    const now = new Date()
+    expect(range.start.getTime()).toBe(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6).getTime())
   })
 
   it('"month" starts on day 1 of the current month', () => {
@@ -72,12 +79,10 @@ describe('getDateRange', () => {
     expect(range.start.getHours()).toBe(0)
   })
 
-  it('"30days" returns 30 days back', () => {
+  it('"30days" covers exactly 30 calendar days, today included', () => {
     const { range, label } = getDateRange('30days')
     expect(label).toBe('Last 30 Days')
-    const diffDays = (range.end.getTime() - range.start.getTime()) / (1000 * 60 * 60 * 24)
-    expect(diffDays).toBeGreaterThanOrEqual(30)
-    expect(diffDays).toBeLessThanOrEqual(31)
+    expect(calendarDaysCovered(range)).toBe(30)
   })
 
   it('"today" starts at local midnight', () => {
