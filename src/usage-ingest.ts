@@ -37,7 +37,8 @@ function sessionSourcePath(session: SessionSummary, fallback: string | null): st
 /// (61% of this corpus's assistant lines are such duplicates).
 function callRecords(uid: string, turns: readonly ClassifiedTurn[]): CallRecord[] {
   const records: CallRecord[] = []
-  for (const turn of turns) {
+  for (const [turnIndex, turn] of turns.entries()) {
+    const turnUid = `${uid}:t${turnIndex}`
     for (const call of turn.assistantCalls) {
       // dateKey builds the string from Date fields, so an unparseable stamp
       // yields "NaN-NaN-NaN" rather than an empty string. Reject on the parse,
@@ -58,6 +59,8 @@ function callRecords(uid: string, turns: readonly ClassifiedTurn[]): CallRecord[
         modelKey: call.provider === 'devin'
           ? (call.model || 'unknown')
           : modelRowKey(call.model || 'unknown', call.route),
+        turnUid,
+        tools: call.tools ?? [],
         day,
         ts: call.timestamp || null,
         category: turn.category ?? null,
@@ -73,6 +76,7 @@ function callRecords(uid: string, turns: readonly ClassifiedTurn[]): CallRecord[
         webSearches: u.webSearchRequests,
         costUSD: call.costUSD,
         savingsUSD: call.savingsUSD ?? 0,
+        estimated: call.isEstimated === true,
       })
     }
   }

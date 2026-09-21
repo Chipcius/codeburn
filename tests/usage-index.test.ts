@@ -81,6 +81,9 @@ function call(uid: string, day: string, extra: Partial<CallRecord> = {}): CallRe
     webSearches: 0,
     costUSD: 1.5,
     savingsUSD: 0,
+    estimated: false,
+    turnUid: `${extra.sessionUid ?? 's1'}:t0`,
+    tools: [],
     ...extra,
   }
 }

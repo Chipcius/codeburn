@@ -13,6 +13,7 @@ import { normalizeAbsProjectPathKey } from './parser.js'
 import { dateKey } from './day-aggregator.js'
 import type { DailyEntry } from './daily-cache.js'
 import type { BudgetStatus, BudgetTier } from './budget.js'
+import type { IndexPeriod } from './usage-index.js'
 
 // Display-only helpers. The shared formatters omit thousands separators and
 // abbreviate; here we show full, comma-grouped numbers so the tables read like
@@ -126,17 +127,18 @@ export type OverviewDurable = {
 
 export function renderOverview(
   projects: ProjectSummary[],
-  opts: { label: string; color: boolean; budget?: OverviewBudget; durable?: OverviewDurable },
+  opts: { label: string; color: boolean; budget?: OverviewBudget; durable?: OverviewDurable; index?: IndexPeriod },
 ): string {
   const c = new Chalk(opts.color ? {} : { level: 0 })
   const heading = (text: string): string => c.cyan.bold(text)
   const out: string[] = []
   const durable = opts.durable
+  const index = opts.index
 
   out.push(c.bold('CodeBurn') + c.dim('  ' + opts.label))
   out.push('')
 
-  if (projects.length === 0 && !(durable && durable.cost > 0)) {
+  if (projects.length === 0 && !(durable && durable.cost > 0) && !(index && index.totals.cost > 0)) {
     out.push(c.dim(`No usage found for ${opts.label}.`))
     return out.join('\n') + '\n'
   }
@@ -150,7 +152,38 @@ export function renderOverview(
   const byDay = new Map<string, { cost: number; tokens: number; providers: Set<string> }>()
   const byProject = new Map<string, { cost: number; sessions: number; sample: ProjectSummary }>()
 
-  for (const p of projects) {
+  // Index-backed: every panel comes from the compiled index and no provider
+  // store is opened, which is the whole point. The project loop below is the
+  // old live-parse path and is skipped entirely.
+  if (index) {
+    cost = index.totals.cost
+    savings = index.totals.savings
+    calls = index.totals.calls
+    sessions = index.totals.sessions
+    inTok = index.totals.inputTokens
+    outTok = index.totals.outputTokens
+    cacheR = index.totals.cacheReadTokens
+    cacheW = index.totals.cacheWriteTokens
+    for (const r of index.byProvider) byProvider.set(r.key, { cost: r.cost, tokens: r.tokens })
+    for (const r of index.byModel) byModel.set(r.key, { cost: r.cost, calls: r.calls, tokens: r.tokens, estimatedCost: r.estimatedCost ?? 0 })
+    for (const r of index.byCategory) byCat.set(r.key, { cost: r.cost, turns: r.turns })
+    for (const r of index.byTool) byTool.set(r.key, r.calls)
+    for (const r of index.byProject) {
+      // renderOverview labels a project from a ProjectSummary; the index stores
+      // the path and label directly, so hand it the two fields it reads.
+      const sample = { project: r.label, projectPath: r.key.startsWith('/') ? r.key : undefined, sessions: [], totalCostUSD: r.cost, totalApiCalls: 0 } as unknown as ProjectSummary
+      byProject.set(projectAggKey(sample), { cost: r.cost, sessions: r.sessions, sample })
+    }
+    for (const d of index.days) {
+      byDay.set(d.day, {
+        cost: d.cost,
+        tokens: d.inputTokens + d.outputTokens + d.cacheReadTokens + d.cacheWriteTokens,
+        providers: new Set(d.providers ?? []),
+      })
+    }
+  }
+
+  for (const p of index ? [] : projects) {
     cost += p.totalCostUSD
     savings += p.totalSavingsUSD
     calls += p.totalApiCalls
@@ -215,7 +248,7 @@ export function renderOverview(
   // from the durable daily cache so they match the menubar exactly, carried
   // (expired-source) days included. The per-tool / per-model / per-project
   // breakdowns above stay live: they need surviving session detail.
-  if (durable) {
+  if (durable && !index) {
     cost = durable.cost
     savings = durable.savingsUSD
     calls = durable.calls

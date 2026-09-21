@@ -28,7 +28,7 @@ import { loadSqliteConstructor } from './sqlite.js'
 ///   - Ingestion is incremental against a per-source watermark, so re-ingesting
 ///     an unchanged corpus is a stat sweep rather than a parse.
 
-export const USAGE_INDEX_SCHEMA_VERSION = 3
+export const USAGE_INDEX_SCHEMA_VERSION = 5
 
 export type SqliteValue = string | number | bigint | null | Uint8Array
 type Row = Record<string, SqliteValue>
@@ -49,6 +49,9 @@ export type UsageIndex = {
   /// provider's own store — that is what ingestion is for.
   query<T extends Row = Row>(sql: string, params?: SqliteValue[]): T[]
   run(sql: string, params?: SqliteValue[]): void
+  /// Like run, but reports how many rows changed — so an INSERT ... ON CONFLICT
+  /// DO NOTHING can tell a new row from a duplicate it silently skipped.
+  runChanges(sql: string, params: SqliteValue[]): number
   /// One transaction. Ingesting a session's calls row-by-row without this is
   /// one fsync per row, which is slower than the blob write it replaces.
   transaction<T>(fn: () => T): T
@@ -107,6 +110,10 @@ CREATE TABLE IF NOT EXISTS call (
   -- modelRowKey(): codeburn's canonical grouping key, route suffix and user
   -- aliases included. What every breakdown must group by.
   model_key          TEXT NOT NULL,
+  -- The turn this call belongs to. Reports count TURNS per activity category,
+  -- not calls (one turn is one user exchange and may make many calls), so the
+  -- category panel is COUNT(DISTINCT turn_uid), which needs the turn's identity.
+  turn_uid           TEXT NOT NULL,
   day                TEXT NOT NULL,
   ts                 TEXT,
   category           TEXT,
@@ -119,7 +126,12 @@ CREATE TABLE IF NOT EXISTS call (
   cache_write_1h     INTEGER NOT NULL DEFAULT 0,
   web_searches       INTEGER NOT NULL DEFAULT 0,
   cost_usd           REAL NOT NULL DEFAULT 0,
-  savings_usd        REAL NOT NULL DEFAULT 0
+  savings_usd        REAL NOT NULL DEFAULT 0,
+  -- 1 when cost_usd was priced from ESTIMATED tokens (the provider did not
+  -- report real usage). Display-only: it never changes a total, but a report
+  -- that drops it presents a guess as a measurement, which is what the "~"
+  -- marker on a model row exists to prevent.
+  estimated          INTEGER NOT NULL DEFAULT 0
 ) STRICT;
 
 -- Every UI question starts by narrowing to a date window, so day leads each
@@ -148,6 +160,17 @@ CREATE TABLE IF NOT EXISTS carried_day (
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS carried_day_idx        ON carried_day (day);
+
+-- Tool invocations, one row per tool use in a call. Carries day so a window
+-- narrows here directly rather than joining back to call for every count.
+CREATE TABLE IF NOT EXISTS call_tool (
+  call_uid TEXT NOT NULL,
+  day      TEXT NOT NULL,
+  tool     TEXT NOT NULL
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS call_tool_day_idx      ON call_tool (day, tool);
+CREATE INDEX IF NOT EXISTS call_tool_call_idx     ON call_tool (call_uid);
 CREATE INDEX IF NOT EXISTS call_day_idx          ON call (day);
 CREATE INDEX IF NOT EXISTS call_day_provider_idx ON call (day, provider);
 CREATE INDEX IF NOT EXISTS call_day_model_idx    ON call (day, model_key);
@@ -197,6 +220,10 @@ export function openUsageIndex(opts: { readOnly?: boolean } = {}): UsageIndex {
       if (params.length === 0) db.exec(sql)
       else db.prepare(sql).run(...params)
     },
+    runChanges(sql: string, params: SqliteValue[]): number {
+      const result = db.prepare(sql).run(...params) as { changes?: number | bigint } | undefined
+      return Number(result?.changes ?? 0)
+    },
     transaction<T>(fn: () => T): T {
       db.exec('BEGIN IMMEDIATE')
       try {
@@ -230,13 +257,29 @@ function migrate(index: UsageIndex): void {
   // a version change drops what it holds and re-ingests from the sources. The
   // durable daily cache remains the only store that must never lose history.
   if (current !== 0) {
-    for (const table of ['call', 'session', 'source', 'carried_day']) index.run(`DROP TABLE IF EXISTS ${table}`)
+    for (const table of ['call_tool', 'call', 'session', 'source', 'carried_day']) index.run(`DROP TABLE IF EXISTS ${table}`)
   }
   index.run(SCHEMA)
   index.run('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', [
     'schema_version',
     String(USAGE_INDEX_SCHEMA_VERSION),
   ])
+}
+
+/// When the index last finished a full ingest, or null if it never has. A
+/// reader uses this to decide whether to kick a background refresh and to tell
+/// the user how old the figures are, instead of presenting stale data as live.
+export function lastIngestAt(index: UsageIndex): number | null {
+  const [row] = index.query<{ value: string }>('SELECT value FROM meta WHERE key = ?', ['last_ingest_at'])
+  const value = row ? Number(row.value) : NaN
+  return Number.isFinite(value) ? value : null
+}
+
+export function markIngested(index: UsageIndex, at: number = Date.now()): void {
+  index.run(
+    'INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+    ['last_ingest_at', String(at)],
+  )
 }
 
 export type SourceState = { path: string; mtimeMs: number; sizeBytes: number }
@@ -278,6 +321,13 @@ export function recordSource(
 /// its rows instead of doubling them. Keyed on session.source_path rather than on
 /// call rows directly, since a call only knows its session.
 export function deleteSourceRows(index: UsageIndex, path: string): void {
+  // Tool rows first: they hang off call uids, which the next statement removes.
+  index.run(
+    `DELETE FROM call_tool WHERE call_uid IN (
+       SELECT c.uid FROM call c JOIN session s ON s.uid = c.session_uid WHERE s.source_path = ?
+     )`,
+    [path],
+  )
   index.run('DELETE FROM call WHERE session_uid IN (SELECT uid FROM session WHERE source_path = ?)', [path])
   index.run('DELETE FROM session WHERE source_path = ?', [path])
 }
@@ -301,6 +351,10 @@ export type CallRecord = {
   model: string
   /// modelRowKey() — the key every breakdown groups by.
   modelKey: string
+  /// Identity of the turn this call belongs to; category panels count turns.
+  turnUid: string
+  /// Tool names invoked in this call, one entry per use.
+  tools: readonly string[]
   day: string
   ts: string | null
   category: string | null
@@ -314,6 +368,8 @@ export type CallRecord = {
   webSearches: number
   costUSD: number
   savingsUSD: number
+  /// Priced from estimated tokens; drives the "~" marker, never a total.
+  estimated: boolean
 }
 
 export function insertSessions(index: UsageIndex, sessions: readonly SessionRecord[]): void {
@@ -333,24 +389,34 @@ export function insertSessions(index: UsageIndex, sessions: readonly SessionReco
 
 export function insertCalls(index: UsageIndex, calls: readonly CallRecord[]): void {
   for (const c of calls) {
-    index.run(
+    // A call already present (the same API response seen in a resumed transcript
+    // and its original) is skipped, and so must its tools be, or every duplicate
+    // re-counts them.
+    const inserted = index.runChanges(
       `INSERT INTO call (
-         uid, session_uid, provider, model, model_key, day, ts, category, speed,
+         uid, session_uid, provider, model, model_key, turn_uid, day, ts, category, speed,
          input_tokens, output_tokens, reasoning_tokens, cache_read_tokens,
-         cache_write_tokens, cache_write_1h, web_searches, cost_usd, savings_usd
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         cache_write_tokens, cache_write_1h, web_searches, cost_usd, savings_usd, estimated
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(uid) DO NOTHING`,
       [
-        c.uid, c.sessionUid, c.provider, c.model, c.modelKey, c.day, c.ts, c.category, c.speed,
+        c.uid, c.sessionUid, c.provider, c.model, c.modelKey, c.turnUid, c.day, c.ts, c.category, c.speed,
         c.inputTokens, c.outputTokens, c.reasoningTokens, c.cacheReadTokens,
-        c.cacheWriteTokens, c.cacheWrite1h, c.webSearches, c.costUSD, c.savingsUSD,
+        c.cacheWriteTokens, c.cacheWrite1h, c.webSearches, c.costUSD, c.savingsUSD, c.estimated ? 1 : 0,
       ],
     )
+    if (inserted === 0) continue
+    for (const tool of c.tools) {
+      index.run('INSERT INTO call_tool (call_uid, day, tool) VALUES (?, ?, ?)', [c.uid, c.day, tool])
+    }
   }
 }
 
 export type DayTotals = {
   day: string
+  /// Providers with any usage that day. Filled by the resolved read; the raw
+  /// `dayTotals` groups by day only and leaves it unset.
+  providers?: string[]
   cost: number
   savings: number
   calls: number
@@ -472,11 +538,12 @@ export function dayTotalsWithCarried(index: UsageIndex, fromDay: string, toDay: 
     cost: number; savings: number; calls: number
     inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number
   }
-  const slices = new Map<string, { day: string; slice: Slice }>()
+  const slices = new Map<string, { day: string; provider: string; slice: Slice }>()
   const read = (sql: string): void => {
     for (const r of index.query<Row>(sql, params)) {
       slices.set(`${String(r['day'])}\u0000${String(r['provider'])}`, {
         day: String(r['day']),
+        provider: String(r['provider']),
         slice: {
           cost: Number(r['cost'] ?? 0),
           savings: Number(r['savings'] ?? 0),
@@ -509,11 +576,14 @@ export function dayTotalsWithCarried(index: UsageIndex, fromDay: string, toDay: 
   )
 
   const byDay = new Map<string, DayTotals>()
-  for (const { day, slice } of slices.values()) {
+  for (const { day, provider, slice } of slices.values()) {
     const prior = byDay.get(day) ?? {
-      day, cost: 0, savings: 0, calls: 0,
+      day, providers: [], cost: 0, savings: 0, calls: 0,
       inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0,
     }
+    // A provider whose slice is empty that day did not really run, and the old
+    // path's Providers column never listed one.
+    if (slice.cost > 0 || slice.calls > 0) prior.providers!.push(provider)
     prior.cost += slice.cost
     prior.savings += slice.savings
     prior.calls += slice.calls
@@ -526,7 +596,137 @@ export function dayTotalsWithCarried(index: UsageIndex, fromDay: string, toDay: 
   return [...byDay.values()].sort((a, b) => a.day.localeCompare(b.day))
 }
 
-export type GroupTotals = { key: string; cost: number; calls: number; tokens: number }
+/// `estimatedCost` is the part of `cost` priced from estimated tokens. Only
+/// meaningful for a model breakdown; it drives the "~" marker on that row.
+export type GroupTotals = { key: string; cost: number; calls: number; tokens: number; estimatedCost?: number }
+
+export type IndexPeriod = {
+  totals: {
+    cost: number
+    savings: number
+    calls: number
+    sessions: number
+    inputTokens: number
+    outputTokens: number
+    cacheReadTokens: number
+    cacheWriteTokens: number
+  }
+  days: DayTotals[]
+  byProvider: GroupTotals[]
+  byModel: GroupTotals[]
+  byCategory: Array<{ key: string; cost: number; turns: number }>
+  byTool: Array<{ key: string; calls: number }>
+  byProject: Array<{ key: string; label: string; cost: number; sessions: number }>
+  /// Cost in the window that came from carried (sourceless) days. Such a day
+  /// has no category, tool or project split, so those three panels are
+  /// source-derived only and trail the headline by exactly this much.
+  carriedCost: number
+}
+
+/// Everything an overview renders, for one window, from the index alone — no
+/// provider store is opened. Headline and day/provider/model figures include
+/// carried days (verified at parity with the daily cache); category, tool and
+/// project cannot, because a sourceless day records none of those.
+export function periodFromIndex(index: UsageIndex, fromDay: string, toDay: string, provider?: string): IndexPeriod {
+  const scoped = provider && provider !== 'all' ? provider : null
+  const scope = scoped ? ' AND provider = ?' : ''
+  const params: SqliteValue[] = scoped ? [fromDay, toDay, scoped] : [fromDay, toDay]
+
+  const days = dayTotalsWithCarried(index, fromDay, toDay, provider)
+  const totals = days.reduce(
+    (a, d) => ({
+      cost: a.cost + d.cost,
+      savings: a.savings + d.savings,
+      calls: a.calls + d.calls,
+      sessions: 0,
+      inputTokens: a.inputTokens + d.inputTokens,
+      outputTokens: a.outputTokens + d.outputTokens,
+      cacheReadTokens: a.cacheReadTokens + d.cacheReadTokens,
+      cacheWriteTokens: a.cacheWriteTokens + d.cacheWriteTokens,
+    }),
+    { cost: 0, savings: 0, calls: 0, sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+  )
+  // Distinct sessions active in the window. Carried days contribute their own
+  // session counts on top: they cannot be de-duplicated against live ones, which
+  // is the same "at least" basis the old path reported.
+  const [live] = index.query<Row>(
+    `SELECT COUNT(DISTINCT session_uid) AS n FROM call WHERE day BETWEEN ? AND ?${scope}`,
+    params,
+  )
+  const [carriedSessions] = index.query<Row>(
+    `SELECT COALESCE(SUM(sessions), 0) AS n, COALESCE(SUM(cost_usd), 0) AS cost
+       FROM carried_day WHERE day BETWEEN ? AND ?${scope}`,
+    params,
+  )
+  totals.sessions = Number(live?.['n'] ?? 0) + Number(carriedSessions?.['n'] ?? 0)
+
+  const byProvider = groupTotalsWithCarried(index, 'provider', fromDay, toDay)
+    .filter(r => !scoped || r.key === scoped)
+  // A provider-scoped model split reads derived rows only: a carried slice's
+  // models are stored per (day, provider) but not attributed within it by model
+  // AND provider together in a way this query could filter on cheaply.
+  const byModel = scoped
+    ? index.query<Row>(
+        `SELECT model_key AS key, SUM(cost_usd) AS cost, COUNT(*) AS calls,
+                SUM(input_tokens + output_tokens + cache_read_tokens + cache_write_tokens) AS tokens,
+                SUM(CASE WHEN estimated = 1 THEN cost_usd ELSE 0 END) AS estimated_cost
+           FROM call WHERE day BETWEEN ? AND ? AND provider = ? GROUP BY key ORDER BY cost DESC`,
+        params,
+      ).map(r => ({
+        key: String(r['key']),
+        cost: Number(r['cost'] ?? 0),
+        calls: Number(r['calls'] ?? 0),
+        tokens: Number(r['tokens'] ?? 0),
+        estimatedCost: Number(r['estimated_cost'] ?? 0),
+      }))
+    : groupTotalsWithCarried(index, 'model', fromDay, toDay)
+
+  const byCategory = index.query<Row>(
+    `SELECT COALESCE(category, 'general') AS key,
+            SUM(cost_usd) AS cost, COUNT(DISTINCT turn_uid) AS turns
+       FROM call WHERE day BETWEEN ? AND ?${scope}
+      GROUP BY key ORDER BY cost DESC`,
+    params,
+  ).map(r => ({ key: String(r['key']), cost: Number(r['cost'] ?? 0), turns: Number(r['turns'] ?? 0) }))
+
+  const byTool = index.query<Row>(
+    scoped
+      ? `SELECT t.tool AS key, COUNT(*) AS calls
+           FROM call_tool t JOIN call c ON c.uid = t.call_uid
+          WHERE t.day BETWEEN ? AND ? AND c.provider = ?
+          GROUP BY key ORDER BY calls DESC`
+      : `SELECT tool AS key, COUNT(*) AS calls
+           FROM call_tool WHERE day BETWEEN ? AND ?
+          GROUP BY key ORDER BY calls DESC`,
+    params,
+  ).map(r => ({ key: String(r['key']), calls: Number(r['calls'] ?? 0) }))
+
+  const byProject = index.query<Row>(
+    `SELECT COALESCE(s.project_path, s.project_label, '(unknown)') AS key,
+            MAX(COALESCE(s.project_label, s.project_path, '(unknown)')) AS label,
+            SUM(c.cost_usd) AS cost, COUNT(DISTINCT c.session_uid) AS sessions
+       FROM call c JOIN session s ON s.uid = c.session_uid
+      WHERE c.day BETWEEN ? AND ?${scoped ? ' AND c.provider = ?' : ''}
+      GROUP BY key ORDER BY cost DESC`,
+    params,
+  ).map(r => ({
+    key: String(r['key']),
+    label: String(r['label']),
+    cost: Number(r['cost'] ?? 0),
+    sessions: Number(r['sessions'] ?? 0),
+  }))
+
+  return {
+    totals,
+    days,
+    byProvider,
+    byModel,
+    byCategory,
+    byTool,
+    byProject,
+    carriedCost: Number(carriedSessions?.['cost'] ?? 0),
+  }
+}
 
 /// Provider and model breakdowns that include carried days.
 ///
@@ -549,11 +749,12 @@ export function groupTotalsWithCarried(
   toDay: string,
 ): GroupTotals[] {
   const totals = new Map<string, GroupTotals>()
-  const add = (key: string, cost: number, calls: number, tokens: number): void => {
-    const prior = totals.get(key) ?? { key, cost: 0, calls: 0, tokens: 0 }
+  const add = (key: string, cost: number, calls: number, tokens: number, estimatedCost = 0): void => {
+    const prior = totals.get(key) ?? { key, cost: 0, calls: 0, tokens: 0, estimatedCost: 0 }
     prior.cost += cost
     prior.calls += calls
     prior.tokens += tokens
+    prior.estimatedCost = (prior.estimatedCost ?? 0) + estimatedCost
     totals.set(key, prior)
   }
 
@@ -563,7 +764,8 @@ export function groupTotalsWithCarried(
   for (const r of index.query<Row>(
     `SELECT ${column} AS key,
             SUM(cost_usd) AS cost, COUNT(*) AS calls,
-            SUM(input_tokens + output_tokens + cache_read_tokens + cache_write_tokens) AS tokens
+            SUM(input_tokens + output_tokens + cache_read_tokens + cache_write_tokens) AS tokens,
+            SUM(CASE WHEN estimated = 1 THEN cost_usd ELSE 0 END) AS estimated_cost
        FROM call c
       WHERE day BETWEEN ? AND ?
         AND NOT EXISTS (
@@ -572,7 +774,7 @@ export function groupTotalsWithCarried(
       GROUP BY key`,
     [fromDay, toDay],
   )) {
-    add(String(r['key']), Number(r['cost'] ?? 0), Number(r['calls'] ?? 0), Number(r['tokens'] ?? 0))
+    add(String(r['key']), Number(r['cost'] ?? 0), Number(r['calls'] ?? 0), Number(r['tokens'] ?? 0), Number(r['estimated_cost'] ?? 0))
   }
 
   if (groupBy === 'provider') {

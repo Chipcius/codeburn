@@ -320,7 +320,66 @@ function totalProjectCostUSD(projects: ProjectSummary[]): number {
   return projects.reduce((sum, project) => sum + project.totalCostUSD, 0)
 }
 
-function buildOverviewBudget(projects: ProjectSummary[], budget: CodeburnConfig['budget'], tier: BudgetTier | undefined, range: DateRange): OverviewBudget | undefined {
+/// Render the overview from the usage index, returning false when there is no
+/// index yet so the caller can fall back to the live path. A stale index is
+/// still served — the figures are labelled with their age — and a refresh is
+/// started in the background, so the read never waits on a parse.
+async function renderOverviewFromIndex(args: {
+  range: DateRange
+  label: string
+  period: Period | undefined
+  customRange: DateRange | null
+  provider: string
+  color: boolean
+}): Promise<boolean> {
+  const { existsSync } = await import('fs')
+  const { openUsageIndex, periodFromIndex, lastIngestAt, usageIndexPath } = await import('./usage-index.js')
+  const { scheduleBackgroundIngest, describeIndexAge, INDEX_STALE_AFTER_MS } = await import('./usage-index-refresh.js')
+
+  if (!existsSync(usageIndexPath())) {
+    // First run: build it behind this command, and let the live path answer now.
+    scheduleBackgroundIngest()
+    return false
+  }
+
+  let index
+  try {
+    index = openUsageIndex({ readOnly: true })
+  } catch {
+    // A missing or older-schema index is rebuilt in the background; this run
+    // still answers, from the live path.
+    scheduleBackgroundIngest()
+    return false
+  }
+
+  try {
+    const built = lastIngestAt(index)
+    if (built === null) {
+      scheduleBackgroundIngest()
+      return false
+    }
+    const stale = Date.now() - built > INDEX_STALE_AFTER_MS
+    const refreshing = stale && scheduleBackgroundIngest()
+
+    const period = periodFromIndex(index, toDateString(args.range.start), toDateString(args.range.end), args.provider)
+    const config = await readConfig()
+    const budget = args.provider === 'all'
+      ? buildOverviewBudget(period.totals.cost, config.budget, budgetTierForOverview(args.period, args.customRange), args.range)
+      : undefined
+
+    process.stdout.write(renderOverview([], { label: args.label, color: args.color, budget, index: period }))
+    const age = describeIndexAge(built)
+    const note = refreshing ? `${age}, refreshing in the background` : age
+    process.stdout.write(`\n  ${args.color ? '\x1b[2m' : ''}Index ${note}.${args.color ? '\x1b[0m' : ''}\n`)
+    return true
+  } finally {
+    index.close()
+  }
+}
+
+/// `spentUSD` is either the live projects (old path) or a figure already summed
+/// elsewhere — the index path has no ProjectSummary to total, only a cost.
+function buildOverviewBudget(spentUSD: ProjectSummary[] | number, budget: CodeburnConfig['budget'], tier: BudgetTier | undefined, range: DateRange): OverviewBudget | undefined {
   if (!tier) return undefined
   const amount = budgetAmountForTier(budget, tier)
   if (amount === undefined) return undefined
@@ -328,7 +387,7 @@ function buildOverviewBudget(projects: ProjectSummary[], budget: CodeburnConfig[
   return {
     tier,
     status: computeBudgetStatus({
-      spent: convertCost(totalProjectCostUSD(projects)),
+      spent: convertCost(typeof spentUSD === 'number' ? spentUSD : totalProjectCostUSD(spentUSD)),
       budget: amount,
       elapsedDays: progress.elapsedDays,
       totalDays: progress.totalDays,
@@ -1021,6 +1080,17 @@ program
     const { range, label } = customRange
       ? { range: customRange, label: formatDateRangeLabel(opts.from, opts.to) }
       : getDateRange(period!)
+
+    // Index path: answer from the compiled index and open no provider store.
+    // Name filters (--project/--exclude) still take the old path, because the
+    // index has no per-project cost for carried days and would under-report a
+    // filtered long window rather than say so.
+    const nameFiltered = (opts.project?.length ?? 0) > 0 || (opts.exclude?.length ?? 0) > 0
+    if (!nameFiltered && process.env['CODEBURN_LEGACY_READ'] !== '1') {
+      const served = await renderOverviewFromIndex({ range, label, period, customRange, provider: opts.provider, color: opts.color })
+      if (served) return
+    }
+
     const durable = await buildDurablePeriod({ range, label }, { provider: opts.provider, project: opts.project, exclude: opts.exclude })
     await reportUnmatchedProjectPatterns(durable.knownProjects, opts.project, opts.exclude)
     const projects = durable.liveProjects
@@ -2964,6 +3034,14 @@ program
     const { ingestProjects } = await import('./usage-ingest.js')
 
     if (action === undefined || action === 'build') {
+      const { acquireIngestLock } = await import('./usage-index-refresh.js')
+      const release = acquireIngestLock()
+      if (!release) {
+        if (process.env['CODEBURN_BACKGROUND_INGEST'] !== '1') {
+          console.log('\n  An index build is already running; it will finish on its own.\n')
+        }
+        return
+      }
       await loadPricing()
       const index = openUsageIndex()
       try {
@@ -2977,7 +3055,7 @@ program
         // transcripts on a retention period, so the oldest history lives ONLY in
         // the durable daily cache; without this the index is complete for recent
         // days and silently short for everything older.
-        const { seedCarriedDays } = await import('./usage-index.js')
+        const { seedCarriedDays, markIngested } = await import('./usage-index.js')
         const { loadDailyCache } = await import('./daily-cache.js')
         const cache = await loadDailyCache()
         const carried = seedCarriedDays(index, cache.days.flatMap(day =>
@@ -3001,6 +3079,7 @@ program
             }])),
           })),
         ))
+        markIngested(index)
         console.log(
           `\n  Indexed ${stats.calls.toLocaleString('en-US')} calls across ${stats.sessions.toLocaleString('en-US')} sessions`
           + ` (parse ${((parsed - started) / 1000).toFixed(1)}s, write ${((Date.now() - parsed) / 1000).toFixed(1)}s)`
@@ -3009,6 +3088,7 @@ program
         )
       } finally {
         index.close()
+        release()
       }
       return
     }
