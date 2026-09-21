@@ -35,6 +35,9 @@ type MenuEntry struct {
 type Tray struct {
 	conn  *dbus.Conn
 	props *prop.Properties
+	// OnActivate runs on a primary click for hosts that send Activate. Unity 7
+	// opens the menu instead, so the menu carries the same action.
+	OnActivate func()
 
 	mu       sync.Mutex
 	revision uint32
@@ -154,8 +157,14 @@ func (t *Tray) lookup(id int32) (MenuEntry, bool) {
 
 type itemMethods Tray
 
-func (t *itemMethods) Activate(x, y int32) *dbus.Error          { return nil }
-func (t *itemMethods) SecondaryActivate(x, y int32) *dbus.Error { return nil }
+func (t *itemMethods) Activate(x, y int32) *dbus.Error {
+	if t.OnActivate != nil {
+		go t.OnActivate()
+	}
+	return nil
+}
+
+func (t *itemMethods) SecondaryActivate(x, y int32) *dbus.Error { return t.Activate(x, y) }
 func (t *itemMethods) ContextMenu(x, y int32) *dbus.Error       { return nil }
 func (t *itemMethods) Scroll(delta int32, orientation string) *dbus.Error {
 	return nil

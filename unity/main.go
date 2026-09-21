@@ -41,7 +41,9 @@ func main() {
 	}
 	defer tray.Close()
 
-	app := &app{tray: tray, cli: cli, quit: make(chan struct{}), wake: make(chan struct{}, 1)}
+	app := &app{tray: tray, pop: &popover{}, cli: cli, quit: make(chan struct{}), wake: make(chan struct{}, 1)}
+	defer app.pop.Close()
+	tray.OnActivate = app.togglePopover
 	app.refresh()
 
 	ticker := time.NewTicker(refreshEvery)
@@ -64,6 +66,7 @@ func main() {
 
 type app struct {
 	tray     *Tray
+	pop      *popover
 	cli      string
 	quit     chan struct{}
 	wake     chan struct{}
@@ -73,7 +76,7 @@ type app struct {
 func (a *app) actions() []MenuEntry {
 	return []MenuEntry{
 		{Separator: true},
-		{Label: "Open dashboard", Enabled: true, OnClick: a.openDashboard},
+		{Label: "Full report", Enabled: true, OnClick: a.openDashboard},
 		{Label: "Refresh now", Enabled: true, OnClick: func() {
 			select {
 			case a.wake <- struct{}{}:
@@ -88,10 +91,11 @@ func (a *app) actions() []MenuEntry {
 func info(label string) MenuEntry { return MenuEntry{Label: label} }
 
 func (a *app) refresh() {
+	open := MenuEntry{Label: "Open CodeBurn", Enabled: true, OnClick: a.togglePopover}
 	snap, err := readSnapshot(periods)
 	if err != nil {
 		a.tray.SetLabel("CB —", "CB $00,000")
-		a.tray.SetMenu(append([]MenuEntry{info(err.Error())}, a.actions()...))
+		a.tray.SetMenu(append([]MenuEntry{open, {Separator: true}, info(err.Error())}, a.actions()...))
 		return
 	}
 
@@ -106,7 +110,7 @@ func (a *app) refresh() {
 	}
 	a.tray.SetLabel(label, "$00,000.00 ·")
 
-	menu := []MenuEntry{info(fmt.Sprintf("Today         %s   %s calls", money(today.Current.Cost), commas(int64(today.Current.Calls))))}
+	menu := []MenuEntry{open, {Separator: true}, info(fmt.Sprintf("Today         %s   %s calls", money(today.Current.Cost), commas(int64(today.Current.Calls))))}
 	for _, p := range []struct{ key, name string }{{"month", "This month"}, {"30days", "30 days"}} {
 		if pl, ok := snap.Periods[p.key]; ok {
 			menu = append(menu, info(fmt.Sprintf("%-13s %s   %s calls", p.name, money(pl.Current.Cost), commas(int64(pl.Current.Calls)))))
@@ -153,22 +157,36 @@ func dashboardUp() bool {
 	return true
 }
 
-func (a *app) openDashboard() {
-	if !dashboardUp() {
-		node, err := exec.LookPath("node")
-		if err != nil {
-			node = "/usr/local/bin/node"
-		}
-		cmd := exec.Command(node, a.cli, "web", "--no-open")
-		cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-		if err := cmd.Start(); err != nil {
-			log.Printf("start dashboard: %v", err)
-			return
-		}
-		_ = cmd.Process.Release()
-		for i := 0; i < 40 && !dashboardUp(); i++ {
-			time.Sleep(250 * time.Millisecond)
-		}
+// ensureDashboard starts `codeburn web` if nothing is serving it, and reports
+// whether it came up. Both the popover and the full report are served by it.
+func (a *app) ensureDashboard() bool {
+	if dashboardUp() {
+		return true
 	}
-	_ = exec.Command("xdg-open", "http://"+dashboardAddr+"/").Start()
+	node, err := exec.LookPath("node")
+	if err != nil {
+		node = "/usr/local/bin/node"
+	}
+	cmd := exec.Command(node, a.cli, "web", "--no-open")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := cmd.Start(); err != nil {
+		log.Printf("start dashboard: %v", err)
+		return false
+	}
+	_ = cmd.Process.Release()
+	for i := 0; i < 60; i++ {
+		if dashboardUp() {
+			return true
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	return false
 }
+
+func (a *app) openDashboard() {
+	if a.ensureDashboard() {
+		_ = exec.Command("xdg-open", "http://"+dashboardAddr+"/").Start()
+	}
+}
+
+func (a *app) togglePopover() { a.pop.Toggle(a.ensureDashboard) }
