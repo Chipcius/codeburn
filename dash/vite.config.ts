@@ -15,6 +15,13 @@ export default defineConfig({
   build: {
     outDir: '../dist/dash',
     emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        // The compact panel popover the Linux indicator opens.
+        popover: fileURLToPath(new URL('./popover.html', import.meta.url)),
+      },
+    },
   },
   server: {
     port: 5173,
