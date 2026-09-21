@@ -85,11 +85,27 @@ function callRecords(uid: string, turns: readonly ClassifiedTurn[]): CallRecord[
 
 export type IngestStats = { sessions: number; calls: number; sources: number }
 
-/// Write a parsed corpus into the index, replacing whatever each source
-/// contributed before. One transaction per call: a partial ingest that dies
-/// mid-way must not leave a session whose calls are half-written, and the
-/// per-source delete makes a re-ingest idempotent rather than additive.
-export function ingestProjects(index: UsageIndex, projects: readonly ProjectSummary[]): IngestStats {
+/// How much of the index a write replaces.
+///
+///   'sources'  - only the rows the parsed sources contributed (incremental).
+///   'all'      - every derived row, for a full rebuild. Necessary because a call
+///                row is inserted ON CONFLICT DO NOTHING, so without clearing
+///                first a re-ingest can never change a stored cost: a repricing
+///                (a corrected rate, a newly priced model) would never reach the
+///                index and it would drift from the live path forever.
+///   'provider' - every derived row for one provider, for a provider-scoped
+///                rebuild that must not touch the others.
+export type ReplaceScope = { kind: 'sources' } | { kind: 'all' } | { kind: 'provider'; provider: string }
+
+/// Write a parsed corpus into the index in ONE transaction, clear included. WAL
+/// readers keep seeing the previous committed index until this commits, so a
+/// dashboard polling mid-rebuild never sees it empty — which it would if the
+/// clear and the insert were separate transactions.
+export function ingestProjects(
+  index: UsageIndex,
+  projects: readonly ProjectSummary[],
+  replace: ReplaceScope = { kind: 'sources' },
+): IngestStats {
   const sessions: SessionRecord[] = []
   const calls: CallRecord[] = []
   const sourcePaths = new Set<string>()
@@ -115,7 +131,17 @@ export function ingestProjects(index: UsageIndex, projects: readonly ProjectSumm
   }
 
   index.transaction(() => {
-    for (const path of sourcePaths) deleteSourceRows(index, path)
+    if (replace.kind === 'all') {
+      index.run('DELETE FROM call_tool')
+      index.run('DELETE FROM call')
+      index.run('DELETE FROM session')
+    } else if (replace.kind === 'provider') {
+      index.run('DELETE FROM call_tool WHERE call_uid IN (SELECT uid FROM call WHERE provider = ?)', [replace.provider])
+      index.run('DELETE FROM call WHERE provider = ?', [replace.provider])
+      index.run('DELETE FROM session WHERE provider = ?', [replace.provider])
+    } else {
+      for (const path of sourcePaths) deleteSourceRows(index, path)
+    }
     insertSessions(index, sessions)
     insertCalls(index, calls)
   })

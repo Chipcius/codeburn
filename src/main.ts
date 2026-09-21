@@ -3064,14 +3064,13 @@ program
 
 program
   .command('index [action]')
-  .description('Compile provider data into the local usage index, or query it. Actions: build | stats | day <date>')
+  .description('Compile provider data into the local usage index, or query it. Actions: build | watch | stats | <date>')
   .option('--provider <provider>', 'Ingest a single provider (e.g. claude, codex, opencode)', 'all')
   .option('--from <date>', 'Start date for a query (YYYY-MM-DD)')
   .option('--to <date>', 'End date for a query (YYYY-MM-DD)')
   .action(async (action: string | undefined, opts) => {
     assertProvider(opts.provider, 'index')
     const { openUsageIndex, dayTotalsWithCarried, groupTotals } = await import('./usage-index.js')
-    const { ingestProjects } = await import('./usage-ingest.js')
 
     if (action === undefined || action === 'build') {
       const { acquireIngestLock } = await import('./usage-index-refresh.js')
@@ -3082,54 +3081,26 @@ program
         }
         return
       }
-      await loadPricing()
-      const index = openUsageIndex()
+      const { buildIndex } = await import('./usage-index-build.js')
       try {
-        const started = Date.now()
-        // A full parse on purpose: this is the background job the read path is
-        // being freed from, so it reads everything once rather than repeatedly.
-        const projects = await parseAllSessions(undefined, opts.provider === 'all' ? undefined : opts.provider)
-        const parsed = Date.now()
-        const stats = ingestProjects(index, projects)
-        // Seed the days no source can explain any more. Claude Code deletes
-        // transcripts on a retention period, so the oldest history lives ONLY in
-        // the durable daily cache; without this the index is complete for recent
-        // days and silently short for everything older.
-        const { seedCarriedDays, markIngested } = await import('./usage-index.js')
-        const { loadDailyCache } = await import('./daily-cache.js')
-        const cache = await loadDailyCache()
-        const carried = seedCarriedDays(index, cache.days.flatMap(day =>
-          Object.entries(day.providers).map(([provider, slice]) => ({
-            day: day.date,
-            provider,
-            cost: slice.cost,
-            savings: slice.savingsUSD ?? 0,
-            calls: slice.calls,
-            sessions: slice.sessions ?? 0,
-            inputTokens: slice.inputTokens ?? 0,
-            outputTokens: slice.outputTokens ?? 0,
-            cacheReadTokens: slice.cacheReadTokens ?? 0,
-            cacheWriteTokens: slice.cacheWriteTokens ?? 0,
-            // Carried alongside the totals so a model breakdown over a window
-            // reaching past source retention is not silently short.
-            models: Object.fromEntries(Object.entries(slice.models ?? {}).map(([name, m]) => [name, {
-              cost: m.cost,
-              calls: m.calls,
-              tokens: m.inputTokens + m.outputTokens + m.cacheReadTokens + m.cacheWriteTokens,
-            }])),
-          })),
-        ))
-        markIngested(index)
-        console.log(
-          `\n  Indexed ${stats.calls.toLocaleString('en-US')} calls across ${stats.sessions.toLocaleString('en-US')} sessions`
-          + ` (parse ${((parsed - started) / 1000).toFixed(1)}s, write ${((Date.now() - parsed) / 1000).toFixed(1)}s)`
-          + `\n  Carried ${carried.toLocaleString('en-US')} day/provider slices whose sources are gone`
-          + `\n  ${index.path}\n`,
-        )
+        const r = await buildIndex({ provider: opts.provider })
+        if (process.env['CODEBURN_BACKGROUND_INGEST'] !== '1') {
+          console.log(
+            `\n  Indexed ${r.calls.toLocaleString('en-US')} calls across ${r.sessions.toLocaleString('en-US')} sessions`
+            + ` (parse ${(r.parseMs / 1000).toFixed(1)}s, write ${(r.writeMs / 1000).toFixed(1)}s)`
+            + `\n  Carried ${r.carried.toLocaleString('en-US')} day/provider slices whose sources are gone`
+            + `\n  ${r.path}\n`,
+          )
+        }
       } finally {
-        index.close()
         release()
       }
+      return
+    }
+
+    if (action === 'watch') {
+      const { watchAndIngest } = await import('./usage-index-watch.js')
+      await watchAndIngest({ provider: opts.provider })
       return
     }
 
