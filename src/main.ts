@@ -2992,6 +2992,13 @@ program
             outputTokens: slice.outputTokens ?? 0,
             cacheReadTokens: slice.cacheReadTokens ?? 0,
             cacheWriteTokens: slice.cacheWriteTokens ?? 0,
+            // Carried alongside the totals so a model breakdown over a window
+            // reaching past source retention is not silently short.
+            models: Object.fromEntries(Object.entries(slice.models ?? {}).map(([name, m]) => [name, {
+              cost: m.cost,
+              calls: m.calls,
+              tokens: m.inputTokens + m.outputTokens + m.cacheReadTokens + m.cacheWriteTokens,
+            }])),
           })),
         ))
         console.log(

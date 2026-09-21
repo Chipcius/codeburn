@@ -28,7 +28,7 @@ import { loadSqliteConstructor } from './sqlite.js'
 ///   - Ingestion is incremental against a per-source watermark, so re-ingesting
 ///     an unchanged corpus is a stat sweep rather than a parse.
 
-export const USAGE_INDEX_SCHEMA_VERSION = 2
+export const USAGE_INDEX_SCHEMA_VERSION = 3
 
 export type SqliteValue = string | number | bigint | null | Uint8Array
 type Row = Record<string, SqliteValue>
@@ -99,7 +99,14 @@ CREATE TABLE IF NOT EXISTS call (
   uid                TEXT PRIMARY KEY,
   session_uid        TEXT NOT NULL,
   provider           TEXT NOT NULL,
+  -- The raw provider id, kept because pricing, aliasing and tier lookup all key
+  -- off it. It is NOT the grouping key: the daily cache and every report group by
+  -- display name, so indexing on the raw id made a breakdown look like it had
+  -- lost $8,912 of Opus 5 when the money was sitting under "claude-opus-5".
   model              TEXT NOT NULL,
+  -- modelRowKey(): codeburn's canonical grouping key, route suffix and user
+  -- aliases included. What every breakdown must group by.
+  model_key          TEXT NOT NULL,
   day                TEXT NOT NULL,
   ts                 TEXT,
   category           TEXT,
@@ -143,7 +150,7 @@ CREATE TABLE IF NOT EXISTS carried_day (
 CREATE INDEX IF NOT EXISTS carried_day_idx        ON carried_day (day);
 CREATE INDEX IF NOT EXISTS call_day_idx          ON call (day);
 CREATE INDEX IF NOT EXISTS call_day_provider_idx ON call (day, provider);
-CREATE INDEX IF NOT EXISTS call_day_model_idx    ON call (day, model);
+CREATE INDEX IF NOT EXISTS call_day_model_idx    ON call (day, model_key);
 CREATE INDEX IF NOT EXISTS call_session_idx      ON call (session_uid);
 CREATE INDEX IF NOT EXISTS session_provider_idx  ON session (provider);
 CREATE INDEX IF NOT EXISTS session_project_idx   ON session (project_path);
@@ -290,7 +297,10 @@ export type CallRecord = {
   uid: string
   sessionUid: string
   provider: string
+  /// Raw provider id, for pricing and aliasing.
   model: string
+  /// modelRowKey() — the key every breakdown groups by.
+  modelKey: string
   day: string
   ts: string | null
   category: string | null
@@ -325,13 +335,13 @@ export function insertCalls(index: UsageIndex, calls: readonly CallRecord[]): vo
   for (const c of calls) {
     index.run(
       `INSERT INTO call (
-         uid, session_uid, provider, model, day, ts, category, speed,
+         uid, session_uid, provider, model, model_key, day, ts, category, speed,
          input_tokens, output_tokens, reasoning_tokens, cache_read_tokens,
          cache_write_tokens, cache_write_1h, web_searches, cost_usd, savings_usd
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(uid) DO NOTHING`,
       [
-        c.uid, c.sessionUid, c.provider, c.model, c.day, c.ts, c.category, c.speed,
+        c.uid, c.sessionUid, c.provider, c.model, c.modelKey, c.day, c.ts, c.category, c.speed,
         c.inputTokens, c.outputTokens, c.reasoningTokens, c.cacheReadTokens,
         c.cacheWriteTokens, c.cacheWrite1h, c.webSearches, c.costUSD, c.savingsUSD,
       ],
@@ -518,6 +528,85 @@ export function dayTotalsWithCarried(index: UsageIndex, fromDay: string, toDay: 
 
 export type GroupTotals = { key: string; cost: number; calls: number; tokens: number }
 
+/// Provider and model breakdowns that include carried days.
+///
+/// A carried slice REPLACES the derived one for its (day, provider) pair, so the
+/// derived half must exclude those pairs or a partly-surviving day is counted
+/// twice — the same trap `dayTotalsWithCarried` avoids, but it has to be spelled
+/// out in SQL here because the grouping is no longer by day.
+///
+/// `project` is deliberately absent: a carried slice knows its provider and its
+/// models (the cache records both per day), but per-project day stats only exist
+/// from cache v15 onward and are dropped for a sourceless slice, so a carried day
+/// genuinely cannot be attributed to a project. Callers that need a project
+/// breakdown get `groupTotals`, which is source-derived only — and a caller
+/// showing it over a window reaching past source retention has to say so rather
+/// than quietly present it as the whole picture.
+export function groupTotalsWithCarried(
+  index: UsageIndex,
+  groupBy: 'provider' | 'model',
+  fromDay: string,
+  toDay: string,
+): GroupTotals[] {
+  const totals = new Map<string, GroupTotals>()
+  const add = (key: string, cost: number, calls: number, tokens: number): void => {
+    const prior = totals.get(key) ?? { key, cost: 0, calls: 0, tokens: 0 }
+    prior.cost += cost
+    prior.calls += calls
+    prior.tokens += tokens
+    totals.set(key, prior)
+  }
+
+  // Derived, minus every pair a carried slice speaks for. Models group by
+  // model_key, the same display key the cache and every report use.
+  const column = groupBy === 'model' ? 'model_key' : 'provider'
+  for (const r of index.query<Row>(
+    `SELECT ${column} AS key,
+            SUM(cost_usd) AS cost, COUNT(*) AS calls,
+            SUM(input_tokens + output_tokens + cache_read_tokens + cache_write_tokens) AS tokens
+       FROM call c
+      WHERE day BETWEEN ? AND ?
+        AND NOT EXISTS (
+          SELECT 1 FROM carried_day cd WHERE cd.day = c.day AND cd.provider = c.provider
+        )
+      GROUP BY key`,
+    [fromDay, toDay],
+  )) {
+    add(String(r['key']), Number(r['cost'] ?? 0), Number(r['calls'] ?? 0), Number(r['tokens'] ?? 0))
+  }
+
+  if (groupBy === 'provider') {
+    for (const r of index.query<Row>(
+      `SELECT provider AS key, SUM(cost_usd) AS cost, SUM(calls) AS calls,
+              SUM(input_tokens + output_tokens + cache_read_tokens + cache_write_tokens) AS tokens
+         FROM carried_day WHERE day BETWEEN ? AND ? GROUP BY key`,
+      [fromDay, toDay],
+    )) {
+      add(String(r['key']), Number(r['cost'] ?? 0), Number(r['calls'] ?? 0), Number(r['tokens'] ?? 0))
+    }
+  } else {
+    // Model rows ride along as JSON, because a carried slice is day-grained and
+    // a model column would need its own table for what is a handful of rows.
+    for (const r of index.query<Row>(
+      'SELECT models_json FROM carried_day WHERE day BETWEEN ? AND ? AND models_json IS NOT NULL',
+      [fromDay, toDay],
+    )) {
+      let models: Record<string, { cost?: number; calls?: number; tokens?: number }>
+      try {
+        models = JSON.parse(String(r['models_json'])) as typeof models
+      } catch {
+        // A malformed blob loses this slice's model split, never the run.
+        continue
+      }
+      for (const [name, m] of Object.entries(models)) {
+        add(name, Number(m.cost ?? 0), Number(m.calls ?? 0), Number(m.tokens ?? 0))
+      }
+    }
+  }
+
+  return [...totals.values()].sort((a, b) => b.cost - a.cost)
+}
+
 /// Per-provider / per-model / per-project totals for a window. One statement per
 /// grouping rather than one pass over a parsed corpus per panel.
 export function groupTotals(
@@ -533,7 +622,7 @@ export function groupTotals(
          FROM call c JOIN session s ON s.uid = c.session_uid
         WHERE c.day BETWEEN ? AND ?
         GROUP BY key ORDER BY cost DESC`
-    : `SELECT ${groupBy} AS key,
+    : `SELECT ${groupBy === 'model' ? 'model_key' : 'provider'} AS key,
               SUM(cost_usd) AS cost, COUNT(*) AS calls,
               SUM(input_tokens + output_tokens + cache_read_tokens + cache_write_tokens) AS tokens
          FROM call

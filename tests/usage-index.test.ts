@@ -67,6 +67,7 @@ function call(uid: string, day: string, extra: Partial<CallRecord> = {}): CallRe
     sessionUid: 's1',
     provider: 'claude',
     model: 'claude-opus-5',
+    modelKey: 'Opus 5',
     day,
     ts: `${day}T10:00:00.000Z`,
     category: 'coding',
@@ -155,7 +156,7 @@ describe('reads are narrowed by day', () => {
       call('c1', '2026-09-12'),
       call('c2', '2026-09-13'),
       call('c3', '2026-09-13', { costUSD: 2.5 }),
-      call('c4', '2026-09-14', { sessionUid: 's2', provider: 'codex', model: 'gpt-6-astra', costUSD: 10 }),
+      call('c4', '2026-09-14', { sessionUid: 's2', provider: 'codex', model: 'gpt-6-astra', modelKey: 'gpt-6-astra', costUSD: 10 }),
     ])
   })
 
@@ -194,7 +195,7 @@ describe('breakdowns come from the index', () => {
     insertSessions(index, [session('s1'), session('s2', { provider: 'codex', projectLabel: 'beta', projectPath: '/work/beta', sourcePath: '/src/s2.jsonl' })])
     insertCalls(index, [
       call('c1', '2026-09-13'),
-      call('c2', '2026-09-13', { sessionUid: 's2', provider: 'codex', model: 'gpt-6-astra', costUSD: 10 }),
+      call('c2', '2026-09-13', { sessionUid: 's2', provider: 'codex', model: 'gpt-6-astra', modelKey: 'gpt-6-astra', costUSD: 10 }),
     ])
   })
 
@@ -203,9 +204,13 @@ describe('breakdowns come from the index', () => {
       .toEqual([['codex', 10], ['claude', 1.5]])
   })
 
-  it('groups by model', () => {
+  // Grouped by model_key (modelRowKey), not the raw id: the daily cache and every
+  // report name a model by its display key, and indexing on the raw id made a
+  // breakdown look $8,912 short on Opus 5 while the money sat under
+  // "claude-opus-5".
+  it('groups by model display key, not the raw provider id', () => {
     expect(groupTotals(index, 'model', '2026-09-13', '2026-09-13').map(r => r.key))
-      .toEqual(['gpt-6-astra', 'claude-opus-5'])
+      .toEqual(['gpt-6-astra', 'Opus 5'])
   })
 
   it('groups by project across the session join', () => {

@@ -1,4 +1,5 @@
 import { dateKey } from './day-aggregator.js'
+import { modelRowKey } from './models.js'
 import {
   deleteSourceRows,
   insertCalls,
@@ -51,6 +52,12 @@ function callRecords(uid: string, turns: readonly ClassifiedTurn[]): CallRecord[
         sessionUid: uid,
         provider: call.provider || 'unknown',
         model: call.model || 'unknown',
+        // The same key parser.ts uses for modelBreakdown, so an index breakdown
+        // and a report breakdown name the same row. Devin is the one provider
+        // that keeps its raw id, mirroring that exception.
+        modelKey: call.provider === 'devin'
+          ? (call.model || 'unknown')
+          : modelRowKey(call.model || 'unknown', call.route),
         day,
         ts: call.timestamp || null,
         category: turn.category ?? null,
