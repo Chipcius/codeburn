@@ -320,6 +320,41 @@ function totalProjectCostUSD(projects: ProjectSummary[]): number {
   return projects.reduce((sum, project) => sum + project.totalCostUSD, 0)
 }
 
+/// Open the usage index for a read, or return null when a surface must fall back
+/// to the live path: no index yet, an older schema, or never built. Every
+/// fallback kicks a background build, and a stale-but-usable index is served
+/// while one refreshes it. One place, so every surface agrees on what "the index
+/// is ready" means and they cannot drift into different freshness rules.
+async function openIndexForRead(): Promise<{
+  index: import('./usage-index.js').UsageIndex
+  builtAt: number
+  refreshing: boolean
+} | null> {
+  const { existsSync } = await import('fs')
+  const { openUsageIndex, lastIngestAt, usageIndexPath } = await import('./usage-index.js')
+  const { scheduleBackgroundIngest, INDEX_STALE_AFTER_MS } = await import('./usage-index-refresh.js')
+  if (process.env['CODEBURN_LEGACY_READ'] === '1') return null
+  if (!existsSync(usageIndexPath())) {
+    scheduleBackgroundIngest()
+    return null
+  }
+  let index
+  try {
+    index = openUsageIndex({ readOnly: true })
+  } catch {
+    scheduleBackgroundIngest()
+    return null
+  }
+  const builtAt = lastIngestAt(index)
+  if (builtAt === null) {
+    index.close()
+    scheduleBackgroundIngest()
+    return null
+  }
+  const refreshing = Date.now() - builtAt > INDEX_STALE_AFTER_MS && scheduleBackgroundIngest()
+  return { index, builtAt, refreshing }
+}
+
 /// Render the overview from the usage index, returning false when there is no
 /// index yet so the caller can fall back to the live path. A stale index is
 /// still served — the figures are labelled with their age — and a refresh is
@@ -332,35 +367,14 @@ async function renderOverviewFromIndex(args: {
   provider: string
   color: boolean
 }): Promise<boolean> {
-  const { existsSync } = await import('fs')
-  const { openUsageIndex, periodFromIndex, lastIngestAt, usageIndexPath } = await import('./usage-index.js')
-  const { scheduleBackgroundIngest, describeIndexAge, INDEX_STALE_AFTER_MS } = await import('./usage-index-refresh.js')
+  const { periodFromIndex } = await import('./usage-index.js')
+  const { describeIndexAge } = await import('./usage-index-refresh.js')
 
-  if (!existsSync(usageIndexPath())) {
-    // First run: build it behind this command, and let the live path answer now.
-    scheduleBackgroundIngest()
-    return false
-  }
-
-  let index
-  try {
-    index = openUsageIndex({ readOnly: true })
-  } catch {
-    // A missing or older-schema index is rebuilt in the background; this run
-    // still answers, from the live path.
-    scheduleBackgroundIngest()
-    return false
-  }
+  const opened = await openIndexForRead()
+  if (!opened) return false
+  const { index, builtAt: built, refreshing } = opened
 
   try {
-    const built = lastIngestAt(index)
-    if (built === null) {
-      scheduleBackgroundIngest()
-      return false
-    }
-    const stale = Date.now() - built > INDEX_STALE_AFTER_MS
-    const refreshing = stale && scheduleBackgroundIngest()
-
     const period = periodFromIndex(index, toDateString(args.range.start), toDateString(args.range.end), args.provider)
     const config = await readConfig()
     const budget = args.provider === 'all'
@@ -1408,6 +1422,32 @@ program
       }
       console.log(JSON.stringify(await attachPlanSummaries(payload)))
       return
+    }
+
+    // Terminal status is two cost/call pairs, the cheapest possible index read.
+    // Name filters keep the live path for the same reason overview does.
+    const nameFiltered = (opts.project?.length ?? 0) > 0 || (opts.exclude?.length ?? 0) > 0
+    if (!nameFiltered) {
+      const opened = await openIndexForRead()
+      if (opened) {
+        const { dayTotalsWithCarried } = await import('./usage-index.js')
+        try {
+          const sum = (range: DateRange) => {
+            const rows = dayTotalsWithCarried(opened.index, toDateString(range.start), toDateString(range.end), pf)
+            return {
+              cost: rows.reduce((a, d) => a + d.cost, 0),
+              calls: rows.reduce((a, d) => a + d.calls, 0),
+            }
+          }
+          console.log(renderStatusBar([], {
+            today: sum(getDateRange('today').range),
+            month: sum(getDateRange('month').range),
+          }))
+        } finally {
+          opened.index.close()
+        }
+        return
+      }
     }
 
     const todayDurable = await buildDurablePeriod(getDateRange('today'), { provider: pf, project: opts.project, exclude: opts.exclude })
