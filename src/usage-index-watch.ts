@@ -1,10 +1,10 @@
+import { spawn } from 'child_process'
 import { watch, type FSWatcher } from 'fs'
 import { readdir, stat } from 'fs/promises'
 import { join } from 'path'
 
 import { getAllProviders } from './providers/index.js'
-import { buildIndex } from './usage-index-build.js'
-import { acquireIngestLock } from './usage-index-refresh.js'
+import { ingestInProgress } from './usage-index-refresh.js'
 import { lastIngestAt, openUsageIndex } from './usage-index.js'
 
 /// The worker that keeps the usage index current. Provider stores are WATCHED and
@@ -76,6 +76,33 @@ function log(message: string): void {
   process.stdout.write(`[${new Date().toISOString().slice(11, 19)}] ${message}\n`)
 }
 
+/// Rebuild in a CHILD process, not in this one.
+///
+/// A full rebuild parses the whole corpus, and V8 keeps that peak for the life of
+/// the process: the watcher measured 2.7 GB resident after a few rebuilds and was
+/// the largest consumer on the machine. Ingest is a batch job, so it gets a
+/// process whose exit returns the memory, and the watcher stays a small
+/// supervisor. The child takes the ingest lock itself, which is also what keeps
+/// it from colliding with a foreground build.
+function runBuildProcess(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const script = process.argv[1]
+    if (!script) {
+      reject(new Error('cannot locate the codeburn entry point to rebuild with'))
+      return
+    }
+    const child = spawn(process.execPath, [script, 'index', 'build'], {
+      stdio: ['ignore', 'inherit', 'inherit'],
+      env: { ...process.env, CODEBURN_BACKGROUND_INGEST: '1' },
+    })
+    child.on('error', reject)
+    child.on('exit', code => {
+      if (code === 0) resolve()
+      else reject(new Error(`index build exited with code ${code}`))
+    })
+  })
+}
+
 async function sourceRoots(provider?: string): Promise<string[]> {
   const providers = await getAllProviders()
   const roots = new Set<string>()
@@ -109,9 +136,8 @@ export async function watchAndIngest(opts: { provider?: string } = {}): Promise<
       dirty = true
       return
     }
-    const release = acquireIngestLock()
-    if (!release) {
-      // Someone else (a foreground `index build`) is on it; try again shortly.
+    if (ingestInProgress()) {
+      // A foreground `codeburn index build` is on it; try again shortly.
       dirty = true
       scheduleFlush()
       return
@@ -119,20 +145,16 @@ export async function watchAndIngest(opts: { provider?: string } = {}): Promise<
     building = true
     dirty = false
     firstDirtyAt = 0
+    const started = Date.now()
     try {
-      const r = await buildIndex({ provider: opts.provider })
-      log(
-        `${reason}: ${r.calls.toLocaleString('en-US')} calls in ${((r.parseMs + r.writeMs) / 1000).toFixed(1)}s`
-        + `, ${r.payloads} payloads in ${(r.payloadMs / 1000).toFixed(1)}s`
-        + (r.payloadFailures.length ? ` (failed: ${r.payloadFailures.join('; ')})` : ''),
-      )
+      await runBuildProcess()
+      log(`${reason}: rebuilt in ${((Date.now() - started) / 1000).toFixed(1)}s`)
     } catch (err) {
       log(`build failed (${reason}): ${err instanceof Error ? err.message : String(err)}`)
       // Leave it dirty so the next event or the safety timer retries.
       dirty = true
     } finally {
       building = false
-      release()
       if (dirty) scheduleFlush()
     }
   }
